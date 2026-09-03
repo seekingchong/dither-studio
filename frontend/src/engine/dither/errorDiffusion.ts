@@ -86,6 +86,12 @@ function ostroIndex(v: number): number {
   return l < 128 ? l : 255 - l;
 }
 
+/** 按亮度取 Ostromoukhov 三个抽头（右、左下、下）的归一化权重 */
+export function ostroWeights(v: number): [number, number, number] {
+  const oi = ostroIndex(v) * 3;
+  return [OSTRO_TABLE[oi], OSTRO_TABLE[oi + 1], OSTRO_TABLE[oi + 2]];
+}
+
 export type ScanDirection = 'ltr' | 'rtl' | 'ttb' | 'btt';
 
 export interface DiffusionOptions {
@@ -226,6 +232,18 @@ export function parseCustomKernel(text: string): DiffusionKernel | null {
 }
 
 const FS = KERNELS[0];
+
+/** 按算法 id 解析出核与变系数模式（自定义核解析失败回退 FS） */
+export function kernelFor(id: string, params: Parameters<AlgorithmDef['run']>[1]): { kernel: DiffusionKernel; variable?: DiffusionOptions['variable'] } {
+  if (id === 'ostromoukhov') return { kernel: FS, variable: 'ostromoukhov' };
+  if (id === 'zhou-fang') return { kernel: FS, variable: 'zhou-fang' };
+  if (id === 'custom') return { kernel: parseCustomKernel(str(params, 'dither.ed.custom')) ?? FS };
+  return { kernel: KERNELS.find((k) => k.id === id) ?? FS };
+}
+
+export function readDiffusionOptions(params: Parameters<AlgorithmDef['run']>[1]): DiffusionOptions {
+  return readOptions(params);
+}
 
 function readOptions(params: Parameters<AlgorithmDef['run']>[1]): DiffusionOptions {
   return {

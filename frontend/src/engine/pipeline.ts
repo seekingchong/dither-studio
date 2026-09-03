@@ -1,11 +1,17 @@
 import type { Params } from '@/params';
+import { applyAccent } from './color/accent';
+import { rgbToCmyk } from './color/cmyk';
 import { toGray } from './color/gray';
-import { mapLevels } from './color/map';
+import { buildLevelPalette, combineChannels, mapLevels, mapPaletteIndices } from './color/map';
+import { resolvePalette, type Palette } from './color/palettes';
+import { srgbToLinearFast } from './color/srgb';
+import { colorDither } from './dither/color';
 import { resolveAlgorithm } from './dither/registry';
-import { keyOf, keyOfExcept, toPipelineOptions } from './options';
+import type { AlgorithmDef, DitherInput } from './dither/types';
+import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
 import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
-import { applyThresholdBias, applyTone } from './preprocess/tone';
+import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
 import { renderCells } from './render/upscale';
 import type { CellFrame, GrayFrame, LevelFrame, RGBAFrame, RGBFrame } from './types';
 
@@ -21,14 +27,16 @@ export interface PipelineStats {
 }
 
 /**
- * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 抖动 → 颜色映射 → 网格渲染。
+ * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 抖动 → 颜色映射 → Accent → 网格渲染。
  * 每个阶段按"上游键 + 本阶段参数"缓存，参数没变的阶段直接复用。
+ * 颜色映射按模式分三条路：亮度路径（单色 / 灰阶 / Tint / 深度错配）、真彩调色板路径、分通道路径。
  */
 export class Pipeline {
   private fitted?: Cached<RGBAFrame>;
   private pixelated?: Cached<RGBFrame>;
   private toned?: Cached<RGBFrame>;
   private gray?: Cached<GrayFrame>;
+  private biased?: Cached<GrayFrame>;
   private levels?: Cached<LevelFrame>;
   private cells?: Cached<CellFrame>;
   lastStats: PipelineStats = { recomputed: [], elapsedMs: 0 };
@@ -64,21 +72,84 @@ export class Pipeline {
       recomputed.push('gray');
     }
 
-    const ditherKey = `${grayKey}|threshold=${opts.tone.threshold}|levels=${opts.color.levels}|${keyOf(params, 'dither.')}`;
-    if (this.levels?.key !== ditherKey) {
-      const biased = applyThresholdBias(this.gray.value, opts.tone.threshold);
-      const algo = resolveAlgorithm(params);
-      const data = algo.run(
-        { width: biased.width, height: biased.height, gray: biased.data, levels: opts.color.levels, seed: 0 },
-        params,
-      );
-      this.levels = { key: ditherKey, value: { width: biased.width, height: biased.height, levels: opts.color.levels, data } };
-      recomputed.push(`dither:${algo.family}/${algo.id}`);
+    const biasedKey = `${grayKey}|threshold=${opts.tone.threshold}`;
+    if (this.biased?.key !== biasedKey) {
+      this.biased = { key: biasedKey, value: applyThresholdBias(this.gray.value, opts.tone.threshold) };
     }
 
-    const colorKey = `${ditherKey}|${keyOf(params, 'color.')}`;
-    if (this.cells?.key !== colorKey) {
-      this.cells = { key: colorKey, value: mapLevels(this.levels.value, opts.color) };
+    const algo = resolveAlgorithm(params);
+    const ditherParams = keyOf(params, 'dither.');
+    const palette = resolvePalette(opts.color.palettePreset, opts.color.paletteCustom);
+    const paletteKey = `${opts.color.palettePreset}:${opts.color.paletteCustom}`;
+    const { width, height } = this.biased.value;
+    const mode = opts.color.mode;
+
+    let levelFrame: LevelFrame;
+    let cellsKey: string;
+    let buildCells: () => CellFrame;
+
+    if (mode === 'palette' && !opts.color.mismatch) {
+      // 真彩调色板路径：直接在 RGB 上量化到最近色
+      const key = `${toneKey}|threshold=${opts.tone.threshold}|palette=${paletteKey}|${ditherParams}|path=color`;
+      if (this.levels?.key !== key) {
+        const data = this.runColorPath(algo, params, opts, palette);
+        this.levels = { key, value: { width, height, levels: palette.size, data } };
+        recomputed.push(`dither:${algo.family}/${algo.id}:palette`);
+      }
+      levelFrame = this.levels.value;
+      cellsKey = `${key}|${keyOf(params, 'color.')}`;
+      buildCells = () => mapPaletteIndices(levelFrame.data, width, height, palette);
+    } else if (mode === 'channels') {
+      const n = opts.color.levels;
+      const key = `${toneKey}|threshold=${opts.tone.threshold}|linear=${opts.tone.linear}|levels=${n}|space=${opts.color.channelSpace}|${ditherParams}|path=channels`;
+      let frames: LevelFrame[];
+      if (this.channels?.key !== key) {
+        frames = this.runChannelPath(algo, params, opts);
+        this.channels = { key, value: frames };
+        recomputed.push(`dither:${algo.family}/${algo.id}:channels`);
+      } else {
+        frames = this.channels.value;
+      }
+      levelFrame = channelLevelSummary(frames, opts.color.channelSpace);
+      cellsKey = `${key}|${keyOf(params, 'color.')}`;
+      buildCells = () => combineChannels(frames, opts.color.channelSpace, opts.tone.linear);
+    } else {
+      // 亮度路径
+      const n = mode === 'palette' ? opts.color.paletteLevels : opts.color.levels;
+      const key = `${biasedKey}|levels=${n}|${ditherParams}|path=gray`;
+      if (this.levels?.key !== key) {
+        const input: DitherInput = { width, height, gray: this.biased.value.data, levels: n, seed: 0 };
+        this.levels = { key, value: { width, height, levels: n, data: algo.run(input, params) } };
+        recomputed.push(`dither:${algo.family}/${algo.id}`);
+      }
+      levelFrame = this.levels.value;
+      cellsKey = `${key}|linear=${opts.tone.linear}|${keyOf(params, 'color.')}`;
+      buildCells = () => {
+        const lut = buildLevelPalette({
+          mode,
+          levels: n,
+          linear: opts.tone.linear,
+          tintDark: opts.color.tintDark,
+          tintLight: opts.color.tintLight,
+          tintStops: opts.color.tintStops,
+          palette,
+          mismatch: opts.color.mismatch,
+          channelSpace: opts.color.channelSpace,
+        });
+        return mapLevels(levelFrame, lut);
+      };
+    }
+
+    if (this.cells?.key !== cellsKey) {
+      let cells = buildCells();
+      if (opts.color.accent.enabled) {
+        cells = applyAccent(
+          cells,
+          { width, height, levels: levelFrame.data, levelCount: levelFrame.levels, gray: this.biased.value.data },
+          opts.color.accent,
+        );
+      }
+      this.cells = { key: cellsKey, value: cells };
       recomputed.push('color');
     }
 
@@ -90,14 +161,79 @@ export class Pipeline {
     return output;
   }
 
+  private channels?: Cached<LevelFrame[]>;
+
+  /** 真彩路径；算法没有颜色实现时回退到亮度路径并按亮度秩取色 */
+  private runColorPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions, palette: Palette): Uint8Array {
+    const toned = this.toned!.value;
+    const { width, height } = toned;
+    const bias = thresholdBias(opts.tone.threshold);
+    let rgb = toned.data;
+    if (bias !== 0) {
+      rgb = new Float32Array(toned.data);
+      for (let i = 0; i < rgb.length; i++) rgb[i] += bias;
+    }
+    const out = colorDither(algo, { width, height, rgb, palette, seed: 0 }, params);
+    if (out) return out;
+    const input: DitherInput = { width, height, gray: this.biased!.value.data, levels: palette.size, seed: 0 };
+    return algo.run(input, params);
+  }
+
+  /** 分通道路径：RGB 三通道或 CMYK 四通道各自当作灰度抖动 */
+  private runChannelPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions): LevelFrame[] {
+    const toned = this.toned!.value;
+    const { width, height } = toned;
+    const n = opts.color.levels;
+    const linear = opts.tone.linear;
+    const bias = thresholdBias(opts.tone.threshold);
+    const count = opts.color.channelSpace === 'cmyk' ? 4 : 3;
+    const channels = Array.from({ length: count }, () => new Float32Array(width * height));
+    const src = toned.data;
+    for (let i = 0, j = 0; i < width * height; i++, j += 3) {
+      let r = src[j];
+      let g = src[j + 1];
+      let b = src[j + 2];
+      if (linear) {
+        r = srgbToLinearFast(r);
+        g = srgbToLinearFast(g);
+        b = srgbToLinearFast(b);
+      }
+      if (count === 4) {
+        const [c, m, y, k] = rgbToCmyk(r, g, b);
+        channels[0][i] = c + bias;
+        channels[1][i] = m + bias;
+        channels[2][i] = y + bias;
+        channels[3][i] = k + bias;
+      } else {
+        channels[0][i] = r + bias;
+        channels[1][i] = g + bias;
+        channels[2][i] = b + bias;
+      }
+    }
+    return channels.map((gray) => ({ width, height, levels: n, data: algo.run({ width, height, gray, levels: n, seed: 0 }, params) }));
+  }
+
   /** 当前缓存的量化结果（导出、统计用） */
   get currentLevels(): LevelFrame | undefined {
     return this.levels?.value;
   }
 
   clear() {
-    this.fitted = this.pixelated = this.toned = this.gray = this.levels = this.cells = undefined;
+    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = undefined;
   }
+}
+
+/** 分通道结果压成一个"亮度等级"帧，供 Accent 层判断前景 / 背景 */
+function channelLevelSummary(frames: LevelFrame[], space: 'rgb' | 'cmyk'): LevelFrame {
+  const { width, height, levels } = frames[0];
+  const data = new Uint8Array(width * height);
+  if (space === 'cmyk' && frames.length >= 4) {
+    const k = frames[3].data;
+    for (let i = 0; i < data.length; i++) data[i] = levels - 1 - k[i];
+  } else {
+    for (let i = 0; i < data.length; i++) data[i] = Math.round((frames[0].data[i] + frames[1].data[i] + frames[2].data[i]) / 3);
+  }
+  return { width, height, levels, data };
 }
 
 /** 一次性运行整条流水线（测试与导出用） */

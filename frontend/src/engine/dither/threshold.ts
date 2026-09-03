@@ -99,7 +99,7 @@ function adaptive(input: DitherInput, params: Parameters<AlgorithmDef['run']>[1]
 }
 
 export const THRESHOLD_ALGORITHMS: AlgorithmDef[] = [
-  { id: 'fixed', family: 'threshold', label: '固定阈值', run: fixed },
+  { id: 'fixed', family: 'threshold', label: '固定阈值', run: fixed, field: () => ({ field: () => 0.5, amplitude: 0 }) },
   { id: 'otsu', family: 'threshold', label: 'Otsu 自动阈值', run: otsu },
   { id: 'adaptive', family: 'threshold', label: '自适应阈值', run: adaptive },
 ];

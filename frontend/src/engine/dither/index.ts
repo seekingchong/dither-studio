@@ -10,13 +10,17 @@ export {
   KERNELS,
   errorDiffuse,
   parseCustomKernel,
+  kernelFor,
+  readDiffusionOptions,
+  ostroWeights,
   type DiffusionKernel,
   type DiffusionOptions,
   type ScanDirection,
 } from './errorDiffusion';
-export { CURVE_ALGORITHMS, CURVE_TYPES, riemersmaDither, type RiemersmaOptions } from './curve';
+export { CURVE_ALGORITHMS, CURVE_TYPES, riemersmaDither, readRiemersmaOptions, riemersmaWeights, type RiemersmaOptions } from './curve';
 export { curveOrder, hilbertOrder, peanoOrder, gosperOrder, fassOrder, type CurveType } from './curves';
-export { DOT_DIFFUSION_ALGORITHMS, dotDiffuse } from './dotDiffusion';
+export { DOT_DIFFUSION_ALGORITHMS, dotDiffuse, classMatrixFor, type ClassMatrix } from './dotDiffusion';
+export { colorDither, thresholdDitherColor, errorDiffuseColor, riemersmaColor, dotDiffuseColor } from './color';
 export { DBS_ALGORITHMS, dbsDither, type DbsOptions } from './dbs';
 export { PATTERN_ALGORITHMS, PATTERN_TYPES, patternDither, type PatternOptions } from './pattern';
 export { ALGORITHMS, FAMILY_PARAM, algorithmsOf, findAlgorithm, resolveAlgorithm } from './registry';

@@ -43,6 +43,28 @@ export function riemersmaDither(input: DitherInput, order: Int32Array, opts: Rie
   return out;
 }
 
+export function readRiemersmaOptions(params: Parameters<AlgorithmDef['run']>[1]): RiemersmaOptions {
+  return {
+    history: num(params, 'dither.curve.history'),
+    ratio: num(params, 'dither.curve.ratio'),
+    strength: num(params, 'dither.curve.strength') / 100,
+  };
+}
+
+/** 归一化的指数衰减权重（含强度） */
+export function riemersmaWeights(opts: RiemersmaOptions): Float32Array {
+  const n = Math.max(1, Math.round(opts.history));
+  const ratio = Math.max(1, opts.ratio);
+  const weights = new Float32Array(n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    weights[i] = n === 1 ? 1 : Math.exp((-Math.log(ratio) * i) / (n - 1));
+    sum += weights[i];
+  }
+  for (let i = 0; i < n; i++) weights[i] = (weights[i] / sum) * opts.strength;
+  return weights;
+}
+
 export const CURVE_TYPES: Array<{ id: CurveType; label: string }> = [
   { id: 'hilbert', label: 'Riemersma（Hilbert）' },
   { id: 'peano', label: 'Peano 曲线' },
@@ -55,9 +77,5 @@ export const CURVE_ALGORITHMS: AlgorithmDef[] = CURVE_TYPES.map(({ id, label }) 
   family: 'curve',
   label,
   run: (input, params) =>
-    riemersmaDither(input, curveOrder(str(params, 'dither.curve.type') as CurveType, input.width, input.height), {
-      history: num(params, 'dither.curve.history'),
-      ratio: num(params, 'dither.curve.ratio'),
-      strength: num(params, 'dither.curve.strength') / 100,
-    }),
+    riemersmaDither(input, curveOrder(str(params, 'dither.curve.type') as CurveType, input.width, input.height), readRiemersmaOptions(params)),
 }));

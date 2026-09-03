@@ -30,11 +30,11 @@ function hexCenterDistance(x: number, y: number, s: number): number {
   return Math.min(1, best / (s / 1.7320508));
 }
 
-export function patternDither(input: DitherInput, opts: PatternOptions): Uint8Array {
+export function patternField(opts: PatternOptions, width: number, height: number): (x: number, y: number) => number {
   const s = Math.max(2, opts.scale);
   const rot = rotator(-opts.angle);
-  const cx0 = input.width / 2;
-  const cy0 = input.height / 2;
+  const cx0 = width / 2;
+  const cy0 = height / 2;
   const bayer2 = getMatrix('bayer2');
 
   let field: (x: number, y: number) => number;
@@ -97,7 +97,15 @@ export function patternDither(input: DitherInput, opts: PatternOptions): Uint8Ar
     default:
       field = () => 0.5;
   }
-  return thresholdDither(input, field);
+  return field;
+}
+
+export function patternDither(input: DitherInput, opts: PatternOptions): Uint8Array {
+  return thresholdDither(input, patternField(opts, input.width, input.height));
+}
+
+function patternOptions(params: Parameters<AlgorithmDef['run']>[1]): PatternOptions {
+  return { type: str(params, 'dither.pattern.type'), scale: num(params, 'dither.pattern.scale'), angle: num(params, 'dither.pattern.angle') };
 }
 
 export const PATTERN_TYPES: Array<{ id: string; label: string }> = [
@@ -116,10 +124,6 @@ export const PATTERN_ALGORITHMS: AlgorithmDef[] = PATTERN_TYPES.map(({ id, label
   id,
   family: 'pattern',
   label,
-  run: (input, params) =>
-    patternDither(input, {
-      type: str(params, 'dither.pattern.type'),
-      scale: num(params, 'dither.pattern.scale'),
-      angle: num(params, 'dither.pattern.angle'),
-    }),
+  run: (input, params) => patternDither(input, patternOptions(params)),
+  field: (params, width, height) => ({ field: patternField(patternOptions(params), width, height), amplitude: 1 }),
 }));

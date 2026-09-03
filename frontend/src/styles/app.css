@@ -775,3 +775,32 @@ button {
 .tda-text__input::placeholder {
   color: var(--tda-color-text-disabled);
 }
+
+/* ---------- 色板预览 ---------- */
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--tda-spacing-2xs);
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--tda-radius-xs);
+  border: 1px solid var(--tda-color-border);
+  flex: none;
+}
+
+.swatches--compact .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--tda-radius-none);
+}
+
+.swatches__count {
+  margin-left: var(--tda-spacing-xs);
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+}

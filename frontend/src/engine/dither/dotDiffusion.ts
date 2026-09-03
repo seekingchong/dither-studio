@@ -15,9 +15,13 @@ const KNUTH_CLASS = [
   26, 8, 16, 24, 39, 47, 55, 36,
 ];
 
-interface ClassMatrix {
+export interface ClassMatrix {
   size: number;
   classes: Int32Array;
+}
+
+export function classMatrixFor(id: string): ClassMatrix {
+  return id === 'lippens' ? lippensMatrix() : knuthMatrix();
 }
 
 function knuthMatrix(): ClassMatrix {
@@ -29,7 +33,7 @@ function lippensMatrix(): ClassMatrix {
   return { size: 16, classes: bayerInts(16) };
 }
 
-const NEIGHBORS: Array<[number, number, number]> = [
+export const DOT_NEIGHBORS: Array<[number, number, number]> = [
   [1, 0, 2], [-1, 0, 2], [0, 1, 2], [0, -1, 2],
   [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1],
 ];
@@ -57,14 +61,14 @@ export function dotDiffuse(input: DitherInput, matrix: ClassMatrix, strength = 1
         const err = (old - levelValue(q, levels)) * strength;
         if (err === 0) continue;
         let wsum = 0;
-        for (const [dx, dy, w] of NEIGHBORS) {
+        for (const [dx, dy, w] of DOT_NEIGHBORS) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
           if (classAt(nx, ny) > c) wsum += w;
         }
         if (wsum === 0) continue;
-        for (const [dx, dy, w] of NEIGHBORS) {
+        for (const [dx, dy, w] of DOT_NEIGHBORS) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;

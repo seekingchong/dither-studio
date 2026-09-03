@@ -77,7 +77,7 @@ function blobField(fx: number, fy: number, spot: SpotFunction): number {
   return Math.min(1, Math.sqrt(sum));
 }
 
-export function halftoneDither(input: DitherInput, opts: HalftoneOptions): Uint8Array {
+export function halftoneField(opts: HalftoneOptions): (x: number, y: number) => number {
   const period = Math.max(2, opts.period);
   const rot = rotator(-opts.angle);
   const gamma = Math.exp(-opts.gain * 1.5);
@@ -100,7 +100,22 @@ export function halftoneDither(input: DitherInput, opts: HalftoneOptions): Uint8
     s = Math.pow(clamp01(s), gamma);
     return opts.invert ? s : 1 - s;
   };
-  return thresholdDither(input, field);
+  return field;
+}
+
+export function halftoneDither(input: DitherInput, opts: HalftoneOptions): Uint8Array {
+  return thresholdDither(input, halftoneField(opts));
+}
+
+function halftoneOptions(params: Parameters<AlgorithmDef['run']>[1]): HalftoneOptions {
+  return {
+    shape: str(params, 'dither.halftone.shape'),
+    period: num(params, 'dither.halftone.period'),
+    angle: num(params, 'dither.halftone.angle'),
+    gain: num(params, 'dither.halftone.gain') / 100,
+    gooey: num(params, 'dither.halftone.gooey') / 100,
+    invert: bool(params, 'dither.halftone.invert'),
+  };
 }
 
 export const HALFTONE_SHAPES: Array<{ id: string; label: string }> = [
@@ -120,13 +135,6 @@ export const HALFTONE_ALGORITHMS: AlgorithmDef[] = HALFTONE_SHAPES.map(({ id, la
   id,
   family: 'halftone',
   label,
-  run: (input, params) =>
-    halftoneDither(input, {
-      shape: str(params, 'dither.halftone.shape'),
-      period: num(params, 'dither.halftone.period'),
-      angle: num(params, 'dither.halftone.angle'),
-      gain: num(params, 'dither.halftone.gain') / 100,
-      gooey: num(params, 'dither.halftone.gooey') / 100,
-      invert: bool(params, 'dither.halftone.invert'),
-    }),
+  run: (input, params) => halftoneDither(input, halftoneOptions(params)),
+  field: (params) => ({ field: halftoneField(halftoneOptions(params)), amplitude: 1 }),
 }));

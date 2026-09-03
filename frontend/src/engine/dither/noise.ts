@@ -2,7 +2,7 @@ import { num } from '@/params';
 import { createPerlin, hash2, interleavedGradientNoise } from '../util/random';
 import { BLUE_NOISE_SIZE, blueNoise128 } from './bluenoise128';
 import { mod, thresholdDither } from './quantize';
-import type { AlgorithmDef, DitherInput } from './types';
+import type { AlgorithmDef, DitherInput, ThresholdField } from './types';
 
 type NoiseField = (x: number, y: number) => number;
 
@@ -33,18 +33,24 @@ function makeField(type: string, scale: number, seed: number): NoiseField {
   }
 }
 
-function run(type: string) {
-  return (input: DitherInput, params: Parameters<AlgorithmDef['run']>[1]) => {
-    const amplitude = num(params, 'dither.noise.amplitude') / 100;
-    const scale = num(params, 'dither.noise.scale');
-    const seed = Math.round(num(params, 'dither.noise.seed'));
-    return thresholdDither(input, makeField(type, scale, seed), amplitude);
+function fieldOf(type: string, params: Parameters<AlgorithmDef['run']>[1]): ThresholdField {
+  return {
+    field: makeField(type, num(params, 'dither.noise.scale'), Math.round(num(params, 'dither.noise.seed'))),
+    amplitude: num(params, 'dither.noise.amplitude') / 100,
   };
 }
 
-export const NOISE_ALGORITHMS: AlgorithmDef[] = [
-  { id: 'blue', family: 'noise', label: '蓝噪声', run: run('blue') },
-  { id: 'white', family: 'noise', label: '白噪声', run: run('white') },
-  { id: 'ign', family: 'noise', label: '交错梯度噪声', run: run('ign') },
-  { id: 'perlin', family: 'noise', label: 'Perlin', run: run('perlin') },
-];
+function define(id: string, label: string): AlgorithmDef {
+  return {
+    id,
+    family: 'noise',
+    label,
+    run: (input: DitherInput, params) => {
+      const f = fieldOf(id, params);
+      return thresholdDither(input, f.field, f.amplitude);
+    },
+    field: (params) => fieldOf(id, params),
+  };
+}
+
+export const NOISE_ALGORITHMS: AlgorithmDef[] = [define('blue', '蓝噪声'), define('white', '白噪声'), define('ign', '交错梯度噪声'), define('perlin', 'Perlin')];

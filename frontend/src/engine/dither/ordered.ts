@@ -168,8 +168,8 @@ export interface OrderedOptions {
   offsetY: number;
 }
 
-/** 有序抖动：gray + (m - 0.5) / (levels - 1) 后量化 */
-export function orderedDither(input: DitherInput, matrix: ThresholdMatrix, opts: Partial<OrderedOptions> = {}): Uint8Array {
+/** 有序阈值场：矩阵按缩放、角度、偏移铺满平面 */
+export function orderedField(matrix: ThresholdMatrix, opts: Partial<OrderedOptions> = {}): (x: number, y: number) => number {
   const n = matrix.size;
   const m = matrix.data;
   const s = Math.max(1, opts.scale ?? 1);
@@ -177,13 +177,27 @@ export function orderedDither(input: DitherInput, matrix: ThresholdMatrix, opts:
   const ox = opts.offsetX ?? 0;
   const oy = opts.offsetY ?? 0;
   if (angle === 0) {
-    return thresholdDither(input, (x, y) => m[mod(Math.floor((y + oy) / s), n) * n + mod(Math.floor((x + ox) / s), n)]);
+    return (x, y) => m[mod(Math.floor((y + oy) / s), n) * n + mod(Math.floor((x + ox) / s), n)];
   }
   const rot = rotator(angle);
-  return thresholdDither(input, (x, y) => {
+  return (x, y) => {
     const [rx, ry] = rot(x + 0.5 + ox, y + 0.5 + oy);
     return m[mod(Math.floor(ry / s), n) * n + mod(Math.floor(rx / s), n)];
-  });
+  };
+}
+
+/** 有序抖动：gray + (m - 0.5) / (levels - 1) 后量化 */
+export function orderedDither(input: DitherInput, matrix: ThresholdMatrix, opts: Partial<OrderedOptions> = {}): Uint8Array {
+  return thresholdDither(input, orderedField(matrix, opts));
+}
+
+function orderedOptions(params: Parameters<AlgorithmDef['run']>[1]): OrderedOptions {
+  return {
+    scale: num(params, 'dither.ordered.scale'),
+    angle: num(params, 'dither.ordered.angle'),
+    offsetX: num(params, 'dither.ordered.offsetX'),
+    offsetY: num(params, 'dither.ordered.offsetY'),
+  };
 }
 
 export const ORDERED_MATRICES: Array<{ id: string; label: string }> = [
@@ -207,11 +221,6 @@ export const ORDERED_ALGORITHMS: AlgorithmDef[] = ORDERED_MATRICES.map(({ id, la
   id,
   family: 'ordered',
   label,
-  run: (input, params) =>
-    orderedDither(input, getMatrix(str(params, 'dither.ordered.matrix')), {
-      scale: num(params, 'dither.ordered.scale'),
-      angle: num(params, 'dither.ordered.angle'),
-      offsetX: num(params, 'dither.ordered.offsetX'),
-      offsetY: num(params, 'dither.ordered.offsetY'),
-    }),
+  run: (input, params) => orderedDither(input, getMatrix(str(params, 'dither.ordered.matrix')), orderedOptions(params)),
+  field: (params) => ({ field: orderedField(getMatrix(str(params, 'dither.ordered.matrix')), orderedOptions(params)), amplitude: 1 }),
 }));

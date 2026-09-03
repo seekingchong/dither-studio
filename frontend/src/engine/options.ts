@@ -1,5 +1,7 @@
 import { bool, num, str, type Params } from '@/params';
-import type { ColorMode } from './color/map';
+import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
+import type { ChannelSpace, ColorMode } from './color/map';
+import { parseColorList } from './color/palettes';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
@@ -10,7 +12,21 @@ export interface PipelineOptions {
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
   tone: ToneOptions & { linear: boolean; threshold: number; grayFormula: GrayFormula };
-  color: { mode: ColorMode; tintDark: string; tintLight: string; levels: number };
+  color: {
+    mode: ColorMode;
+    /** 灰阶 / Tint / Channels 的级数 */
+    levels: number;
+    /** 深度错配时的亮度级数 N */
+    paletteLevels: number;
+    tintDark: string;
+    tintLight: string;
+    tintStops: string[];
+    palettePreset: string;
+    paletteCustom: string;
+    mismatch: boolean;
+    channelSpace: ChannelSpace;
+    accent: AccentOptions;
+  };
 }
 
 export function toPipelineOptions(params: Params): PipelineOptions {
@@ -51,10 +67,26 @@ export function toPipelineOptions(params: Params): PipelineOptions {
     },
     color: {
       mode,
+      levels: mode === 'mono' ? 2 : Math.max(2, Math.round(num(params, 'color.levels'))),
+      paletteLevels: Math.max(2, Math.round(num(params, 'color.palette.levels'))),
       tintDark: str(params, 'color.tint.dark'),
       tintLight: str(params, 'color.tint.light'),
-      // M1 只有 1-bit；M4 接入灰阶级数与调色板色数
-      levels: 2,
+      tintStops: parseColorList(str(params, 'color.tint.stops')),
+      palettePreset: str(params, 'color.palette.preset'),
+      paletteCustom: str(params, 'color.palette.custom'),
+      mismatch: bool(params, 'color.mismatch'),
+      channelSpace: str(params, 'color.channels.space') as ChannelSpace,
+      accent: {
+        enabled: bool(params, 'color.accent.enabled'),
+        colors: parseAccentColors(str(params, 'color.accent.colors')),
+        density: num(params, 'color.accent.density') / 100,
+        placement: str(params, 'color.accent.placement') as AccentPlacement,
+        level: Math.round(num(params, 'color.accent.level')),
+        target: str(params, 'color.accent.target') as AccentTarget,
+        spacing: num(params, 'color.accent.spacing'),
+        chain: num(params, 'color.accent.chain') / 100,
+        seed: Math.round(num(params, 'color.accent.seed')),
+      },
     },
   };
 }
