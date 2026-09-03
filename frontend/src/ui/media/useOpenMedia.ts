@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { suggestPixelSize } from '@/engine';
 import { usePlatform, type MediaFile } from '@/platform';
-import { useStudioStore } from '@/state';
+import { releaseMedia, useStudioStore } from '@/state';
 import { useToast } from '@/ui/primitives/Toast';
 import { fileToMediaFile, loadMediaFile } from './loadMedia';
 
@@ -24,7 +24,7 @@ export function useOpenMedia() {
           store.setSlotMedia(target, media);
           store.setActiveSlot(target);
           if (target === 0) store.applySuggestedPixelSize(suggestPixelSize(media.width, media.height));
-          previous?.bitmap.close();
+          releaseMedia(previous);
         } catch (err) {
           show(`无法打开 ${file.name}：${(err as Error).message}`, 'error');
         }

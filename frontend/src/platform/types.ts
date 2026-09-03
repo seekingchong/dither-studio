@@ -32,6 +32,8 @@ export interface PlatformFiles {
   read(path: string): Promise<Uint8Array>;
   /** 在 Finder 中显示（仅 Electron） */
   reveal?(path: string): Promise<void>;
+  /** 写到应用临时目录并返回路径（用于"复制文件"到剪贴板；web 端没有） */
+  saveTemp?(bytes: Uint8Array, name: string): Promise<SavedFile>;
 }
 
 export interface PlatformStorage {

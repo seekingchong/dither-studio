@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
+import { isAnimated } from '@/state';
 import { FAMILY_PARAM } from '@/engine';
 import { PARAM_SCHEMA, getParamDef, hasParam, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
 import { useStudioStore } from '@/state';
+import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { Button, Tabs } from '@/ui/primitives';
@@ -18,6 +20,8 @@ export function ParamPane() {
   const [group, setGroup] = useState<ParamGroup>('pixel');
   const { openDialog } = useOpenMedia();
   const { canExport, exportPng, copyPng } = useExport();
+  const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
+  const [videoDialog, setVideoDialog] = useState(false);
 
   const family = String(params['dither.family']) as keyof typeof FAMILY_PARAM;
   const algorithmParamId = FAMILY_PARAM[family];
@@ -57,11 +61,17 @@ export function ParamPane() {
           <Button variant="secondary" icon="copy" disabled={!canExport} onClick={() => void copyPng()}>
             复制 PNG
           </Button>
-          <Button variant="primary" icon="download" disabled={!canExport} onClick={() => void exportPng()}>
+          <Button variant={animated ? 'secondary' : 'primary'} icon="download" disabled={!canExport} onClick={() => void exportPng()}>
             导出 PNG
           </Button>
+          {animated && (
+            <Button variant="primary" icon="film" disabled={!canExport} onClick={() => setVideoDialog(true)}>
+              导出视频
+            </Button>
+          )}
         </div>
       </div>
+      <ExportVideoDialog open={videoDialog} onClose={() => setVideoDialog(false)} />
 
       <div className="pane-content">
         <div className="param-grid" data-testid="quick-params">

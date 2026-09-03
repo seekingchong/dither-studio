@@ -1,4 +1,5 @@
 import { Icon } from '@/ui/primitives';
+import { SettingsMenu } from './SettingsMenu';
 
 export function TopBar() {
   return (
@@ -7,7 +8,9 @@ export function TopBar() {
         <Icon name="logo" size={18} />
         Dither Studio
       </div>
-      <div className="topbar__actions" />
+      <div className="topbar__actions">
+        <SettingsMenu />
+      </div>
     </header>
   );
 }

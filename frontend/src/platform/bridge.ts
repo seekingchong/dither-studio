@@ -13,6 +13,7 @@ export interface DitherBridge {
     save(bytes: Uint8Array, name: string, mime: string): Promise<SavedFile | null>;
     read(path: string): Promise<Uint8Array>;
     reveal(path: string): Promise<void>;
+    saveTemp(bytes: Uint8Array, name: string): Promise<SavedFile>;
   };
   storage: {
     get(key: string): Promise<unknown>;

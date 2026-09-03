@@ -10,6 +10,7 @@ export function createElectronPlatform(bridge: DitherBridge): Platform {
       save: (bytes, name, mime) => bridge.files.save(bytes, name, mime),
       read: (path) => bridge.files.read(path),
       reveal: (path) => bridge.files.reveal(path),
+      saveTemp: (bytes, name) => bridge.files.saveTemp(bytes, name),
     },
     storage: {
       async get<T>(key: string) {

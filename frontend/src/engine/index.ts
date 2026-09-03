@@ -27,5 +27,7 @@ export { renderGrid, DEFAULT_GRID, type GridRenderOptions, type DotShape, type B
 export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
 export { Pipeline, renderImage, type PipelineStats } from './pipeline';
 export * from './effects';
+export { GpuContext, orderedDitherGpu, renderGridGpu } from './gpu';
 export { RenderClient, type RenderedFrame } from './client';
-export type { WorkerRequest, WorkerResponse } from './protocol';
+export type { WorkerRequest, WorkerResponse, RenderOptions } from './protocol';
+export { scaleParamsForPreview, nextPreviewScale } from './preview';

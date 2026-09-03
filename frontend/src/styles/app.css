@@ -915,3 +915,123 @@ button {
 .effects__add-select {
   width: 240px;
 }
+
+/* ---------- 播放控制 ---------- */
+
+.transport {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+  padding: 0 var(--tda-spacing-md);
+}
+
+.transport__range {
+  flex: 1;
+  min-width: 80px;
+}
+
+.transport__time {
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 弹窗 / 进度 ---------- */
+
+.tda-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: var(--tda-color-control-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tda-modal {
+  width: 520px;
+  max-width: calc(100% - var(--tda-spacing-2xl));
+  background: var(--tda-color-white);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-lg);
+  padding: var(--tda-spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-md);
+  box-shadow: var(--tda-shadow-tile);
+}
+
+.tda-modal__title {
+  margin: 0;
+  font-size: var(--tda-typography-heading-sm-size);
+  line-height: var(--tda-typography-heading-sm-line);
+  font-weight: 600;
+}
+
+.tda-modal__status {
+  margin: 0;
+  color: var(--tda-color-text-secondary);
+}
+
+.tda-modal__status--error {
+  color: var(--tda-color-danger);
+}
+
+.tda-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--tda-spacing-sm);
+}
+
+.param-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tda-progress {
+  position: relative;
+  height: var(--tda-control-height);
+  border-radius: var(--tda-radius-md);
+  background: var(--tda-color-control-subtle);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tda-progress__bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--tda-color-control-strong);
+  transition: width 0.1s;
+}
+
+.tda-progress__text {
+  position: relative;
+  font-family: var(--tda-font-family-latin);
+  color: var(--tda-color-text-secondary);
+}
+
+/* ---------- 设置弹层 ---------- */
+
+.settings {
+  position: relative;
+}
+
+.settings__menu {
+  position: absolute;
+  top: calc(100% + var(--tda-spacing-2xs));
+  right: 0;
+  z-index: 100;
+  width: 260px;
+  background: var(--tda-color-white);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-md);
+  padding: var(--tda-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-xs);
+  box-shadow: var(--tda-shadow-tile);
+}

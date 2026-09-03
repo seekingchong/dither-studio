@@ -1,5 +1,6 @@
 /// <reference lib="webworker" />
 import { Pipeline } from './pipeline';
+import { scaleParamsForPreview } from './preview';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 import type { RGBAFrame } from './types';
 
@@ -26,25 +27,32 @@ function bitmapToFrame(bitmap: ImageBitmap): RGBAFrame {
   return { width: image.width, height: image.height, data: image.data };
 }
 
+/** 替换坑位的源帧；已有流水线时复用（视频逐帧时其余阶段的缓存仍有效） */
+function setSource(slot: number, id: string, frame: RGBAFrame) {
+  const existing = sources.get(slot);
+  if (existing) {
+    existing.id = id;
+    existing.frame = frame;
+  } else {
+    sources.set(slot, { id, frame, pipeline: new Pipeline() });
+  }
+  post({ type: 'sourceReady', slot, id, width: frame.width, height: frame.height });
+}
+
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
   switch (msg.type) {
     case 'setSource': {
       try {
-        const frame = bitmapToFrame(msg.bitmap);
-        sources.set(msg.slot, { id: msg.id, frame, pipeline: new Pipeline() });
-        post({ type: 'sourceReady', slot: msg.slot, id: msg.id, width: frame.width, height: frame.height });
+        setSource(msg.slot, msg.id, bitmapToFrame(msg.bitmap));
       } catch (err) {
         post({ type: 'error', jobId: null, slot: msg.slot, message: (err as Error).message });
       }
       break;
     }
-    case 'setSourceFrame': {
-      const frame: RGBAFrame = { width: msg.width, height: msg.height, data: new Uint8ClampedArray(msg.buffer) };
-      sources.set(msg.slot, { id: msg.id, frame, pipeline: new Pipeline() });
-      post({ type: 'sourceReady', slot: msg.slot, id: msg.id, width: frame.width, height: frame.height });
+    case 'setSourceFrame':
+      setSource(msg.slot, msg.id, { width: msg.width, height: msg.height, data: new Uint8ClampedArray(msg.buffer) });
       break;
-    }
     case 'clearSource':
       sources.delete(msg.slot);
       break;
@@ -55,7 +63,9 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
         return;
       }
       try {
-        const out = entry.pipeline.run(entry.frame, entry.id, msg.params);
+        const { params, scale } = scaleParamsForPreview(msg.params, msg.options?.previewScale ?? 1);
+        entry.pipeline.gpu = msg.options?.gpu ?? true;
+        const out = entry.pipeline.run(entry.frame, entry.id, params);
         const stats = entry.pipeline.lastStats;
         post(
           {
@@ -67,6 +77,10 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
             buffer: out.data.buffer as ArrayBuffer,
             elapsedMs: stats.elapsedMs,
             recomputed: stats.recomputed,
+            scale,
+            canvasWidth: Math.round(Number(msg.params['canvas.width']) || out.width),
+            canvasHeight: Math.round(Number(msg.params['canvas.height']) || out.height),
+            gpu: stats.gpu,
           },
           [out.data.buffer as ArrayBuffer],
         );

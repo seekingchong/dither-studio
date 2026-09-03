@@ -1,8 +1,39 @@
 import { useShallow } from 'zustand/react/shallow';
-import { useStudioStore, ZOOM_LEVELS, type PreviewTab, type ZoomLevel } from '@/state';
-import { Select, Tabs, Toast } from '@/ui/primitives';
-import { useFrameStore } from '@/ui/renderer/RendererContext';
+import { isAnimated, useStudioStore, ZOOM_LEVELS, type PreviewTab, type ZoomLevel } from '@/state';
+import { formatTime, usePlaybackStore } from '@/ui/media/playback';
+import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { IconButton, Select, Tabs, Toast } from '@/ui/primitives';
+import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { SlotView } from './SlotView';
+
+/** 播放 / 暂停 + 进度条，只在当前坑位是视频或 GIF 时出现 */
+function Transport({ slot }: { slot: number }) {
+  const media = useStudioStore((s) => s.slots[slot]?.media ?? null);
+  const entry = usePlaybackStore((s) => s.slots[slot]);
+  const client = useRenderClient();
+  const { seek, toggle } = usePlaybackController(slot, isAnimated(media) ? media : null, null);
+  if (!media || !isAnimated(media) || !entry || !client) return null;
+  const duration = entry.duration || media.duration || 0;
+  return (
+    <div className="transport" data-testid="transport">
+      <IconButton icon={entry.playing ? 'pause' : 'play'} label={entry.playing ? '暂停' : '播放'} className="tda-iconbtn--sm" onClick={toggle} />
+      <input
+        type="range"
+        className="tda-slider__range transport__range"
+        min={0}
+        max={Math.max(0.01, duration)}
+        step={0.01}
+        value={Math.min(entry.time, duration)}
+        style={{ '--tda-slider-fill': `${duration > 0 ? (entry.time / duration) * 100 : 0}%` } as React.CSSProperties}
+        onChange={(e) => seek(Number(e.target.value))}
+        aria-label="进度"
+      />
+      <span className="transport__time">
+        {formatTime(entry.time)} / {formatTime(duration)}
+      </span>
+    </div>
+  );
+}
 
 const ZOOM_OPTIONS = ZOOM_LEVELS.map((z) => ({ value: String(z), label: z === 'fit' ? '适应窗口' : `${Math.round(z * 100)}%` }));
 
@@ -26,15 +57,18 @@ export function PreviewPane() {
   );
   const rendered = useFrameStore((s) => s.frames[activeSlot]);
   const media = slots[activeSlot]?.media;
+  const previewNote = rendered && rendered.scale < 1 ? ` · 预览 ${Math.round(rendered.scale * 100)}%` : '';
+  const gpuNote = rendered?.gpu ? ' · GPU' : '';
 
   return (
     <section className="pane pane--preview" aria-label="预览">
       <div className="preview-head">
         <Tabs items={PREVIEW_TABS} value={tab} onChange={setTab} />
+        <Transport slot={activeSlot} />
         <div className="preview-tools">
           <span className="preview-meta" data-testid="preview-meta">
             {media ? `${media.width} × ${media.height} → ${width} × ${height}` : `${width} × ${height}`}
-            {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms` : ''}
+            {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms${previewNote}${gpuNote}` : ''}
           </span>
           <Select
             label="缩放"

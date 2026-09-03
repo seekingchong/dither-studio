@@ -8,6 +8,7 @@ const bridge: DitherBridge = {
     save: (bytes, name, mime) => ipcRenderer.invoke('files:save', bytes, name, mime),
     read: (path) => ipcRenderer.invoke('files:read', path),
     reveal: (path) => ipcRenderer.invoke('files:reveal', path),
+    saveTemp: (bytes, name) => ipcRenderer.invoke('files:saveTemp', bytes, name),
   },
   storage: {
     get: (key) => ipcRenderer.invoke('storage:get', key),

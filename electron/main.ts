@@ -159,6 +159,15 @@ function registerIpc() {
     shell.showItemInFolder(filePath);
   });
 
+  ipcMain.handle('files:saveTemp', async (_event, bytes: Uint8Array, name: string): Promise<SavedFile> => {
+    const dir = path.join(app.getPath('temp'), 'dither-studio');
+    await fs.mkdir(dir, { recursive: true });
+    const safe = name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, '_');
+    const filePath = path.join(dir, `${Date.now()}-${safe}`);
+    await fs.writeFile(filePath, Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+    return { path: filePath };
+  });
+
   ipcMain.handle('storage:get', async (_event, key: string) => {
     const data = await loadStorage();
     return data[key] ?? null;

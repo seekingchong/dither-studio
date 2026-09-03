@@ -3,7 +3,8 @@ import { useShallow } from 'zustand/react/shallow';
 import type { FitMode } from '@/engine';
 import { useStudioStore } from '@/state';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
-import { useFrameStore } from '@/ui/renderer/RendererContext';
+import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { DropZone } from './DropZone';
 import { SlotCanvas } from './SlotCanvas';
 
@@ -28,6 +29,8 @@ export function SlotView({ index }: SlotViewProps) {
     })),
   );
   const rendered = useFrameStore((s) => s.frames[index]);
+  const client = useRenderClient();
+  usePlaybackController(index, media, client);
   const { openDialog, acceptDrop } = useOpenMedia();
   const viewportRef = useRef<HTMLDivElement>(null);
   const [fitScale, setFitScale] = useState(1);
@@ -77,7 +80,7 @@ export function SlotView({ index }: SlotViewProps) {
     >
       <div className="slot__viewport" ref={viewportRef}>
         {media ? (
-          <SlotCanvas media={media} rendered={rendered} tab={tab} width={width} height={height} fit={fit} scale={scale} />
+          <SlotCanvas slot={index} media={media} rendered={rendered} tab={tab} width={width} height={height} fit={fit} scale={scale} />
         ) : (
           <DropZone onOpen={() => void openDialog(index)} />
         )}

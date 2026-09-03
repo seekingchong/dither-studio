@@ -1,5 +1,5 @@
 import type { Params } from '@/params';
-import type { WorkerRequest, WorkerResponse } from './protocol';
+import type { RenderOptions, WorkerRequest, WorkerResponse } from './protocol';
 import type { RGBAFrame } from './types';
 
 export interface RenderedFrame {
@@ -7,10 +7,20 @@ export interface RenderedFrame {
   frame: RGBAFrame;
   elapsedMs: number;
   recomputed: string[];
+  /** 帧相对画布的比例，预览降分辨率时 < 1 */
+  scale: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  gpu: boolean;
 }
 
 type FrameListener = (frame: RenderedFrame) => void;
 type ErrorListener = (slot: number, message: string) => void;
+
+interface PendingRender {
+  params: Params;
+  options?: RenderOptions;
+}
 
 /**
  * 主线程侧的渲染调度：每个坑位最多一个在途任务，期间到达的参数只保留最新一份，
@@ -20,7 +30,7 @@ export class RenderClient {
   private worker: Worker;
   private jobSeq = 0;
   private inflight = new Map<number, number>();
-  private pending = new Map<number, Params>();
+  private pending = new Map<number, PendingRender>();
   private scheduled = false;
   private frameListeners = new Set<FrameListener>();
   private errorListeners = new Set<ErrorListener>();
@@ -48,8 +58,13 @@ export class RenderClient {
     this.send({ type: 'clearSource', slot });
   }
 
-  render(slot: number, params: Params) {
-    this.pending.set(slot, params);
+  /** 是否有在途渲染（视频逐帧时用来丢帧） */
+  isBusy(slot: number): boolean {
+    return this.inflight.has(slot);
+  }
+
+  render(slot: number, params: Params, options?: RenderOptions) {
+    this.pending.set(slot, { params, options });
     if (!this.scheduled) {
       this.scheduled = true;
       queueMicrotask(() => {
@@ -57,6 +72,25 @@ export class RenderClient {
         this.flush();
       });
     }
+  }
+
+  /** 渲染一次并等待结果（导出用；调用方需保证该坑位没有别的任务竞争） */
+  renderOnce(slot: number, params: Params, options?: RenderOptions): Promise<RenderedFrame> {
+    return new Promise((resolve, reject) => {
+      const offFrame = this.onFrame((frame) => {
+        if (frame.slot !== slot) return;
+        offFrame();
+        offError();
+        resolve(frame);
+      });
+      const offError = this.onError((s, message) => {
+        if (s !== slot && s !== -1) return;
+        offFrame();
+        offError();
+        reject(new Error(message));
+      });
+      this.render(slot, params, options);
+    });
   }
 
   onFrame(cb: FrameListener): () => void {
@@ -76,12 +110,12 @@ export class RenderClient {
   }
 
   private flush() {
-    for (const [slot, params] of this.pending) {
+    for (const [slot, job] of this.pending) {
       if (this.inflight.has(slot)) continue;
       this.pending.delete(slot);
       const jobId = ++this.jobSeq;
       this.inflight.set(slot, jobId);
-      this.send({ type: 'render', jobId, slot, params });
+      this.send({ type: 'render', jobId, slot, params: job.params, options: job.options });
     }
   }
 
@@ -90,7 +124,17 @@ export class RenderClient {
       case 'frame': {
         if (this.inflight.get(msg.slot) === msg.jobId) this.inflight.delete(msg.slot);
         const frame: RGBAFrame = { width: msg.width, height: msg.height, data: new Uint8ClampedArray(msg.buffer) };
-        for (const cb of this.frameListeners) cb({ slot: msg.slot, frame, elapsedMs: msg.elapsedMs, recomputed: msg.recomputed });
+        const rendered: RenderedFrame = {
+          slot: msg.slot,
+          frame,
+          elapsedMs: msg.elapsedMs,
+          recomputed: msg.recomputed,
+          scale: msg.scale,
+          canvasWidth: msg.canvasWidth,
+          canvasHeight: msg.canvasHeight,
+          gpu: msg.gpu,
+        };
+        for (const cb of this.frameListeners) cb(rendered);
         this.flush();
         break;
       }

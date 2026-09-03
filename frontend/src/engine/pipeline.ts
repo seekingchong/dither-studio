@@ -14,6 +14,10 @@ import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
 import { renderGrid } from './render/grid';
+import { orderedDitherGpu } from './gpu/orderedGpu';
+import { renderGridGpu } from './gpu/gridGpu';
+import { getMatrix } from './dither/ordered';
+import { num, str } from '@/params';
 import type { CellFrame, GrayFrame, LevelFrame, RGBAFrame, RGBFrame } from './types';
 
 interface Cached<T> {
@@ -25,6 +29,8 @@ export interface PipelineStats {
   /** 本次实际重算的阶段 */
   recomputed: string[];
   elapsedMs: number;
+  /** 本次是否有阶段走了 WebGL */
+  gpu: boolean;
 }
 
 /**
@@ -40,11 +46,14 @@ export class Pipeline {
   private biased?: Cached<GrayFrame>;
   private levels?: Cached<LevelFrame>;
   private cells?: Cached<CellFrame>;
-  lastStats: PipelineStats = { recomputed: [], elapsedMs: 0 };
+  lastStats: PipelineStats = { recomputed: [], elapsedMs: 0, gpu: false };
+  /** 允许走 WebGL 路径（由 Worker 按全局设置传入） */
+  gpu = true;
 
   run(source: RGBAFrame, sourceId: string, params: Params): RGBAFrame {
     const t0 = now();
     const recomputed: string[] = [];
+    let usedGpu = false;
     const opts = toPipelineOptions(params);
 
     const fitKey = `${sourceId}|${keyOf(params, 'canvas.')}`;
@@ -129,8 +138,19 @@ export class Pipeline {
       const key = `${biasedKey}|levels=${n}|${ditherParams}|path=gray`;
       if (this.levels?.key !== key) {
         const input: DitherInput = { width, height, gray: this.biased.value.data, levels: n, seed: 0 };
-        this.levels = { key, value: { width, height, levels: n, data: algo.run(input, params) } };
-        recomputed.push(`dither:${algo.family}/${algo.id}`);
+        let data: Uint8Array | null = null;
+        if (this.gpu && algo.family === 'ordered') {
+          data = orderedDitherGpu(input.gray, width, height, n, getMatrix(str(params, 'dither.ordered.matrix')), {
+            scale: num(params, 'dither.ordered.scale'),
+            angle: num(params, 'dither.ordered.angle'),
+            offsetX: num(params, 'dither.ordered.offsetX'),
+            offsetY: num(params, 'dither.ordered.offsetY'),
+          });
+          if (data) usedGpu = true;
+        }
+        if (!data) data = algo.run(input, params);
+        this.levels = { key, value: { width, height, levels: n, data } };
+        recomputed.push(`dither:${algo.family}/${algo.id}${usedGpu ? ':gpu' : ''}`);
       }
       levelFrame = this.levels.value;
       cellsKey = `${key}|linear=${opts.tone.linear}|${keyOf(params, 'color.')}`;
@@ -172,9 +192,16 @@ export class Pipeline {
     const { size, offsetX, offsetY } = opts.pixel;
     const renderKey = `${cellsKey}|${keyOf(params, 'grid.')}|paper=${paper.join()}|ink=${ink.join()}|size=${size}|${offsetX},${offsetY}|${opts.canvas.width}x${opts.canvas.height}`;
     if (this.rendered?.key !== renderKey) {
-      const frame = renderGrid(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, { ...opts.grid, paper, ink });
+      const gridOpts = { ...opts.grid, paper, ink };
+      const plain = gridOpts.dot === 'square' && !gridOpts.metaball && gridOpts.gapX === 0 && gridOpts.gapY === 0 && gridOpts.background === 'none' && !gridOpts.invert && !gridOpts.dotTone;
+      let frame: RGBAFrame | null = null;
+      if (this.gpu && !plain) {
+        frame = renderGridGpu(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, gridOpts);
+        if (frame) usedGpu = true;
+      }
+      if (!frame) frame = renderGrid(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, gridOpts);
       this.rendered = { key: renderKey, value: frame };
-      recomputed.push('render');
+      recomputed.push(usedGpu && !plain ? 'render:gpu' : 'render');
     }
     const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
     const effectsKey = `${renderKey}|${stackJson}`;
@@ -189,7 +216,7 @@ export class Pipeline {
     const cached = this.effected.value;
     const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
 
-    this.lastStats = { recomputed, elapsedMs: now() - t0 };
+    this.lastStats = { recomputed, elapsedMs: now() - t0, gpu: usedGpu };
     return output;
   }
 

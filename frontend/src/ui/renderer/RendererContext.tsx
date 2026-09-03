@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 import { create } from 'zustand';
 import { RenderClient, type RenderedFrame } from '@/engine';
 import { useStudioStore } from '@/state';
+import { playbackOf } from '@/ui/media/playback';
 import { useToast } from '@/ui/primitives/Toast';
 
 interface FrameState {
@@ -53,6 +54,7 @@ export function RendererProvider({ children }: { children: ReactNode }) {
 
   const slots = useStudioStore((s) => s.slots);
   const params = useStudioStore((s) => s.params);
+  const gpu = useStudioStore((s) => s.settings.gpu);
 
   // 坑位媒体 → Worker 源帧
   useEffect(() => {
@@ -78,7 +80,8 @@ export function RendererProvider({ children }: { children: ReactNode }) {
             return;
           }
           client.setSource(i, media.id, bitmap);
-          client.render(i, useStudioStore.getState().params);
+          const { params, settings } = useStudioStore.getState();
+          client.render(i, params, { gpu: settings.gpu, previewScale: 1 });
         },
         (err: Error) => useToast.getState().show(`无法解码 ${media.name}：${err.message}`, 'error'),
       );
@@ -92,13 +95,16 @@ export function RendererProvider({ children }: { children: ReactNode }) {
     }
   }, [client, slots]);
 
-  // 参数变化 → 重渲染所有已就绪的坑位
+  // 参数或 GPU 开关变化 → 重渲染所有已就绪的坑位（播放中的坑位沿用当前预览倍率）
   useEffect(() => {
     if (!client) return;
     for (const [i, id] of posted.current) {
-      if (slots[i]?.media?.id === id) client.render(i, params);
+      if (slots[i]?.media?.id === id) {
+        const pb = playbackOf(i);
+        client.render(i, params, { gpu, previewScale: pb.playing && pb.duration > 0 ? pb.previewScale : 1 });
+      }
     }
-  }, [client, params, slots]);
+  }, [client, params, slots, gpu]);
 
   return <RendererContext.Provider value={client}>{children}</RendererContext.Provider>;
 }
