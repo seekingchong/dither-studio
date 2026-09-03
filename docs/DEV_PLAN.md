@@ -9,6 +9,7 @@
 - 未来同一份前端代码发布 web 端，因此壳层与前端之间只通过一个 `platform` 接口通信。
 - 本地能力清单：打开文件、保存文件、读取文件、预设持久化、剪贴板写入、HEIC 转码、在 Finder 中显示。
 - 样式只引用 `tokens.css` 的 `--tda-*` 变量，禁止裸色值、裸字号、裸圆角，零外部请求。
+- 二期会迁移到基于 React Flow 的平台。UI 层用 React 编写，引擎按节点化设计，让二期既能整体嵌入，也能拆成节点图。
 
 ## 2. 技术选型
 
@@ -16,8 +17,9 @@
 |---|---|---|---|
 | 壳层 | Electron | 内核是 Chromium，和 web 端表现一致；WebCodecs H.264 硬编码可用；打包工具成熟；沙盒里能安装并测试 | Tauri 2：包体小、WKWebView 原生解码 HEIC，但内核是 Safari，和 web 端有差异，且需要 Rust 工具链 |
 | 构建 | Vite + TypeScript | 开发热更新快，产物同时给 Electron 和 web | |
-| UI | 原生 DOM，不引框架 | 设计系统是 CSS 类，与 DOM 一一对应；参数面板由 schema 驱动，不需要框架的组件抽象；零依赖符合"零外部请求" | Preact |
-| 引擎 | 纯 TypeScript，在 Web Worker 里运行 | 与 UI 完全解耦，可单测，不阻塞界面 | |
+| UI | React 18 + TypeScript | 二期平台是 React Flow 技术栈，React 组件可以直接迁移；设计系统的 CSS 类原样复用；参数面板由 schema 驱动生成 | 原生 DOM：零依赖但二期要整体重写，放弃 |
+| 状态 | zustand | React Flow 内部就是 zustand，二期接入时是同一套模型；不依赖 React 也能在 Worker 侧或测试里直接用 | Redux Toolkit |
+| 引擎 | 纯 TypeScript，在 Web Worker 里运行 | 与 UI 完全解耦，可单测，不阻塞界面；每个阶段注册为节点描述，二期可直接生成 React Flow 节点 | |
 | GPU | WebGL 2 | 有序、半调、噪声、图案、特效、上采样这些逐像素独立的阶段走 GPU；误差扩散、曲线扫描、DBS 天生串行，只能 CPU | WebGPU 后续可加 |
 | 视频解码 | `<video>` + `requestVideoFrameCallback`，WebCodecs `VideoDecoder` 备用 | 覆盖 mp4/webm/mov；GIF 动图用 `ImageDecoder` | |
 | 视频编码 | WebCodecs `VideoEncoder`(avc1) + `mp4-muxer` | 硬件 H.264，`mp4-muxer` 是唯一需要引入的运行时第三方库，MIT 协议，约 30KB | |
@@ -41,8 +43,13 @@ dither-studio/
 │  │  ├─ gpu/              WebGL 路径
 │  │  └─ worker.ts
 │  ├─ params/              参数 schema，PRD 每个参数一条记录
-│  ├─ state/               store、撤销重做、预设
-│  ├─ ui/                  顶栏、参数面板、画布、导出、设置
+│  ├─ state/               zustand store、撤销重做、预设
+│  ├─ ui/                  React 组件库，根组件 <DitherStudio>，二期整体迁移的单元
+│  │  ├─ panel/            参数面板，按 schema 生成控件
+│  │  ├─ canvas/           预览画布与坑位网格
+│  │  ├─ export/           导出与复制
+│  │  └─ primitives/       按钮、下拉、滑块、Tab 等设计系统组件
+│  ├─ app/                 应用入口，只做壳层装配：Electron 与 web 各一个
 │  └─ styles/              tokens.css + 组件类
 ├─ design-system/          设计系统原件
 ├─ docs/                   PRD、DESIGN、DEV_PLAN
@@ -99,11 +106,18 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 - 预览：逐帧送入流水线，慢算法自动降到预览分辨率。
 - 导出：按 60fps 时间线取帧，源视频帧率不足时重复帧，GIF 按各帧延时重采样。编码质量中、高、超高对应三档码率。
 
+### 4.6 二期 React Flow 兼容
+
+- 组件边界：`src/ui` 是一个不依赖 Electron、不依赖入口的 React 组件库。根组件 `<DitherStudio platform={...} />` 接收平台接口作为 prop。二期整体嵌入时只需要挂这一个组件。
+- 节点化引擎：每个流水线阶段注册为一条节点描述 `{ id, label, inputs, outputs, params }`。输入输出端口有类型（图像缓冲、灰度缓冲、调色板），参数就是 4.3 的 schema。二期若要拆成节点图，从注册表直接生成 React Flow 的节点类型和连线校验，不用重写算法。
+- 状态：zustand store 不绑定 React，二期可以把它挂进平台的 store 树或者按节点拆分。
+- 不引入 React Flow 本身。一期界面是固定的左面板加右预览布局，节点图是二期平台的事。
+
 ## 5. 里程碑
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| M0 脚手架 | Electron + Vite + TS 工程；tokens.css 接入；platform 接口与两套实现；vitest 与 Playwright 配置；CI 脚本 | `npm run dev` 能起窗口，`npm test` 通过 |
+| M0 脚手架 | Electron + Vite + React + TS 工程；tokens.css 接入；platform 接口与两套实现；zustand store 骨架；节点注册表骨架；vitest 与 Playwright 配置；CI 脚本 | `npm run dev` 能起窗口，`npm test` 通过 |
 | M1 端到端 MVP | 打开图片、拖拽；像素化；固定阈值、Bayer 4×4、Floyd–Steinberg 三个算法；1-bit 黑白；画布缩放档位；导出 PNG、复制 PNG；UI 骨架按 home 画板：顶栏、左参数面板、右预览 | Playwright 截图与设计稿比对；三个算法单测快照 |
 | M2 算法全量 | 阈值 3、噪声 4、有序 13、半调 10、误差扩散 14 + 自定义核、曲线 4、点扩散与 DBS、图案 9，各族参数齐全 | 每个算法一个确定性输出快照测试 |
 | M3 影调与像素化 | 预处理全部 12 项；降采样 4 种方法；网格偏移；像素尺寸按输入分辨率自适应默认 | 单测 + 截图 |
@@ -132,6 +146,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 10 | 导出固定 60fps，源视频 24 或 30fps | 重复帧补齐，不做插帧 |
 | 11 | 4 个坑位是否共用同一套参数 | 共用，PRD 描述的是同一效果同时预览 4 个媒体 |
 | 12 | 内置预设的具体参数 | 我先定初版，你看效果后调 |
+| 13 | 二期在 React Flow 平台上的形态：整体嵌入，还是拆成节点让用户连线 | 按两者都兼容设计，见 4.6。已知是哪种请告知，可以少做一层抽象 |
 
 ## 7. 风险
 
