@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>TDC 风格样例 — Dither Art Tool 骨架</title>
+<style>
+/* ============================================================
+   TDC Design System — tokens.css
+   来源：Figma「TDC-Claude-DS」→ 画板「元素样式整理」(node 1:20759)
+   规则：UI 代码只允许引用这里的变量，禁止出现裸色值 / 裸字号 / 裸圆角。
+   约束：零外部请求 —— 字体只用本机字体栈，不引入 web font。
+   ============================================================ */
+
+:root {
+  /* ---------- 字体 ---------- */
+  /* 所有中文：PingFang SC（macOS 自带）；Windows/Linux 回退到系统中文字体 */
+  --tda-font-family-base: "PingFang SC", -apple-system, BlinkMacSystemFont,
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  /* 所有西文、数字：Inter；不可用时回退到系统西文 */
+  --tda-font-family-latin: "Inter", "Inter V", -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  /* 所有代码、代码块、行内代码：Roboto Mono */
+  --tda-font-family-code: "Roboto Mono", "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  /* 混排默认栈：西文/数字优先命中 Inter，中文落到 PingFang SC */
+  --tda-font-family-mixed: "Inter", "Inter V", "PingFang SC", -apple-system,
+    BlinkMacSystemFont, "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* ---------- 字号 / 行高 / 段距 (size / line-height / paragraph-gap) ---------- */
+  --tda-typography-title-2xl-size: 26px;  --tda-typography-title-2xl-line: 40px;
+  --tda-typography-heading-xl-size: 22px; --tda-typography-heading-xl-line: 34px;
+  --tda-typography-heading-lg-size: 20px; --tda-typography-heading-lg-line: 30px;
+  --tda-typography-heading-md-size: 18px; --tda-typography-heading-md-line: 28px;
+  --tda-typography-heading-sm-size: 16px; --tda-typography-heading-sm-line: 26px;
+  --tda-typography-body-md-size: 16px;    --tda-typography-body-md-line: 26px;  --tda-typography-body-md-gap: 16px;
+  --tda-typography-body-sm-size: 14px;    --tda-typography-body-sm-line: 22px;  --tda-typography-body-sm-gap: 12px;
+  --tda-typography-label-size: 12px;      --tda-typography-label-line: 12px;
+
+  /* ---------- 间距 ---------- */
+  --tda-spacing-2xs: 4px;   /* 最小元素间距：极小控件内部 */
+  --tda-spacing-xs: 8px;    /* 元素间距：同一组件内部元素分组 */
+  --tda-spacing-sm: 12px;   /* 段落间距 / 段落与辅文之间 */
+  --tda-spacing-md: 16px;   /* 模块内分组的分割（默认间距） */
+  --tda-spacing-lg: 24px;   /* 独立大模块之间的常规分隔 */
+  --tda-spacing-xl: 32px;   /* 页面级内容区域之间的强分隔 */
+  --tda-spacing-2xl: 44px;  /* 页面主结构之间的较强分隔 */
+
+  /* ---------- 颜色 ---------- */
+  --tda-color-brand-primary: #FF6200;      /* 主行动点、选中态、品牌强调 */
+  --tda-color-brand-secondary: #FF62001A;  /* 次级行动点；强化按钮选中态 */
+  --tda-color-text-primary: #11192D;       /* 正文、主文字、图标、按钮文字 */
+  --tda-color-text-secondary: #7C889C;     /* 副标题、次级文案 */
+  --tda-color-text-tertiary: #11192D4C;    /* 标签、描述、说明性文字 */
+  --tda-color-text-disabled: #11192D33;    /* 注脚、置灰文案 */
+  --tda-color-control-strong: #11192D14;   /* 较强层级填充：卡片底色、轻量按钮按下态 */
+  --tda-color-control-muted: #11192D0D;    /* 中弱层级填充：轻量按钮悬停态、无底按钮按下态 */
+  --tda-color-control-subtle: #11192D08;   /* 最弱层级填充：轻量按钮底色、无底按钮悬停态 */
+  --tda-color-white: #FFFFFF;              /* 内容表面、文字反色；禁止做页面底色 */
+  --tda-color-background-page: #F9F9F9;    /* 页面底色 */
+  --tda-color-success: #53CD72;
+  --tda-color-danger: #FF0011;
+  --tda-color-link: #004AB8;
+
+  /* 语义别名：描边。Figma 变量「描边」= #11192D14，实际页面描边也是 8%，
+     与 token 表中 control-muted 的"用于描边"文字有出入，以实测为准。 */
+  --tda-color-border: var(--tda-color-control-strong);
+
+  /* ---------- 圆角 ---------- */
+  --tda-radius-none: 0px;     /* 分割线、表格边界 */
+  --tda-radius-xs: 4px;       /* 缩略图内部层、行内代码 */
+  --tda-radius-sm: 8px;       /* 提示、超小按钮 */
+  --tda-radius-md: 10px;      /* 按钮、输入框、列表项、图标按钮 */
+  --tda-radius-lg: 18px;      /* 浮窗、弹窗、模态类组件 */
+  --tda-radius-xl: 22px;      /* 文件预览容器、全屏预览弹窗 */
+  --tda-radius-full: 9999px;  /* 头像、圆形按钮、单选多选框 */
+
+  /* ---------- 组件尺寸（来自参照页面 home 1:2032） ---------- */
+  --tda-control-height: 40px;      /* 按钮 / 下拉 / 输入框统一高度 */
+  --tda-control-padding-x: 16px;
+  --tda-topbar-height: 58px;
+  --tda-pane-padding-x: 46px;      /* 左右面板内边距 */
+  --tda-tab-height: 48px;
+  --tda-table-row-height: 44px;
+  --tda-shadow-tile: 0 0.714px 0.714px rgba(0, 0, 0, 0.04);
+}
+
+/* ---------- 基础排版 ---------- */
+html, body {
+  margin: 0;
+  background: var(--tda-color-background-page);
+  color: var(--tda-color-text-primary);
+  font-family: var(--tda-font-family-mixed);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+  -webkit-font-smoothing: antialiased;
+}
+code, pre, kbd, samp {
+  font-family: var(--tda-font-family-code);
+  border-radius: var(--tda-radius-xs);
+}
+a { color: var(--tda-color-link); text-decoration: none; }
+
+/* ---------- 文字样式类（一一对应 token 表） ---------- */
+.tda-title-2xl  { font-size: var(--tda-typography-title-2xl-size);  line-height: var(--tda-typography-title-2xl-line);  font-weight: 600; }
+.tda-heading-xl { font-size: var(--tda-typography-heading-xl-size); line-height: var(--tda-typography-heading-xl-line); font-weight: 600; }
+.tda-heading-lg { font-size: var(--tda-typography-heading-lg-size); line-height: var(--tda-typography-heading-lg-line); font-weight: 600; }
+.tda-heading-md { font-size: var(--tda-typography-heading-md-size); line-height: var(--tda-typography-heading-md-line); font-weight: 500; }
+.tda-heading-sm { font-size: var(--tda-typography-heading-sm-size); line-height: var(--tda-typography-heading-sm-line); font-weight: 500; }
+.tda-body-md    { font-size: var(--tda-typography-body-md-size);    line-height: var(--tda-typography-body-md-line); }
+.tda-body-sm    { font-size: var(--tda-typography-body-sm-size);    line-height: var(--tda-typography-body-sm-line); }
+.tda-label      { font-size: var(--tda-typography-label-size);      line-height: var(--tda-typography-label-line); }
+
+</style>
+<style>
+  .app { display:flex; flex-direction:column; height:100vh; background:var(--tda-color-white); }
+  .topbar { height:var(--tda-topbar-height); padding:0 9px; display:flex; align-items:center; justify-content:space-between;
+            background:var(--tda-color-white); border-bottom:1px solid var(--tda-color-border); }
+  .topbar .brand { display:flex; align-items:center; gap:8px; padding-left:11px; font-weight:500; line-height:26px; }
+  .topbar .brand svg { width:18px; height:18px; }
+  .iconbtn { width:40px; height:40px; border-radius:var(--tda-radius-md); display:flex; align-items:center; justify-content:center; background:none; border:0; color:inherit; }
+  .iconbtn:hover { background:var(--tda-color-control-subtle); }
+  .panes { flex:1; display:flex; min-height:0; }
+  .pane-left { flex:1 0 0; padding:0 var(--tda-pane-padding-x); background:var(--tda-color-white); border-right:1px solid var(--tda-color-border); overflow:auto; }
+  .pane-right { flex:1 0 0; padding:0 var(--tda-pane-padding-x); background:var(--tda-color-background-page); display:flex; flex-direction:column; align-items:center; overflow:auto; }
+  .col { width:100%; max-width:720px; }
+  .actions { display:flex; align-items:center; justify-content:space-between; padding:20px 0; }
+  .tabs { display:flex; gap:var(--tda-spacing-lg); font-size:16px; line-height:28px; }
+  .tabs span { color:var(--tda-color-text-tertiary); }
+  .tabs .on { color:var(--tda-color-text-primary); font-weight:500; }
+  .btns { display:flex; gap:12px; }
+  .tda-btn-primary { height:var(--tda-control-height); padding:0 var(--tda-control-padding-x); border-radius:var(--tda-radius-md); background:var(--tda-color-text-primary); color:var(--tda-color-white); font:400 14px/14px inherit; font-family:inherit; display:inline-flex; align-items:center; gap:6px; border:0; }
+  .tda-btn-secondary { height:var(--tda-control-height); padding:0 var(--tda-control-padding-x); border-radius:var(--tda-radius-md); background:transparent; border:1px solid var(--tda-color-border); color:var(--tda-color-text-primary); font:400 14px/14px inherit; font-family:inherit; display:inline-flex; align-items:center; gap:var(--tda-spacing-xs); }
+  .content { padding-top:12px; display:flex; flex-direction:column; gap:48px; }
+  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+  .tda-select { height:var(--tda-control-height); padding:6px var(--tda-control-padding-x); border-radius:var(--tda-radius-md); background:var(--tda-color-white); border:1px solid var(--tda-color-border); display:flex; align-items:center; gap:var(--tda-spacing-xs); box-sizing:border-box; }
+  .tda-select__label { width:58px; flex:none; color:var(--tda-color-text-tertiary); }
+  .tda-select__value { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tda-select svg { width:12px; height:12px; flex:none; color:var(--tda-color-text-tertiary); }
+  .utabs { display:flex; gap:var(--tda-spacing-lg); }
+  .utabs span { height:var(--tda-tab-height); display:flex; align-items:center; font-size:16px; line-height:26px; }
+  .utabs .on { font-weight:500; border-bottom:1px solid var(--tda-color-text-primary); }
+  .sections { display:flex; flex-direction:column; gap:36px; }
+  .section { display:flex; flex-direction:column; gap:16px; }
+  .section h3 { margin:0; font:600 16px/24px var(--tda-font-family-latin); display:flex; align-items:center; gap:12px; }
+  .section h3 svg { width:16px; height:16px; }
+  .section p { margin:0; color:var(--tda-color-text-tertiary); }
+  .table { background:var(--tda-color-white); border:1px solid var(--tda-color-border); border-radius:16px; overflow:hidden; }
+  .table .hd { display:flex; padding:0 4px; color:var(--tda-color-text-tertiary); }
+  .table .hd div, .table .row div { flex:1 0 0; padding:12px; min-width:0; }
+  .table .hd div { height:var(--tda-control-height); box-sizing:border-box; display:flex; align-items:center; }
+  .table .divider { height:1px; background:var(--tda-color-border); }
+  .table .body { padding:4px; }
+  .table .row { display:flex; }
+  .table .row div { height:var(--tda-table-row-height); box-sizing:border-box; display:flex; align-items:center; font-family:var(--tda-font-family-latin); }
+  .rtabs { height:80px; display:flex; align-items:center; gap:var(--tda-spacing-lg); font-size:16px; line-height:28px; }
+  .rtabs span { color:var(--tda-color-text-tertiary); } .rtabs .on { color:var(--tda-color-text-primary); font-weight:500; }
+  .preview { padding-top:12px; display:flex; flex-direction:column; gap:48px; }
+  .preview h2 { margin:0; font:600 32px/40px var(--tda-font-family-latin); }
+  .canvas { background:var(--tda-color-white); border:1px solid var(--tda-color-border); border-radius:var(--tda-radius-xl); height:420px; display:flex; align-items:center; justify-content:center; color:var(--tda-color-text-disabled); }
+  .chip { display:inline-flex; align-items:center; height:28px; padding:0 10px; border-radius:var(--tda-radius-sm); border:1px solid var(--tda-color-brand-primary); color:var(--tda-color-brand-primary); background:var(--tda-color-brand-secondary); font-size:12px; line-height:12px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="14" height="14" rx="3"/><path d="M6 9h6M9 6v6"/></svg>
+      Dither Art Tool
+    </div>
+    <button class="iconbtn"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 3H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3M11 12l3-3-3-3M14 9H7"/></svg></button>
+  </div>
+  <div class="panes">
+    <div class="pane-left">
+      <div class="actions">
+        <div class="tabs"><span class="on">参数</span><span>历史</span><span>介绍</span></div>
+        <div class="btns"><button class="tda-btn-secondary">打开图片</button><button class="tda-btn-secondary">保存</button><button class="tda-btn-primary">导出 PNG / SVG</button></div>
+      </div>
+      <div class="content">
+        <div class="grid">
+          <div class="tda-select"><span class="tda-select__label">算法</span><span class="tda-select__value">Floyd–Steinberg</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">色板</span><span class="tda-select__value">黑白</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">缩放</span><span class="tda-select__value">2×</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">阈值</span><span class="tda-select__value">128</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">矩阵</span><span class="tda-select__value">Bayer 4×4</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">对比度</span><span class="tda-select__value">标准</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">伽马</span><span class="tda-select__value">1.0</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+          <div class="tda-select"><span class="tda-select__label">蛇形</span><span class="tda-select__value">开启</span><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5l3 3 3-3"/></svg></div>
+        </div>
+        <div class="sections">
+          <div class="utabs"><span class="on">误差扩散</span><span>有序抖动</span><span>阈值</span><span>随机</span></div>
+          <div class="section">
+            <h3>Palette <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4h10M6 4V2h4v2M4 4l1 10h6l1-10"/></svg></h3>
+            <p>调色板决定输出中允许出现的颜色集合。误差扩散会把每个像素与最近色的差值分摊给邻近像素，色板越少，纹理越明显。<span class="chip" style="margin-left:8px">当前选中</span></p>
+            <div class="table">
+              <div class="hd"><div>token</div><div>颜色</div><div>亮度</div><div>权重</div></div>
+              <div class="divider"></div>
+              <div class="body">
+                <div class="row"><div>ink</div><div>#11192D</div><div>0.08</div><div>1.0</div></div>
+                <div class="row"><div>paper</div><div>#F9F9F9</div><div>0.97</div><div>1.0</div></div>
+                <div class="row"><div>accent</div><div>#FF6200</div><div>0.55</div><div>0.6</div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pane-right">
+      <div class="col rtabs"><span class="on">结果</span><span>原图</span><span>对比</span></div>
+      <div class="col preview">
+        <h2>Preview</h2>
+        <div class="canvas">画布预览区（image-rendering: pixelated）</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
