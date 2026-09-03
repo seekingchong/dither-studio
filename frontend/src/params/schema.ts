@@ -337,6 +337,9 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'grid.bgDotSize', group: 'grid', label: '图形大小', type: 'number', min: 5, max: 100, step: 1, default: 30, unit: '%', visibleWhen: { id: 'grid.background', equals: 'dots' } },
   { id: 'grid.bgColor', group: 'grid', label: '背景色', type: 'color', default: '#888888', visibleWhen: { id: 'grid.background', in: ['lines', 'dots'] } },
 
+  // ---------- 特效栈 ----------
+  { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },
+
   // ---------- 颜色 ----------
   {
     id: 'color.mode',

@@ -6,6 +6,7 @@ import { useExport } from '@/ui/export/useExport';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { Button, Tabs } from '@/ui/primitives';
 import { ColorPreview } from './ColorPreview';
+import { EffectsEditor } from './EffectsEditor';
 import { GROUPS, QUICK_PARAMS } from './groups';
 import { ParamControl } from './ParamControl';
 
@@ -76,7 +77,8 @@ export function ParamPane() {
               <h3 className="section__title">{meta.label}</h3>
               <p className="section__hint">{meta.hint}</p>
               {meta.id === 'color' && <ColorPreview />}
-              {current.basic.length > 0 && (
+              {meta.id === 'effects' && <EffectsEditor />}
+              {meta.id !== 'effects' && current.basic.length > 0 && (
                 <div className="param-grid">
                   {current.basic.map((def) => (
                     <ParamControl key={def.id} def={def} />

@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react';
 
-export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close';
+export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash';
 
 const PATHS: Record<IconName, string> = {
   chevron: 'M3 4.5l3 3 3-3',
@@ -12,6 +12,9 @@ const PATHS: Record<IconName, string> = {
   plus: 'M8 3v10M3 8h10',
   logo: 'M2 2h14v14H2zM6 9h6M9 6v6',
   close: 'M4 4l8 8M12 4l-8 8',
+  up: 'M8 13V3M3.5 7.5L8 3l4.5 4.5',
+  down: 'M8 3v10M3.5 8.5L8 13l4.5-4.5',
+  trash: 'M3 4.5h10M6.5 4.5v-1h3v1M4.5 4.5l.7 8.5h5.6l.7-8.5M6.8 7v4M9.2 7v4',
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

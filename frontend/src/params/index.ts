@@ -54,6 +54,15 @@ export function coerceParam(def: ParamDef, value: unknown): ParamValue {
       return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value.toUpperCase() : def.default;
     case 'text':
       return typeof value === 'string' ? value.slice(0, 2000) : def.default;
+    case 'effects': {
+      if (typeof value !== 'string') return def.default;
+      if (!value.trim()) return '';
+      try {
+        return Array.isArray(JSON.parse(value)) ? value.slice(0, 20000) : def.default;
+      } catch {
+        return def.default;
+      }
+    }
   }
 }
 

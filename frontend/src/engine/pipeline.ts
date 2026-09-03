@@ -8,6 +8,7 @@ import { srgbToLinearFast } from './color/srgb';
 import { colorDither } from './dither/color';
 import { resolveAlgorithm } from './dither/registry';
 import type { AlgorithmDef, DitherInput } from './dither/types';
+import { applyEffects, parseStack } from './effects/stack';
 import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
 import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
@@ -175,8 +176,17 @@ export class Pipeline {
       this.rendered = { key: renderKey, value: frame };
       recomputed.push('render');
     }
+    const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
+    const effectsKey = `${renderKey}|${stackJson}`;
+    if (this.effected?.key !== effectsKey) {
+      const stack = parseStack(stackJson);
+      const value = stack.some((e) => e.enabled) ? applyEffects(this.rendered.value, stack) : this.rendered.value;
+      this.effected = { key: effectsKey, value };
+      if (value !== this.rendered.value) recomputed.push('effects');
+    }
+
     // 输出会被 Worker 转移给主线程，缓存里保留一份副本
-    const cached = this.rendered.value;
+    const cached = this.effected.value;
     const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
 
     this.lastStats = { recomputed, elapsedMs: now() - t0 };
@@ -184,6 +194,7 @@ export class Pipeline {
   }
 
   private rendered?: Cached<RGBAFrame>;
+  private effected?: Cached<RGBAFrame>;
 
   private channels?: Cached<LevelFrame[]>;
 
@@ -243,7 +254,7 @@ export class Pipeline {
   }
 
   clear() {
-    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = this.rendered = undefined;
+    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
   }
 }
 

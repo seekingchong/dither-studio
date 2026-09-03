@@ -59,6 +59,12 @@ export interface TextParam extends ParamBase {
   placeholder?: string;
 }
 
-export type ParamDef = NumberParam | SelectParam | BooleanParam | ColorParam | TextParam;
+/** 特效栈：值是实例列表的 JSON 字符串，由专用编辑器维护 */
+export interface EffectsParam extends ParamBase {
+  type: 'effects';
+  default: string;
+}
+
+export type ParamDef = NumberParam | SelectParam | BooleanParam | ColorParam | TextParam | EffectsParam;
 
 export type Params = Record<string, ParamValue>;

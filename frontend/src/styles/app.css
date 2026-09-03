@@ -804,3 +804,114 @@ button {
   color: var(--tda-color-text-tertiary);
   font-family: var(--tda-font-family-latin);
 }
+
+/* ---------- 特效栈 ---------- */
+
+.effects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-md);
+}
+
+.effects__empty {
+  margin: 0;
+  color: var(--tda-color-text-disabled);
+}
+
+.effect-card {
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-lg);
+  padding: var(--tda-spacing-sm) var(--tda-spacing-md) var(--tda-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-sm);
+  background: var(--tda-color-white);
+}
+
+.effect-card.is-disabled .param-grid {
+  opacity: 0.4;
+}
+
+.effect-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+  min-height: 32px;
+}
+
+.effect-card__index {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--tda-radius-full);
+  background: var(--tda-color-control-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  flex: none;
+}
+
+.effect-card__title {
+  font-weight: 500;
+}
+
+.effect-card__hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--tda-color-text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.effect-card__title + .tda-iconbtn--sm,
+.effect-card__title + .effect-card__switch {
+  margin-left: auto;
+}
+
+.effect-card__switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin-right: var(--tda-spacing-2xs);
+}
+
+.effect-card__switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
+
+.effect-card__switch input:checked ~ .tda-toggle__track {
+  background: var(--tda-color-text-primary);
+}
+
+.effect-card__switch input:checked ~ .tda-toggle__track .tda-toggle__thumb {
+  transform: translateX(12px);
+}
+
+.tda-iconbtn--sm {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--tda-radius-sm);
+}
+
+.tda-iconbtn--sm svg {
+  width: 16px;
+  height: 16px;
+}
+
+.tda-iconbtn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  background: none;
+}
+
+.effects__add-select {
+  width: 240px;
+}

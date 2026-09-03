@@ -26,5 +26,6 @@ export { renderCells } from './render/upscale';
 export { renderGrid, DEFAULT_GRID, type GridRenderOptions, type DotShape, type BackgroundKind, type LineDirection, type BgDotShape } from './render/grid';
 export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
 export { Pipeline, renderImage, type PipelineStats } from './pipeline';
+export * from './effects';
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse } from './protocol';

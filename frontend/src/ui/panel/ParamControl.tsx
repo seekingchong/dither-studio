@@ -33,6 +33,8 @@ export function ParamControl({ def, label }: ParamControlProps) {
       return <ToggleField label={text} value={Boolean(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
     case 'color':
       return <ColorField label={text} value={String(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
+    case 'effects':
+      return null;
     case 'text':
       return (
         <div className={def.multiline ? 'param-span-2' : undefined}>
