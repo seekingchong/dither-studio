@@ -23,6 +23,7 @@ export { boxBlur, gaussianBlur, boxesForGauss, sobelMagnitude, bilateral } from 
 export { suggestPixelSize } from './preprocess/autoPixel';
 export * from './dither';
 export { renderCells } from './render/upscale';
+export { renderGrid, DEFAULT_GRID, type GridRenderOptions, type DotShape, type BackgroundKind, type LineDirection, type BgDotShape } from './render/grid';
 export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
 export { Pipeline, renderImage, type PipelineStats } from './pipeline';
 export { RenderClient, type RenderedFrame } from './client';

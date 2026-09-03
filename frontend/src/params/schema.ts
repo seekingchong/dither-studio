@@ -291,6 +291,52 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'dither.pattern.scale', group: 'dither', label: '图案尺度', type: 'number', min: 2, max: 64, step: 1, default: 6, unit: 'px', visibleWhen: fam('pattern') },
   { id: 'dither.pattern.angle', group: 'dither', label: '图案角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°', visibleWhen: fam('pattern') },
 
+  // ---------- 网格渲染 ----------
+  {
+    id: 'grid.dot',
+    group: 'grid',
+    label: '网点',
+    type: 'select',
+    default: 'square',
+    options: [opt('square', '方块'), opt('euclidean', '欧几里得网点'), opt('roundsquare', '圆方网点')],
+  },
+  { id: 'grid.invert', group: 'grid', label: '反向网点', type: 'boolean', default: false, hint: '背景改用墨色，网点画亮格子' },
+  { id: 'grid.dotSize', group: 'grid', label: '网点大小', type: 'number', min: 10, max: 150, step: 1, default: 100, unit: '%', visibleWhen: { id: 'grid.dot', in: ['euclidean', 'roundsquare'] } },
+  { id: 'grid.dotTone', group: 'grid', label: '随明暗缩放', type: 'boolean', default: false, visibleWhen: { id: 'grid.dot', in: ['euclidean', 'roundsquare'] } },
+  { id: 'grid.metaball', group: 'grid', label: '点融合', type: 'boolean', default: false, hint: 'metaball：相邻网点粘连成 blob' },
+  { id: 'grid.metaballRadius', group: 'grid', label: '融合半径', type: 'number', min: 50, max: 200, step: 1, default: 120, unit: '%', visibleWhen: { id: 'grid.metaball', equals: true } },
+  { id: 'grid.gapX', group: 'grid', label: '横向间距', type: 'number', min: 0, max: 32, step: 1, default: 0, unit: 'px' },
+  { id: 'grid.gapY', group: 'grid', label: '纵向间距', type: 'number', min: 0, max: 32, step: 1, default: 0, unit: 'px' },
+  {
+    id: 'grid.background',
+    group: 'grid',
+    label: '背景',
+    type: 'select',
+    default: 'none',
+    options: [opt('none', '无'), opt('lines', '连线'), opt('dots', '网格点')],
+  },
+  {
+    id: 'grid.lineDirection',
+    group: 'grid',
+    label: '线方向',
+    type: 'select',
+    default: 'row',
+    visibleWhen: { id: 'grid.background', equals: 'lines' },
+    options: [opt('row', '每行一根'), opt('col', '每列一根')],
+  },
+  { id: 'grid.lineWidth', group: 'grid', label: '线粗细', type: 'number', min: 1, max: 16, step: 1, default: 1, unit: 'px', visibleWhen: { id: 'grid.background', equals: 'lines' } },
+  {
+    id: 'grid.bgDotShape',
+    group: 'grid',
+    label: '图形',
+    type: 'select',
+    default: 'circle',
+    visibleWhen: { id: 'grid.background', equals: 'dots' },
+    options: [opt('circle', '圆'), opt('square', '方'), opt('diamond', '菱形'), opt('cross', '十字')],
+  },
+  { id: 'grid.bgDotSize', group: 'grid', label: '图形大小', type: 'number', min: 5, max: 100, step: 1, default: 30, unit: '%', visibleWhen: { id: 'grid.background', equals: 'dots' } },
+  { id: 'grid.bgColor', group: 'grid', label: '背景色', type: 'color', default: '#888888', visibleWhen: { id: 'grid.background', in: ['lines', 'dots'] } },
+
   // ---------- 颜色 ----------
   {
     id: 'color.mode',

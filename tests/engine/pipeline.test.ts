@@ -30,14 +30,17 @@ describe('Pipeline', () => {
     expect([...colors].sort()).toEqual(['17,34,51', '255,238,221']);
   });
 
-  it('参数未变时只重算渲染阶段', () => {
+  it('参数未变时全部命中缓存，输出仍是新副本', () => {
     const p = new Pipeline();
     const src = gradientSource();
-    p.run(src, 'a', smallParams());
+    const first = p.run(src, 'a', smallParams());
     expect(p.lastStats.recomputed).toContain('fit');
     expect(p.lastStats.recomputed).toContain('dither:error-diffusion/floyd-steinberg');
-    p.run(src, 'a', smallParams());
-    expect(p.lastStats.recomputed).toEqual(['render']);
+    expect(p.lastStats.recomputed).toContain('render');
+    const second = p.run(src, 'a', smallParams());
+    expect(p.lastStats.recomputed).toEqual([]);
+    expect(second.data).toEqual(first.data);
+    expect(second.data).not.toBe(first.data);
   });
 
   it('改阈值只重算抖动及下游', () => {

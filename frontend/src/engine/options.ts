@@ -2,6 +2,8 @@ import { bool, num, str, type Params } from '@/params';
 import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
 import type { ChannelSpace, ColorMode } from './color/map';
 import { parseColorList } from './color/palettes';
+import { hexToRgb } from './color/srgb';
+import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
@@ -26,6 +28,22 @@ export interface PipelineOptions {
     mismatch: boolean;
     channelSpace: ChannelSpace;
     accent: AccentOptions;
+  };
+  grid: {
+    dot: DotShape;
+    dotSize: number;
+    dotTone: boolean;
+    invert: boolean;
+    metaball: boolean;
+    metaballRadius: number;
+    gapX: number;
+    gapY: number;
+    background: BackgroundKind;
+    lineDirection: LineDirection;
+    lineWidth: number;
+    bgColor: [number, number, number];
+    bgDotShape: BgDotShape;
+    bgDotSize: number;
   };
 }
 
@@ -87,6 +105,22 @@ export function toPipelineOptions(params: Params): PipelineOptions {
         chain: num(params, 'color.accent.chain') / 100,
         seed: Math.round(num(params, 'color.accent.seed')),
       },
+    },
+    grid: {
+      dot: str(params, 'grid.dot') as DotShape,
+      dotSize: num(params, 'grid.dotSize') / 100,
+      dotTone: bool(params, 'grid.dotTone'),
+      invert: bool(params, 'grid.invert'),
+      metaball: bool(params, 'grid.metaball'),
+      metaballRadius: num(params, 'grid.metaballRadius') / 100,
+      gapX: Math.round(num(params, 'grid.gapX')),
+      gapY: Math.round(num(params, 'grid.gapY')),
+      background: str(params, 'grid.background') as BackgroundKind,
+      lineDirection: str(params, 'grid.lineDirection') as LineDirection,
+      lineWidth: num(params, 'grid.lineWidth'),
+      bgColor: hexToRgb(str(params, 'grid.bgColor')),
+      bgDotShape: str(params, 'grid.bgDotShape') as BgDotShape,
+      bgDotSize: num(params, 'grid.bgDotSize') / 100,
     },
   };
 }

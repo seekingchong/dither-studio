@@ -12,7 +12,7 @@ import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './o
 import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
-import { renderCells } from './render/upscale';
+import { renderGrid } from './render/grid';
 import type { CellFrame, GrayFrame, LevelFrame, RGBAFrame, RGBFrame } from './types';
 
 interface Cached<T> {
@@ -87,6 +87,13 @@ export class Pipeline {
     let levelFrame: LevelFrame;
     let cellsKey: string;
     let buildCells: () => CellFrame;
+    // 纸色（最亮）与墨色（最暗），供网格渲染的背景与反向使用
+    let paper: [number, number, number] = [255, 255, 255];
+    let ink: [number, number, number] = [0, 0, 0];
+    const pc = palette.colors;
+    const paletteInk: [number, number, number] = [pc[0] * 255, pc[1] * 255, pc[2] * 255];
+    const paletteEnd = (palette.size - 1) * 3;
+    const palettePaper: [number, number, number] = [pc[paletteEnd] * 255, pc[paletteEnd + 1] * 255, pc[paletteEnd + 2] * 255];
 
     if (mode === 'palette' && !opts.color.mismatch) {
       // 真彩调色板路径：直接在 RGB 上量化到最近色
@@ -99,6 +106,8 @@ export class Pipeline {
       levelFrame = this.levels.value;
       cellsKey = `${key}|${keyOf(params, 'color.')}`;
       buildCells = () => mapPaletteIndices(levelFrame.data, width, height, palette);
+      paper = palettePaper;
+      ink = paletteInk;
     } else if (mode === 'channels') {
       const n = opts.color.levels;
       const key = `${toneKey}|threshold=${opts.tone.threshold}|linear=${opts.tone.linear}|levels=${n}|space=${opts.color.channelSpace}|${ditherParams}|path=channels`;
@@ -124,20 +133,26 @@ export class Pipeline {
       }
       levelFrame = this.levels.value;
       cellsKey = `${key}|linear=${opts.tone.linear}|${keyOf(params, 'color.')}`;
-      buildCells = () => {
-        const lut = buildLevelPalette({
-          mode,
-          levels: n,
-          linear: opts.tone.linear,
-          tintDark: opts.color.tintDark,
-          tintLight: opts.color.tintLight,
-          tintStops: opts.color.tintStops,
-          palette,
-          mismatch: opts.color.mismatch,
-          channelSpace: opts.color.channelSpace,
-        });
-        return mapLevels(levelFrame, lut);
-      };
+      const lut = buildLevelPalette({
+        mode,
+        levels: n,
+        linear: opts.tone.linear,
+        tintDark: opts.color.tintDark,
+        tintLight: opts.color.tintLight,
+        tintStops: opts.color.tintStops,
+        palette,
+        mismatch: opts.color.mismatch,
+        channelSpace: opts.color.channelSpace,
+      });
+      buildCells = () => mapLevels(levelFrame, lut);
+      if (mode === 'palette') {
+        paper = palettePaper;
+        ink = paletteInk;
+      } else {
+        const last = (n - 1) * 3;
+        ink = [lut[0], lut[1], lut[2]];
+        paper = [lut[last], lut[last + 1], lut[last + 2]];
+      }
     }
 
     if (this.cells?.key !== cellsKey) {
@@ -154,12 +169,21 @@ export class Pipeline {
     }
 
     const { size, offsetX, offsetY } = opts.pixel;
-    const output = renderCells(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY);
-    recomputed.push('render');
+    const renderKey = `${cellsKey}|${keyOf(params, 'grid.')}|paper=${paper.join()}|ink=${ink.join()}|size=${size}|${offsetX},${offsetY}|${opts.canvas.width}x${opts.canvas.height}`;
+    if (this.rendered?.key !== renderKey) {
+      const frame = renderGrid(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, { ...opts.grid, paper, ink });
+      this.rendered = { key: renderKey, value: frame };
+      recomputed.push('render');
+    }
+    // 输出会被 Worker 转移给主线程，缓存里保留一份副本
+    const cached = this.rendered.value;
+    const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
 
     this.lastStats = { recomputed, elapsedMs: now() - t0 };
     return output;
   }
+
+  private rendered?: Cached<RGBAFrame>;
 
   private channels?: Cached<LevelFrame[]>;
 
@@ -219,7 +243,7 @@ export class Pipeline {
   }
 
   clear() {
-    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = undefined;
+    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = this.rendered = undefined;
   }
 }
 
