@@ -5,11 +5,17 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
+import { installMenu, type MenuAction } from './menu';
 import type { MediaFile, SavedFile } from '@/platform/types';
 import { mimeFromName } from '@/platform/types';
 
 const execFileAsync = promisify(execFile);
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
+const APP_NAME = 'Dither Studio';
+
+// 开发模式下运行的是 Electron 二进制，macOS 菜单栏第一项仍会显示 Electron（系统取的是 bundle 名），
+// 但 about 面板、通知、Dock 图标可以先改过来；打包后由 productName 决定。
+app.setName(APP_NAME);
 
 const SMOKE_SCRIPT = `(async () => {
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -222,6 +228,14 @@ function registerIpc() {
 
 app.whenReady().then(() => {
   registerIpc();
+  installMenu((action: MenuAction) => {
+    const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+    win?.webContents.send('menu', action);
+  });
+  if (!app.isPackaged && process.platform === 'darwin' && app.dock) {
+    const icon = path.join(__dirname, '..', '..', 'build', 'icon.png');
+    app.dock.setIcon(icon);
+  }
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

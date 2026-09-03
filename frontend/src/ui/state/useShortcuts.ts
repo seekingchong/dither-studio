@@ -8,7 +8,7 @@ interface ShortcutActions {
   copyPng: () => void;
 }
 
-function inEditable(target: EventTarget | null): boolean {
+export function inEditable(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el || !el.tagName) return false;
   const tag = el.tagName;

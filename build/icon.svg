@@ -1,0 +1,9 @@
+<!-- 应用图标源文件。几何与色值来自设计导出的「APP icon.svg」，viewBox 保持 512 未改动；
+     width/height 设为 1024 只是为了让 gen-icon.mjs 直接渲染出 1024×1024 的 PNG。 -->
+<svg width="1024" height="1024" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="512" height="512" fill="#D7D6D4"/>
+<rect x="80" y="80" width="176" height="176" rx="48" fill="#1D1711"/>
+<rect x="256" y="80" width="176" height="176" rx="48" fill="#D7D6D4"/>
+<rect x="80" y="256" width="176" height="176" rx="48" fill="#D7D6D4"/>
+<rect x="256" y="256" width="176" height="176" rx="48" fill="#1D1711"/>
+</svg>

@@ -27,6 +27,10 @@ export interface DitherBridge {
   media: {
     convertHeic(bytes: Uint8Array): Promise<Uint8Array>;
   };
+  menu: {
+    /** 订阅原生菜单动作，返回取消函数 */
+    onAction(cb: (action: string) => void): () => void;
+  };
 }
 
 export function getBridge(): DitherBridge | undefined {

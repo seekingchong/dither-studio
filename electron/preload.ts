@@ -22,6 +22,13 @@ const bridge: DitherBridge = {
   media: {
     convertHeic: (bytes) => ipcRenderer.invoke('media:convertHeic', bytes),
   },
+  menu: {
+    onAction: (cb) => {
+      const listener = (_event: unknown, action: string) => cb(action);
+      ipcRenderer.on('menu', listener);
+      return () => ipcRenderer.removeListener('menu', listener);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('ditherStudio', bridge);

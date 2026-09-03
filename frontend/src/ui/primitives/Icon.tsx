@@ -33,7 +33,16 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 
 /** 线性图标：stroke currentColor、1.5px，尺寸 12 / 16 / 18 */
 export function Icon({ name, size = 16, ...rest }: IconProps) {
-  const viewBox = name === 'chevron' ? '0 0 12 12' : name === 'logo' ? '0 0 18 18' : '0 0 16 16';
+  if (name === 'logo') {
+    // 应用标志：两个对角相接的圆角方块，与 build/icon.svg 一致
+    return (
+      <svg className="tda-icon" width={size} height={size} viewBox="0 0 18 18" fill="currentColor" aria-hidden="true" {...rest}>
+        <rect x="0.5" y="0.5" width="8.5" height="8.5" rx="2.3" />
+        <rect x="9" y="9" width="8.5" height="8.5" rx="2.3" />
+      </svg>
+    );
+  }
+  const viewBox = name === 'chevron' ? '0 0 12 12' : '0 0 16 16';
   return (
     <svg
       className="tda-icon"

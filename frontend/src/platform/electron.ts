@@ -1,5 +1,5 @@
 import type { DitherBridge } from './bridge';
-import type { Platform } from './types';
+import type { MenuAction, Platform } from './types';
 
 /** Electron 实现：全部转发到 preload 桥接对象 */
 export function createElectronPlatform(bridge: DitherBridge): Platform {
@@ -28,5 +28,6 @@ export function createElectronPlatform(bridge: DitherBridge): Platform {
       writeFile: (path) => bridge.clipboard.writeFile(path),
     },
     convertHeic: bridge.platform === 'darwin' ? (bytes) => bridge.media.convertHeic(bytes) : undefined,
+    onMenuAction: (cb) => bridge.menu.onAction((action) => cb(action as MenuAction)),
   };
 }

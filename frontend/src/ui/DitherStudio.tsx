@@ -6,6 +6,7 @@ import { ParamPane } from './panel/ParamPane';
 import { RendererProvider } from './renderer/RendererContext';
 import { TopBar } from './TopBar';
 import { useExport } from './export/useExport';
+import { useMenuActions } from './state/useMenuActions';
 import { usePersistence } from './state/usePersistence';
 import { useShortcuts } from './state/useShortcuts';
 
@@ -24,7 +25,9 @@ function Shell() {
   const { exportPng, copyPng } = useExport();
   const [dragging, setDragging] = useState(false);
   usePersistence();
-  useShortcuts(useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]));
+  const actions = useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]);
+  useShortcuts(actions);
+  useMenuActions(actions);
 
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;

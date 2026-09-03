@@ -9,6 +9,7 @@ import { useExport } from '@/ui/export/useExport';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { Button, IconButton, Tabs } from '@/ui/primitives';
 import { PresetsPane } from './PresetsPane';
+import { useUiStore } from '@/ui/state/uiStore';
 import { ColorPreview } from './ColorPreview';
 import { EffectsEditor } from './EffectsEditor';
 import { GROUPS, QUICK_PARAMS } from './groups';
@@ -23,7 +24,7 @@ export function ParamPane() {
   const { openDialog } = useOpenMedia();
   const { canExport, exportPng, copyPng } = useExport();
   const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
-  const [videoDialog, setVideoDialog] = useState(false);
+  const { videoDialog, setVideoDialog } = useUiStore(useShallow((s) => ({ videoDialog: s.exportVideoOpen, setVideoDialog: s.setExportVideoOpen })));
   const { canUndo, canRedo, undo, redo } = useStudioStore(
     useShallow((s) => ({ canUndo: s.history.past.length > 0, canRedo: s.history.future.length > 0, undo: s.undo, redo: s.redo })),
   );

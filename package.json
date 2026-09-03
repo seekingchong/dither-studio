@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Dither Studio — 抖动艺术工具（macOS 客户端，前端可发布 web / SkillForge）",
-  "author": "Dither Studio",
+  "author": "seekingchong",
   "main": "electron/dist/main.cjs",
   "type": "module",
   "workspaces": [
@@ -25,7 +25,8 @@
     "sync-tokens": "node scripts/sync-tokens.mjs",
     "package:platform": "node scripts/package-platform.mjs",
     "check:platform": "node scripts/check-platform-build.mjs",
-    "smoke:electron": "DITHER_SMOKE=1 electron ."
+    "smoke:electron": "DITHER_SMOKE=1 electron .",
+    "gen:icon": "node scripts/gen-icon.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
@@ -53,7 +54,8 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.graphics-design"
+      "category": "public.app-category.graphics-design",
+      "icon": "build/icon.png"
     },
     "dmg": {
       "contents": [

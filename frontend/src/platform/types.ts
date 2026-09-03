@@ -61,8 +61,12 @@ export interface Platform {
   readonly clipboard: PlatformClipboard;
   /** HEIC → PNG 转码；macOS 上由主进程调用 sips，web 端暂无 */
   convertHeic?(bytes: Uint8Array): Promise<Uint8Array>;
+  /** 原生菜单动作（open / export-png / export-video / copy-png / undo / redo / copy），仅 Electron */
+  onMenuAction?(cb: (action: MenuAction) => void): () => void;
   readonly ai?: PlatformAI;
 }
+
+export type MenuAction = 'open' | 'export-png' | 'export-video' | 'copy-png' | 'undo' | 'redo' | 'copy';
 
 export const MEDIA_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic', 'heif', 'mp4', 'webm', 'mov'] as const;
 
