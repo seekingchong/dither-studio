@@ -84,8 +84,8 @@ describe('toGray', () => {
 describe('applyThresholdBias', () => {
   it('128 为中性、255 全压暗、0 全提亮', () => {
     const g = { width: 1, height: 1, data: new Float32Array([0.4]) };
-    expect(applyThresholdBias(g, 128).data[0]).toBeCloseTo(0.4, 2);
-    expect(applyThresholdBias(g, 255).data[0]).toBeCloseTo(-0.1, 5);
+    expect(applyThresholdBias(g, 128).data[0]).toBeCloseTo(0.4, 6);
+    expect(applyThresholdBias(g, 255).data[0]).toBeCloseTo(0.4 + 0.5 - 255 / 256, 5);
     expect(applyThresholdBias(g, 0).data[0]).toBeCloseTo(0.9, 5);
   });
 });

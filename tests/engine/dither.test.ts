@@ -34,7 +34,7 @@ describe('Bayer 4×4', () => {
     expect(ascii(out, W, H)).toMatchSnapshot();
   });
   it('图案缩放 2 让 2×2 像素共用一个阈值', () => {
-    const out = orderedDither(uniformInput(8, 8, 0.5), getMatrix('bayer4'), 2);
+    const out = orderedDither(uniformInput(8, 8, 0.5), getMatrix('bayer4'), { scale: 2 });
     for (let y = 0; y < 8; y += 2) {
       for (let x = 0; x < 8; x += 2) {
         const v = out[y * 8 + x];

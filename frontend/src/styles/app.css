@@ -724,3 +724,54 @@ button {
 .tda-toast--error {
   background: var(--tda-color-danger);
 }
+
+/* ---------- 文本 ---------- */
+
+.param-span-2 {
+  grid-column: span 2;
+  min-width: 0;
+}
+
+.tda-text__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-family: var(--tda-font-family-mixed);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+  color: var(--tda-color-text-primary);
+  outline: none;
+}
+
+.tda-textarea {
+  height: auto;
+  min-height: var(--tda-control-height);
+  align-items: flex-start;
+  padding-top: var(--tda-spacing-xs);
+  padding-bottom: var(--tda-spacing-xs);
+}
+
+.tda-textarea .tda-field__label {
+  line-height: var(--tda-typography-body-sm-line);
+}
+
+.tda-textarea__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  resize: vertical;
+  font-family: var(--tda-font-family-code);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+  color: var(--tda-color-text-primary);
+  outline: none;
+}
+
+.tda-textarea__input::placeholder,
+.tda-text__input::placeholder {
+  color: var(--tda-color-text-disabled);
+}

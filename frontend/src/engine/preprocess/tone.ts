@@ -16,11 +16,15 @@ export function applyTone(rgb: RGBFrame, opts: ToneOptions): RGBFrame {
 }
 
 /**
- * 阈值偏置：threshold 取 0..255，128 为中性。
- * 所有算法统一在量化输入上加 (0.5 - threshold/255)，固定阈值算法下等价于 gray >= threshold。
+ * 阈值偏置：threshold 取 0..255，128 为中性（偏置恰为 0）。
+ * 所有算法统一在量化输入上加 (0.5 - threshold/256)，固定阈值算法下等价于 gray >= threshold/256。
  */
+export function thresholdBias(threshold: number): number {
+  return 0.5 - threshold / 256;
+}
+
 export function applyThresholdBias(gray: GrayFrame, threshold: number): GrayFrame {
-  const bias = 0.5 - threshold / 255;
+  const bias = thresholdBias(threshold);
   if (bias === 0) return gray;
   const out = createGray(gray.width, gray.height);
   const s = gray.data;

@@ -7,11 +7,21 @@ import type { ParamDef, ParamOption } from './types';
 
 const opt = (value: string, label: string): ParamOption => ({ value, label });
 
-/** 算法族。M1 只开放已实现的三族；M2 补齐噪声、半调、曲线扫描、点扩散 / DBS、图案。 */
 export const DITHER_FAMILIES: ParamOption[] = [
   opt('threshold', '阈值'),
+  opt('noise', '噪声'),
   opt('ordered', '有序'),
+  opt('halftone', '半调'),
   opt('error-diffusion', '误差扩散'),
+  opt('curve', '曲线扫描'),
+  opt('search', '点扩散 / DBS'),
+  opt('pattern', '图案'),
+];
+
+const fam = (family: string) => ({ id: 'dither.family', equals: family });
+const famAnd = (family: string, id: string, value: string | string[]) => [
+  fam(family),
+  Array.isArray(value) ? { id, in: value } : { id, equals: value },
 ];
 
 export const PARAM_SCHEMA: readonly ParamDef[] = [
@@ -71,64 +81,190 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
 
   // ---------- 抖动算法 ----------
   { id: 'dither.family', group: 'dither', label: '算法族', type: 'select', default: 'error-diffusion', options: DITHER_FAMILIES },
+
+  // 阈值
   {
     id: 'dither.threshold.method',
     group: 'dither',
     label: '方法',
     type: 'select',
     default: 'fixed',
-    visibleWhen: { id: 'dither.family', equals: 'threshold' },
-    options: [opt('fixed', '固定阈值'), opt('otsu', 'Otsu 自动'), opt('adaptive', '自适应')],
+    visibleWhen: fam('threshold'),
+    options: [opt('fixed', '固定阈值'), opt('otsu', 'Otsu 自动阈值'), opt('adaptive', '自适应阈值')],
   },
+  { id: 'dither.threshold.radius', group: 'dither', label: '窗口半径', type: 'number', min: 1, max: 64, step: 1, default: 8, unit: 'px', visibleWhen: famAnd('threshold', 'dither.threshold.method', 'adaptive') },
+  { id: 'dither.threshold.offset', group: 'dither', label: '偏移 C', type: 'number', min: -50, max: 50, step: 1, default: 0, unit: '%', visibleWhen: famAnd('threshold', 'dither.threshold.method', 'adaptive') },
+
+  // 噪声
+  {
+    id: 'dither.noise.type',
+    group: 'dither',
+    label: '噪声',
+    type: 'select',
+    default: 'blue',
+    visibleWhen: fam('noise'),
+    options: [opt('blue', '蓝噪声'), opt('white', '白噪声'), opt('ign', '交错梯度噪声'), opt('perlin', 'Perlin')],
+  },
+  { id: 'dither.noise.amplitude', group: 'dither', label: '噪声幅度', type: 'number', min: 0, max: 200, step: 1, default: 100, unit: '%', visibleWhen: fam('noise') },
+  { id: 'dither.noise.scale', group: 'dither', label: '噪声尺度', type: 'number', min: 1, max: 64, step: 1, default: 1, visibleWhen: fam('noise') },
+  { id: 'dither.noise.seed', group: 'dither', label: '随机种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: fam('noise') },
+
+  // 有序
   {
     id: 'dither.ordered.matrix',
     group: 'dither',
     label: '矩阵',
     type: 'select',
     default: 'bayer4',
-    visibleWhen: { id: 'dither.family', equals: 'ordered' },
-    options: [opt('bayer2', 'Bayer 2×2'), opt('bayer3', 'Bayer 3×3'), opt('bayer4', 'Bayer 4×4'), opt('bayer8', 'Bayer 8×8'), opt('bayer16', 'Bayer 16×16'), opt('bayer32', 'Bayer 32×32')],
+    visibleWhen: fam('ordered'),
+    options: [
+      opt('bayer2', 'Bayer 2×2'),
+      opt('bayer3', 'Bayer 3×3'),
+      opt('bayer4', 'Bayer 4×4'),
+      opt('bayer8', 'Bayer 8×8'),
+      opt('bayer16', 'Bayer 16×16'),
+      opt('bayer32', 'Bayer 32×32'),
+      opt('cluster4', '聚簇点 4×4'),
+      opt('cluster8', '聚簇点 8×8'),
+      opt('nonrect', '非矩形'),
+      opt('centerwhite', '中心白点'),
+      opt('diagonal', '对角矩阵'),
+      opt('circle5', '圆点 5×5'),
+      opt('circle6', '圆点 6×6'),
+      opt('circle7', '圆点 7×7'),
+    ],
   },
+  { id: 'dither.ordered.scale', group: 'dither', label: '图案缩放', type: 'number', min: 1, max: 8, step: 1, default: 1, visibleWhen: fam('ordered') },
+  { id: 'dither.ordered.angle', group: 'dither', label: '图案角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°', visibleWhen: fam('ordered') },
+  { id: 'dither.ordered.offsetX', group: 'dither', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, visibleWhen: fam('ordered'), advanced: true },
+  { id: 'dither.ordered.offsetY', group: 'dither', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, visibleWhen: fam('ordered'), advanced: true },
+
+  // 半调
   {
-    id: 'dither.ordered.scale',
+    id: 'dither.halftone.shape',
     group: 'dither',
-    label: '图案缩放',
-    type: 'number',
-    min: 1,
-    max: 8,
-    step: 1,
-    default: 1,
-    visibleWhen: { id: 'dither.family', equals: 'ordered' },
+    label: '网点形状',
+    type: 'select',
+    default: 'round',
+    visibleWhen: fam('halftone'),
+    options: [
+      opt('round', '圆点'),
+      opt('euclidean', '欧几里得'),
+      opt('line', '线'),
+      opt('diamond', '菱形'),
+      opt('cosine', '余弦'),
+      opt('square', '方'),
+      opt('ellipse', '椭圆'),
+      opt('cross', '十字'),
+      opt('star', '星形'),
+      opt('hexagon', '六边形网格'),
+    ],
   },
+  { id: 'dither.halftone.period', group: 'dither', label: '网点周期', type: 'number', min: 2, max: 64, step: 1, default: 8, unit: 'px', visibleWhen: fam('halftone') },
+  { id: 'dither.halftone.angle', group: 'dither', label: '网线角度', type: 'number', min: 0, max: 180, step: 1, default: 45, unit: '°', visibleWhen: fam('halftone') },
+  { id: 'dither.halftone.gain', group: 'dither', label: '网点增益', type: 'number', min: -100, max: 100, step: 1, default: 0, unit: '%', visibleWhen: fam('halftone') },
+  { id: 'dither.halftone.gooey', group: 'dither', label: '融合度', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%', visibleWhen: fam('halftone') },
+  { id: 'dither.halftone.invert', group: 'dither', label: '反向网点', type: 'boolean', default: false, visibleWhen: fam('halftone') },
+
+  // 误差扩散
   {
     id: 'dither.ed.kernel',
     group: 'dither',
     label: '扩散核',
     type: 'select',
     default: 'floyd-steinberg',
-    visibleWhen: { id: 'dither.family', equals: 'error-diffusion' },
-    options: [opt('floyd-steinberg', 'Floyd–Steinberg')],
+    visibleWhen: fam('error-diffusion'),
+    options: [
+      opt('floyd-steinberg', 'Floyd–Steinberg'),
+      opt('atkinson', 'Atkinson'),
+      opt('jjn', 'Jarvis–Judice–Ninke'),
+      opt('stucki', 'Stucki'),
+      opt('burkes', 'Burkes'),
+      opt('sierra3', 'Sierra（3 行）'),
+      opt('sierra2', 'Sierra（2 行）'),
+      opt('sierra-lite', 'Sierra Lite'),
+      opt('stevenson-arce', 'Stevenson–Arce'),
+      opt('false-fs', 'False Floyd–Steinberg'),
+      opt('ostromoukhov', 'Ostromoukhov'),
+      opt('zhou-fang', 'Zhou–Fang（变系数）'),
+      opt('shiau-fan', 'Shiau–Fan'),
+      opt('custom', '自定义核'),
+    ],
+  },
+  { id: 'dither.ed.strength', group: 'dither', label: '误差强度', type: 'number', min: 0, max: 100, step: 1, default: 100, unit: '%', visibleWhen: fam('error-diffusion') },
+  { id: 'dither.ed.serpentine', group: 'dither', label: '蛇形扫描', type: 'boolean', default: true, visibleWhen: fam('error-diffusion') },
+  { id: 'dither.ed.clamp', group: 'dither', label: '误差截断', type: 'number', min: 1, max: 100, step: 1, default: 100, unit: '%', hint: '单个像素允许携带的最大误差，100 为不截断', visibleWhen: fam('error-diffusion') },
+  {
+    id: 'dither.ed.direction',
+    group: 'dither',
+    label: '扫描方向',
+    type: 'select',
+    default: 'ltr',
+    visibleWhen: fam('error-diffusion'),
+    options: [opt('ltr', '左 → 右'), opt('rtl', '右 → 左'), opt('ttb', '上 → 下'), opt('btt', '下 → 上')],
   },
   {
-    id: 'dither.ed.strength',
+    id: 'dither.ed.custom',
     group: 'dither',
-    label: '误差强度',
-    type: 'number',
-    min: 0,
-    max: 100,
-    step: 1,
-    default: 100,
-    unit: '%',
-    visibleWhen: { id: 'dither.family', equals: 'error-diffusion' },
+    label: '自定义核',
+    type: 'text',
+    multiline: true,
+    default: 'X 7\n3 5 1',
+    placeholder: 'X 标记当前像素，每行一排，末尾可写 /16 指定除数',
+    visibleWhen: famAnd('error-diffusion', 'dither.ed.kernel', 'custom'),
   },
+  { id: 'dither.ed.seed', group: 'dither', label: '随机种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: famAnd('error-diffusion', 'dither.ed.kernel', 'zhou-fang') },
+
+  // 曲线扫描
   {
-    id: 'dither.ed.serpentine',
+    id: 'dither.curve.type',
     group: 'dither',
-    label: '蛇形扫描',
-    type: 'boolean',
-    default: true,
-    visibleWhen: { id: 'dither.family', equals: 'error-diffusion' },
+    label: '曲线',
+    type: 'select',
+    default: 'hilbert',
+    visibleWhen: fam('curve'),
+    options: [opt('hilbert', 'Riemersma（Hilbert）'), opt('peano', 'Peano 曲线'), opt('gosper', 'Gosper 曲线'), opt('fass', 'FASS 曲线')],
   },
+  { id: 'dither.curve.history', group: 'dither', label: '误差记忆', type: 'number', min: 1, max: 64, step: 1, default: 16, hint: 'Riemersma 参数：记住最近多少个像素的误差', visibleWhen: fam('curve') },
+  { id: 'dither.curve.ratio', group: 'dither', label: '衰减比', type: 'number', min: 1, max: 64, step: 1, default: 16, hint: 'Riemersma 参数：最新误差与最旧误差的权重比', visibleWhen: fam('curve') },
+  { id: 'dither.curve.strength', group: 'dither', label: '误差强度', type: 'number', min: 0, max: 100, step: 1, default: 100, unit: '%', visibleWhen: fam('curve') },
+
+  // 点扩散 / DBS
+  {
+    id: 'dither.search.method',
+    group: 'dither',
+    label: '方法',
+    type: 'select',
+    default: 'knuth',
+    visibleWhen: fam('search'),
+    options: [opt('knuth', '点扩散（Knuth）'), opt('lippens', '点扩散（Lippens）'), opt('dbs', 'DBS（直接二值搜索）')],
+  },
+  { id: 'dither.search.strength', group: 'dither', label: '误差强度', type: 'number', min: 0, max: 100, step: 1, default: 100, unit: '%', visibleWhen: famAnd('search', 'dither.search.method', ['knuth', 'lippens']) },
+  { id: 'dither.search.iterations', group: 'dither', label: '迭代次数', type: 'number', min: 1, max: 8, step: 1, default: 2, visibleWhen: famAnd('search', 'dither.search.method', 'dbs') },
+  { id: 'dither.search.sigma', group: 'dither', label: '视觉模糊 σ', type: 'number', min: 0.5, max: 3, step: 0.1, default: 1.5, unit: 'px', visibleWhen: famAnd('search', 'dither.search.method', 'dbs') },
+
+  // 图案
+  {
+    id: 'dither.pattern.type',
+    group: 'dither',
+    label: '图案',
+    type: 'select',
+    default: 'checker',
+    visibleWhen: fam('pattern'),
+    options: [
+      opt('checker', '棋盘'),
+      opt('hlines', '横线'),
+      opt('vlines', '竖线'),
+      opt('diagonal', '斜线'),
+      opt('cross', '交叉线'),
+      opt('brick', '砖块'),
+      opt('spiral', '螺旋'),
+      opt('hexagon', '六边形'),
+      opt('sine', '正弦波'),
+    ],
+  },
+  { id: 'dither.pattern.scale', group: 'dither', label: '图案尺度', type: 'number', min: 2, max: 64, step: 1, default: 6, unit: 'px', visibleWhen: fam('pattern') },
+  { id: 'dither.pattern.angle', group: 'dither', label: '图案角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°', visibleWhen: fam('pattern') },
 
   // ---------- 颜色 ----------
   {

@@ -5,7 +5,7 @@ export { mapLevels, buildLevelPalette, type ColorMode, type ColorMapOptions } fr
 export { resample, resampleCore, axisWeights, type ResampleMethod } from './preprocess/resample';
 export { computeFit, fitFrame, type FitMode, type FitRect } from './preprocess/fit';
 export { pixelate, cellCount } from './preprocess/pixelate';
-export { applyTone, applyThresholdBias } from './preprocess/tone';
+export { applyTone, applyThresholdBias, thresholdBias } from './preprocess/tone';
 export * from './dither';
 export { renderCells } from './render/upscale';
 export { toPipelineOptions, keyOf, type PipelineOptions } from './options';

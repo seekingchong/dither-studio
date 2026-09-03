@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import type { ParamDef } from '@/params';
 import { useStudioStore } from '@/state';
-import { ColorField, Select, SliderField, ToggleField } from '@/ui/primitives';
+import { ColorField, Select, SliderField, TextField, ToggleField } from '@/ui/primitives';
 
 interface ParamControlProps {
   def: ParamDef;
@@ -33,5 +33,18 @@ export function ParamControl({ def, label }: ParamControlProps) {
       return <ToggleField label={text} value={Boolean(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
     case 'color':
       return <ColorField label={text} value={String(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
+    case 'text':
+      return (
+        <div className={def.multiline ? 'param-span-2' : undefined}>
+          <TextField
+            label={text}
+            value={String(value)}
+            multiline={def.multiline}
+            placeholder={def.placeholder}
+            onChange={(v) => setParam(def.id, v)}
+            data-param={def.id}
+          />
+        </div>
+      );
   }
 }

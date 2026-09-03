@@ -51,6 +51,13 @@ export interface ColorParam extends ParamBase {
   default: string;
 }
 
-export type ParamDef = NumberParam | SelectParam | BooleanParam | ColorParam;
+export interface TextParam extends ParamBase {
+  type: 'text';
+  default: string;
+  multiline?: boolean;
+  placeholder?: string;
+}
+
+export type ParamDef = NumberParam | SelectParam | BooleanParam | ColorParam | TextParam;
 
 export type Params = Record<string, ParamValue>;

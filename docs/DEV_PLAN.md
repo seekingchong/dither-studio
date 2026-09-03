@@ -161,6 +161,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 12 | 内置预设的具体参数 | 我先定初版，你看效果后调 |
 | 13 | 二期在平台上的形态 | 已确认并按发布技能仓库核实：SkillForge 应用，前端整页托管，见 4.6 与 `docs/PLATFORM_NOTES.md` |
 | 14 | 线性空间抖动。PRD 默认 BT.709 线性空间，物理上正确（抖动后平均亮度与原图一致），但比常见工具的 gamma 空间结果整体偏暗 | 默认线性，影调分区加"线性空间"开关可关掉；M3 的亮度 / 中间调再补偿。你看效果后决定默认值 |
+| 15 | Ostromoukhov 系数表只重建了前 44 级，其后按论文趋势插值到中灰；Zhou–Fang 的阈值调制曲线为近似；libdither 的非矩形 / 中心白点 / 对角矩阵与 ImageMagick 圆点按描述重建 | 视觉上可用；若你有原始表格可直接替换 `errorDiffusion.ts` 里的 `OSTRO_KEY` |
 
 ## 7. 风险
 
@@ -176,7 +177,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 |---|---|
 | M0 | 已完成：`frontend/` Vite + React 18 + TS；`VITE_BASE` 三目标；`platform` 接口与 electron / web 实现；zustand store；vitest + Playwright；CI；Electron 44 剪贴板已用 W3C 风格异步 API |
 | M1 | 已完成：打开 / 拖拽图片；像素化（box / bilinear / lanczos / nearest 与网格偏移已一并实现）；固定阈值、Bayer 2–32 与 3×3、Floyd–Steinberg；1-bit Tint；缩放 5 档；导出 / 复制 PNG；Worker 流水线分阶段缓存；Inter 与 Roboto Mono 随包；Playwright 5 个用例 + 4 张基线截图，引擎 50 个单测 |
-| M2 | 待开始 |
+| M2 | 已完成：阈值 3（固定 / Otsu / 自适应）、噪声 4（蓝噪声离线 void-and-cluster 128×128 / 白 / IGN / Perlin）、有序 14、半调 10（含增益、融合度、反向）、误差扩散 14（含自定义核文本、扫描方向、误差截断、Ostromoukhov / Zhou–Fang 变系数）、曲线 4（Hilbert / Peano / Gosper / FASS + Riemersma 记忆与衰减比）、点扩散 Knuth / Lippens 与 DBS、图案 9；61 个算法各有 ASCII 快照，152 个单测；Playwright 逐族切换用例 |
 | M3 | 待开始 |
 | M4 | 待开始 |
 | M5 | 待开始 |
