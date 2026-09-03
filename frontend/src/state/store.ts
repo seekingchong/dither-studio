@@ -13,8 +13,10 @@ export interface StudioState {
   slots: Slot[];
   setSlotMedia(index: number, media: LoadedMedia | null): void;
 
-  view: { zoom: ZoomLevel; tab: PreviewTab; activeSlot: number };
+  view: { zoom: ZoomLevel; tab: PreviewTab; activeSlot: number; autoPixelSize: boolean };
   setZoom(zoom: ZoomLevel): void;
+  /** 载入媒体时按输入分辨率建议像素尺寸；用户手动改过就不再覆盖 */
+  applySuggestedPixelSize(size: number): void;
   setTab(tab: PreviewTab): void;
   setActiveSlot(index: number): void;
 
@@ -33,7 +35,8 @@ export const useStudioStore = create<StudioState>((set) => ({
       const def = getParamDef(id);
       const next = coerceParam(def, value);
       if (state.params[id] === next) return state;
-      return { params: { ...state.params, [id]: next } };
+      const view = id === 'pixel.size' && state.view.autoPixelSize ? { ...state.view, autoPixelSize: false } : state.view;
+      return { params: { ...state.params, [id]: next }, view };
     }),
   setParams: (patch) =>
     set((state) => {
@@ -56,8 +59,15 @@ export const useStudioStore = create<StudioState>((set) => ({
       return { slots };
     }),
 
-  view: { zoom: 'fit', tab: 'result', activeSlot: 0 },
+  view: { zoom: 'fit', tab: 'result', activeSlot: 0, autoPixelSize: true },
   setZoom: (zoom) => set((state) => ({ view: { ...state.view, zoom } })),
+  applySuggestedPixelSize: (size) =>
+    set((state) => {
+      if (!state.view.autoPixelSize) return state;
+      const next = coerceParam(getParamDef('pixel.size'), size);
+      if (state.params['pixel.size'] === next) return state;
+      return { params: { ...state.params, 'pixel.size': next } };
+    }),
   setTab: (tab) => set((state) => ({ view: { ...state.view, tab } })),
   setActiveSlot: (activeSlot) => set((state) => ({ view: { ...state.view, activeSlot } })),
 

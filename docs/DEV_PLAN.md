@@ -178,7 +178,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M0 | 已完成：`frontend/` Vite + React 18 + TS；`VITE_BASE` 三目标；`platform` 接口与 electron / web 实现；zustand store；vitest + Playwright；CI；Electron 44 剪贴板已用 W3C 风格异步 API |
 | M1 | 已完成：打开 / 拖拽图片；像素化（box / bilinear / lanczos / nearest 与网格偏移已一并实现）；固定阈值、Bayer 2–32 与 3×3、Floyd–Steinberg；1-bit Tint；缩放 5 档；导出 / 复制 PNG；Worker 流水线分阶段缓存；Inter 与 Roboto Mono 随包；Playwright 5 个用例 + 4 张基线截图，引擎 50 个单测 |
 | M2 | 已完成：阈值 3（固定 / Otsu / 自适应）、噪声 4（蓝噪声离线 void-and-cluster 128×128 / 白 / IGN / Perlin）、有序 14、半调 10（含增益、融合度、反向）、误差扩散 14（含自定义核文本、扫描方向、误差截断、Ostromoukhov / Zhou–Fang 变系数）、曲线 4（Hilbert / Peano / Gosper / FASS + Riemersma 记忆与衰减比）、点扩散 Knuth / Lippens 与 DBS、图案 9；61 个算法各有 ASCII 快照，152 个单测；Playwright 逐族切换用例 |
-| M3 | 待开始 |
+| M3 | 已完成：影调链 13 项（自动色阶 + 轻对比锐化、亮度、对比度、阴影 / 中间调 / 高光曲线、饱和度、三次盒式逼近的高斯模糊、USM 锐化、双边去噪、四种噪点、Sobel 描边、反相、阈值偏置）；降采样 4 种与网格偏移已在 M1 落地；像素尺寸按输入长边 2 / 3 / 4 自适应，用户手动改过即不再覆盖；影调阶段独立缓存键 |
 | M4 | 待开始 |
 | M5 | 待开始 |
 | M6 | 待开始 |

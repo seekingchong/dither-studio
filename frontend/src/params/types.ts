@@ -7,11 +7,12 @@ export interface ParamOption {
   label: string;
 }
 
-/** 可见性条件：目标参数等于某值或属于某集合 */
+/** 可见性条件：目标参数等于某值、属于某集合，或大于某数 */
 export interface VisibleWhen {
   id: string;
   equals?: ParamValue;
   in?: ParamValue[];
+  gt?: number;
 }
 
 interface ParamBase {

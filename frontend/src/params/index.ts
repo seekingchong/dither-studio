@@ -26,6 +26,7 @@ function matchCondition(cond: VisibleWhen, params: Params): boolean {
   const value = params[cond.id];
   if (cond.equals !== undefined && value !== cond.equals) return false;
   if (cond.in && !cond.in.includes(value)) return false;
+  if (cond.gt !== undefined && !(typeof value === 'number' && value > cond.gt)) return false;
   return true;
 }
 

@@ -5,10 +5,12 @@ export { mapLevels, buildLevelPalette, type ColorMode, type ColorMapOptions } fr
 export { resample, resampleCore, axisWeights, type ResampleMethod } from './preprocess/resample';
 export { computeFit, fitFrame, type FitMode, type FitRect } from './preprocess/fit';
 export { pixelate, cellCount } from './preprocess/pixelate';
-export { applyTone, applyThresholdBias, thresholdBias } from './preprocess/tone';
+export { applyTone, applyThresholdBias, thresholdBias, buildToneCurve, autoLevels, DEFAULT_TONE, type ToneOptions, type NoiseType } from './preprocess/tone';
+export { boxBlur, gaussianBlur, boxesForGauss, sobelMagnitude, bilateral } from './preprocess/filters';
+export { suggestPixelSize } from './preprocess/autoPixel';
 export * from './dither';
 export { renderCells } from './render/upscale';
-export { toPipelineOptions, keyOf, type PipelineOptions } from './options';
+export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
 export { Pipeline, renderImage, type PipelineStats } from './pipeline';
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse } from './protocol';

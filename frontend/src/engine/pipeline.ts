@@ -2,7 +2,7 @@ import type { Params } from '@/params';
 import { toGray } from './color/gray';
 import { mapLevels } from './color/map';
 import { resolveAlgorithm } from './dither/registry';
-import { keyOf, toPipelineOptions } from './options';
+import { keyOf, keyOfExcept, toPipelineOptions } from './options';
 import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone } from './preprocess/tone';
@@ -51,9 +51,10 @@ export class Pipeline {
       recomputed.push('pixelate');
     }
 
-    const toneKey = `${pixelKey}|invert=${opts.tone.invert}`;
+    // 阈值、灰度公式、线性空间不属于影调阶段，排除在键之外
+    const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear'], 'tone.')}`;
     if (this.toned?.key !== toneKey) {
-      this.toned = { key: toneKey, value: applyTone(this.pixelated.value, { invert: opts.tone.invert }) };
+      this.toned = { key: toneKey, value: applyTone(this.pixelated.value, opts.tone) };
       recomputed.push('tone');
     }
 
