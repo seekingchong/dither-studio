@@ -53,7 +53,8 @@
       "target": [
         "dmg"
       ],
-      "category": "public.app-category.graphics-design"
+      "category": "public.app-category.graphics-design",
+      "icon": "assets/icon/icon.icns"
     },
     "dmg": {
       "contents": [
@@ -67,7 +68,8 @@
           "type": "link",
           "path": "/Applications"
         }
-      ]
+      ],
+      "artifactName": "Dither-Studio-${version}-${arch}.dmg"
     },
     "asarUnpack": [
       "frontend/dist/**/*"

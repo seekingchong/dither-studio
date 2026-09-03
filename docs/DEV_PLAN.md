@@ -6,6 +6,7 @@
 ## 1. 目标与原则
 
 - 产品形态：macOS 客户端。壳层只负责窗口和本地能力，界面与引擎全部是常规 web 前端代码。
+- 应用身份：名称 `Dither Studio`，应用标识 `dither-studio`，bundle id `com.tda.dither-studio`。图标母版与各平台产物在 `assets/icon/`，接线方式见该目录 README。
 - 未来同一份前端代码发布 web 端，因此壳层与前端之间只通过一个 `platform` 接口通信。
 - 本地能力清单：打开文件、保存文件、读取文件、预设持久化、剪贴板写入、HEIC 转码、在 Finder 中显示。
 - 样式只引用 `tokens.css` 的 `--tda-*` 变量，禁止裸色值、裸字号、裸圆角，零外部请求。
@@ -55,6 +56,7 @@ dither-studio/
 │  ├─ package.json
 │  └─ vite.config.ts       base 由 VITE_BASE 注入
 ├─ electron/               主进程、preload（本地能力实现）
+├─ assets/icon/            应用图标：svg 母版、icns、ico、各尺寸 png，生成脚本同目录
 ├─ design-system/          设计系统原件
 ├─ docs/                   PRD、DESIGN、DEV_PLAN、PLATFORM_NOTES
 ├─ tests/                  引擎单测、UI 截图
@@ -139,7 +141,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M6 特效栈 | 扫描线 CRT、胶片颗粒、JPEG glitch、块位移、行位移、像素排序、波形、桶形、散射；可堆叠、可排序 | 截图 |
 | M7 视频与 GPU | 视频与 GIF 动图输入；逐帧预览；MP4 H.264 导出三档质量；WebGL 路径与 GPU 开关；HEIC 转码 | 导出文件可在 QuickTime 播放 |
 | M8 预设与体验 | 内置预设 7 个起；用户预设保存、重命名、删除；撤销重做与快捷键；浅深主题；全局设置：坑位 1 或 4、GPU 开关；4 坑位预览 | 截图 + 预设持久化测试 |
-| M9 发布 | electron-builder 打 dmg；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
+| M9 发布 | electron-builder 打 dmg，图标用 `assets/icon/icon.icns`；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
 
 每个里程碑单独提交并推送到分支，M1 完成后你就能在本机跑起来看效果。
 
@@ -170,6 +172,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 14 | 线性空间抖动。PRD 默认 BT.709 线性空间，物理上正确（抖动后平均亮度与原图一致），但比常见工具的 gamma 空间结果整体偏暗 | 默认线性，影调分区加"线性空间"开关可关掉；M3 的亮度 / 中间调再补偿。你看效果后决定默认值 |
 | 15 | Ostromoukhov 系数表只重建了前 44 级，其后按论文趋势插值到中灰；Zhou–Fang 的阈值调制曲线为近似；libdither 的非矩形 / 中心白点 / 对角矩阵与 ImageMagick 圆点按描述重建 | 视觉上可用；若你有原始表格可直接替换 `errorDiffusion.ts` 里的 `OSTRO_KEY` |
 | 16 | 沙盒 Chromium 没有 H.264 编码器，导出验证走的是 VP9 / WebM 路径；macOS Electron 上 WebCodecs 用 VideoToolbox，预期能出 MP4，需你本机确认 QuickTime 可播放 | 若 H.264 不可用会自动降级 WebM 并在对话框里标出编码器 |
+| 17 | 应用图标配色：图标沿用原图的暖黑 `#1D1A16` / 暖灰 `#DBD9D5`，与设计系统的墨色 `#11192D`、页面底色 `#F9F9F9` 不是一套 | 独立应用图标保留暖色，界面内的图形走 `currentColor` 自动落到墨色；想统一改 `assets/icon/build-icons.py` 顶部两个常量重跑 |
 
 ## 7. 风险
 
@@ -192,4 +195,4 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M6 | 已完成：特效栈以 `effects.stack` JSON 参数承载（可随预设序列化、可撤销），面板专用编辑器支持添加 / 启用 / 上下移 / 删除；9 种特效：扫描线 CRT（线间距、暗线、荧光点、屏幕曲率）、胶片颗粒、JPEG 损坏、块位移、扫描行位移（含 RGB 分离）、像素排序（横 / 纵、亮度区间、降序）、波形、桶形 / 枕形、像素散射；全部确定性（种子）并有独立缓存 |
 | M7 | 已完成：视频（`<video>` + requestVideoFrameCallback，Worker 忙时丢帧）与 GIF 动图（WebCodecs ImageDecoder 逐帧）输入；播放 / 暂停 / 进度条；慢算法按上一帧耗时自动降到 50% / 25% 预览分辨率（格子数不变）；导出按 60 fps 时间线逐帧渲染 + WebCodecs 编码，优先 H.264 进 MP4（mp4-muxer），平台没有 H.264 编码器时降级 VP9 / VP8 进 WebM（webm-muxer），中 / 高 / 超高三档码率，可保存或复制为文件；WebGL2 路径覆盖有序抖动与网格渲染，设置里可关，失败自动回退 CPU；HEIC 经主进程 sips 转码（M0 已实现，需在 macOS 验证） |
 | M8 | 已完成：内置预设 10 个（Game Boy、Mac Classic、Newspaper、CRT、Blueprint、Risograph、Obra Dinn、Pixel Art、Zine、Dot Matrix）；用户预设保存 / 重命名 / 删除，经 `platform.storage` 持久化（Electron JSON 文件 / web localStorage）；撤销重做（同一参数 800ms 内合并、上限 100 步）与快捷键 Cmd+Z / Shift+Cmd+Z / Cmd+O / Cmd+S / Cmd+C / 空格；浅 / 深 / 跟随系统主题（`theme.css` 覆盖令牌）；设置弹层（坑位 1 或 4、GPU、主题）并持久化；4 坑位 2×2 预览各自拖拽与播放 |
-| M9 | 已完成（沙盒可做的部分）：electron-builder 配置（dmg、`build/icon.png`、`frontend/dist` asarUnpack），Linux 上以 `--dir` 打包并冒烟通过；独立 web 目标；平台目标 + `scripts/check-platform-build.mjs`（构建后按平台 base 路径静态托管并无头渲染一次）已进 CI；`platform/manifest.yaml` 模板与 `scripts/package-platform.mjs` 打包骨架；README。待你本机：`npm run dist` 出 dmg 并打开 |
+| M9 | 已完成（沙盒可做的部分）：electron-builder 配置（dmg、`build/icon.png`、`frontend/dist` asarUnpack），Linux 上以 `--dir` 打包并冒烟通过；独立 web 目标；平台目标 + `scripts/check-platform-build.mjs`（构建后按平台 base 路径静态托管并无头渲染一次）已进 CI；`platform/manifest.yaml` 模板与 `scripts/package-platform.mjs` 打包骨架；README。待你本机：`npm run dist` 出 dmg 并打开。图标已换成 `assets/icon/icon.icns`（原图的两枚对角圆角方块），前端 favicon 走 `frontend/public/icon/`；`.github/workflows/release-macos.yml` 在 GitHub 的 macOS runner 上打 arm64 / x64 两个 dmg，产物见 Actions artifact 或 tag 触发的 Release |

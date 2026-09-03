@@ -1,0 +1,88 @@
+# 在 GitHub 的 macOS runner 上打 Dither Studio 的 dmg。
+#
+# 触发方式：
+#   1. 打 tag：git tag v0.1.0 && git push origin v0.1.0  → 出包并发布到 GitHub Release
+#   2. Actions 页面手动 Run workflow（本文件进默认分支后才会出现在 UI 里）
+#   3. 推到 release/** 分支，或推到下面列出的开发分支 → 只产出 Actions artifact
+#
+# 包是未签名、未公证的：下载后首次打开要在「系统设置 → 隐私与安全性」里放行。
+name: Release macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '发布用 tag（如 v0.1.0）。留空则只产出 Actions artifact，不建 Release'
+        required: false
+        default: ''
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'release/**'
+      - 'claude/practical-cerf-7xvzs7'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 安装依赖（含 Electron 二进制）
+        run: npm ci
+
+      - name: 构建主进程与前端
+        run: npm run build
+
+      - name: 打 dmg（arm64 + x64，未签名）
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac dmg --arm64 --x64 --publish never
+
+      - name: 校验产物
+        run: |
+          ls -lh release/*.dmg
+          shasum -a 256 release/*.dmg | tee release/SHA256SUMS.txt
+          for app in release/mac*/Dither\ Studio.app; do
+            echo "== $app"
+            codesign -dv "$app" 2>&1 | head -3 || echo '（未签名）'
+          done
+
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dither-studio-macos-dmg
+          path: |
+            release/*.dmg
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: 发布到 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || inputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ inputs.tag }}"
+          [ -n "$TAG" ] || TAG="${GITHUB_REF_NAME}"
+          NOTES=$'macOS 安装包（未签名）。\n\n- Apple 芯片下载 `-arm64.dmg`，Intel 下载 `-x64.dmg`\n- 打开 dmg，把 Dither Studio 拖进「应用程序」\n- 首次打开被拦时：系统设置 → 隐私与安全性 → 「仍要打开」'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/*.dmg release/SHA256SUMS.txt --clobber
+          else
+            gh release create "$TAG" release/*.dmg release/SHA256SUMS.txt \
+              --title "Dither Studio $TAG" --notes "$NOTES" --target "$GITHUB_SHA"
+          fi
