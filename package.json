@@ -1,0 +1,60 @@
+{
+  "name": "dither-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dither Studio — 抖动艺术工具（macOS 客户端，前端可发布 web / SkillForge）",
+  "main": "electron/dist/main.cjs",
+  "type": "module",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "npm run dev --workspace frontend",
+    "build": "npm run build:electron && npm run build:frontend:electron",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:frontend:electron": "npm run build:electron --workspace frontend",
+    "build:frontend:web": "npm run build:web --workspace frontend",
+    "build:frontend:platform": "npm run build:platform --workspace frontend",
+    "dist": "npm run build && electron-builder --mac",
+    "typecheck": "tsc -p electron/tsconfig.json --noEmit && npm run typecheck --workspace frontend && tsc -p tsconfig.tests.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "playwright test",
+    "sync-tokens": "node scripts/sync-tokens.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@types/node": "^22.19.0",
+    "electron": "^44.1.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  },
+  "build": {
+    "appId": "com.tda.dither-studio",
+    "productName": "Dither Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/dist/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.graphics-design"
+    },
+    "dmg": {
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    }
+  }
+}

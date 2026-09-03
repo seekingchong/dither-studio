@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+electron/dist/
+frontend/dist/
+test-results/
+playwright-report/
+tests/ui/__screenshots__/**/*-actual.png
+.DS_Store
+*.log
+.env
+.env.*

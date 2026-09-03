@@ -173,7 +173,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 
 | 阶段 | 状态 |
 |---|---|
-| M0 | 待开始 |
+| M0 | 已完成：`frontend/` Vite + React 18 + TS；`VITE_BASE` 三目标；`platform` 接口与 electron / web 实现；zustand store；vitest + Playwright；CI；Electron 44 剪贴板已用 W3C 风格异步 API |
 | M1 | 待开始 |
 | M2 | 待开始 |
 | M3 | 待开始 |

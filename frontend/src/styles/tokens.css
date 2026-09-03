@@ -1,0 +1,105 @@
+/* ============================================================
+   TDC Design System — tokens.css
+   来源：Figma「TDC-Claude-DS」→ 画板「元素样式整理」(node 1:20759)
+   规则：UI 代码只允许引用这里的变量，禁止出现裸色值 / 裸字号 / 裸圆角。
+   约束：零外部请求 —— 字体只用本机字体栈，不引入 web font。
+   ============================================================ */
+
+:root {
+  /* ---------- 字体 ---------- */
+  /* 所有中文：PingFang SC（macOS 自带）；Windows/Linux 回退到系统中文字体 */
+  --tda-font-family-base: "PingFang SC", -apple-system, BlinkMacSystemFont,
+    "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  /* 所有西文、数字：Inter；不可用时回退到系统西文 */
+  --tda-font-family-latin: "Inter", "Inter V", -apple-system, BlinkMacSystemFont,
+    "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+  /* 所有代码、代码块、行内代码：Roboto Mono */
+  --tda-font-family-code: "Roboto Mono", "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+  /* 混排默认栈：西文/数字优先命中 Inter，中文落到 PingFang SC */
+  --tda-font-family-mixed: "Inter", "Inter V", "PingFang SC", -apple-system,
+    BlinkMacSystemFont, "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* ---------- 字号 / 行高 / 段距 (size / line-height / paragraph-gap) ---------- */
+  --tda-typography-title-2xl-size: 26px;  --tda-typography-title-2xl-line: 40px;
+  --tda-typography-heading-xl-size: 22px; --tda-typography-heading-xl-line: 34px;
+  --tda-typography-heading-lg-size: 20px; --tda-typography-heading-lg-line: 30px;
+  --tda-typography-heading-md-size: 18px; --tda-typography-heading-md-line: 28px;
+  --tda-typography-heading-sm-size: 16px; --tda-typography-heading-sm-line: 26px;
+  --tda-typography-body-md-size: 16px;    --tda-typography-body-md-line: 26px;  --tda-typography-body-md-gap: 16px;
+  --tda-typography-body-sm-size: 14px;    --tda-typography-body-sm-line: 22px;  --tda-typography-body-sm-gap: 12px;
+  --tda-typography-label-size: 12px;      --tda-typography-label-line: 12px;
+
+  /* ---------- 间距 ---------- */
+  --tda-spacing-2xs: 4px;   /* 最小元素间距：极小控件内部 */
+  --tda-spacing-xs: 8px;    /* 元素间距：同一组件内部元素分组 */
+  --tda-spacing-sm: 12px;   /* 段落间距 / 段落与辅文之间 */
+  --tda-spacing-md: 16px;   /* 模块内分组的分割（默认间距） */
+  --tda-spacing-lg: 24px;   /* 独立大模块之间的常规分隔 */
+  --tda-spacing-xl: 32px;   /* 页面级内容区域之间的强分隔 */
+  --tda-spacing-2xl: 44px;  /* 页面主结构之间的较强分隔 */
+
+  /* ---------- 颜色 ---------- */
+  --tda-color-brand-primary: #FF6200;      /* 主行动点、选中态、品牌强调 */
+  --tda-color-brand-secondary: #FF62001A;  /* 次级行动点；强化按钮选中态 */
+  --tda-color-text-primary: #11192D;       /* 正文、主文字、图标、按钮文字 */
+  --tda-color-text-secondary: #7C889C;     /* 副标题、次级文案 */
+  --tda-color-text-tertiary: #11192D4C;    /* 标签、描述、说明性文字 */
+  --tda-color-text-disabled: #11192D33;    /* 注脚、置灰文案 */
+  --tda-color-control-strong: #11192D14;   /* 较强层级填充：卡片底色、轻量按钮按下态 */
+  --tda-color-control-muted: #11192D0D;    /* 中弱层级填充：轻量按钮悬停态、无底按钮按下态 */
+  --tda-color-control-subtle: #11192D08;   /* 最弱层级填充：轻量按钮底色、无底按钮悬停态 */
+  --tda-color-white: #FFFFFF;              /* 内容表面、文字反色；禁止做页面底色 */
+  --tda-color-background-page: #F9F9F9;    /* 页面底色 */
+  --tda-color-success: #53CD72;
+  --tda-color-danger: #FF0011;
+  --tda-color-link: #004AB8;
+
+  /* 语义别名：描边。Figma 变量「描边」= #11192D14，实际页面描边也是 8%，
+     与 token 表中 control-muted 的"用于描边"文字有出入，以实测为准。 */
+  --tda-color-border: var(--tda-color-control-strong);
+
+  /* ---------- 圆角 ---------- */
+  --tda-radius-none: 0px;     /* 分割线、表格边界 */
+  --tda-radius-xs: 4px;       /* 缩略图内部层、行内代码 */
+  --tda-radius-sm: 8px;       /* 提示、超小按钮 */
+  --tda-radius-md: 10px;      /* 按钮、输入框、列表项、图标按钮 */
+  --tda-radius-lg: 18px;      /* 浮窗、弹窗、模态类组件 */
+  --tda-radius-xl: 22px;      /* 文件预览容器、全屏预览弹窗 */
+  --tda-radius-full: 9999px;  /* 头像、圆形按钮、单选多选框 */
+
+  /* ---------- 组件尺寸（来自参照页面 home 1:2032） ---------- */
+  --tda-control-height: 40px;      /* 按钮 / 下拉 / 输入框统一高度 */
+  --tda-control-padding-x: 16px;
+  --tda-topbar-height: 58px;
+  --tda-pane-padding-x: 46px;      /* 左右面板内边距 */
+  --tda-tab-height: 48px;
+  --tda-table-row-height: 44px;
+  --tda-shadow-tile: 0 0.714px 0.714px rgba(0, 0, 0, 0.04);
+}
+
+/* ---------- 基础排版 ---------- */
+html, body {
+  margin: 0;
+  background: var(--tda-color-background-page);
+  color: var(--tda-color-text-primary);
+  font-family: var(--tda-font-family-mixed);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+  -webkit-font-smoothing: antialiased;
+}
+code, pre, kbd, samp {
+  font-family: var(--tda-font-family-code);
+  border-radius: var(--tda-radius-xs);
+}
+a { color: var(--tda-color-link); text-decoration: none; }
+
+/* ---------- 文字样式类（一一对应 token 表） ---------- */
+.tda-title-2xl  { font-size: var(--tda-typography-title-2xl-size);  line-height: var(--tda-typography-title-2xl-line);  font-weight: 600; }
+.tda-heading-xl { font-size: var(--tda-typography-heading-xl-size); line-height: var(--tda-typography-heading-xl-line); font-weight: 600; }
+.tda-heading-lg { font-size: var(--tda-typography-heading-lg-size); line-height: var(--tda-typography-heading-lg-line); font-weight: 600; }
+.tda-heading-md { font-size: var(--tda-typography-heading-md-size); line-height: var(--tda-typography-heading-md-line); font-weight: 500; }
+.tda-heading-sm { font-size: var(--tda-typography-heading-sm-size); line-height: var(--tda-typography-heading-sm-line); font-weight: 500; }
+.tda-body-md    { font-size: var(--tda-typography-body-md-size);    line-height: var(--tda-typography-body-md-line); }
+.tda-body-sm    { font-size: var(--tda-typography-body-sm-size);    line-height: var(--tda-typography-body-sm-line); }
+.tda-label      { font-size: var(--tda-typography-label-size);      line-height: var(--tda-typography-label-line); }
