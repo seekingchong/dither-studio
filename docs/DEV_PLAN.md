@@ -184,5 +184,5 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M5 | 已完成：网格渲染器替换最近邻放大（默认参数仍走最近邻快路径）；欧几里得 / 圆方网点、反向网点、网点大小、随明暗缩放；metaball 点融合（Wyvill 核，融合半径可调）；横纵间距；连线背景（行 / 列、粗细、颜色）与网格点背景（圆 / 方 / 菱形 / 十字、大小、颜色）；渲染阶段独立缓存 |
 | M6 | 已完成：特效栈以 `effects.stack` JSON 参数承载（可随预设序列化、可撤销），面板专用编辑器支持添加 / 启用 / 上下移 / 删除；9 种特效：扫描线 CRT（线间距、暗线、荧光点、屏幕曲率）、胶片颗粒、JPEG 损坏、块位移、扫描行位移（含 RGB 分离）、像素排序（横 / 纵、亮度区间、降序）、波形、桶形 / 枕形、像素散射；全部确定性（种子）并有独立缓存 |
 | M7 | 已完成：视频（`<video>` + requestVideoFrameCallback，Worker 忙时丢帧）与 GIF 动图（WebCodecs ImageDecoder 逐帧）输入；播放 / 暂停 / 进度条；慢算法按上一帧耗时自动降到 50% / 25% 预览分辨率（格子数不变）；导出按 60 fps 时间线逐帧渲染 + WebCodecs 编码，优先 H.264 进 MP4（mp4-muxer），平台没有 H.264 编码器时降级 VP9 / VP8 进 WebM（webm-muxer），中 / 高 / 超高三档码率，可保存或复制为文件；WebGL2 路径覆盖有序抖动与网格渲染，设置里可关，失败自动回退 CPU；HEIC 经主进程 sips 转码（M0 已实现，需在 macOS 验证） |
-| M8 | 待开始 |
+| M8 | 已完成：内置预设 10 个（Game Boy、Mac Classic、Newspaper、CRT、Blueprint、Risograph、Obra Dinn、Pixel Art、Zine、Dot Matrix）；用户预设保存 / 重命名 / 删除，经 `platform.storage` 持久化（Electron JSON 文件 / web localStorage）；撤销重做（同一参数 800ms 内合并、上限 100 步）与快捷键 Cmd+Z / Shift+Cmd+Z / Cmd+O / Cmd+S / Cmd+C / 空格；浅 / 深 / 跟随系统主题（`theme.css` 覆盖令牌）；设置弹层（坑位 1 或 4、GPU、主题）并持久化；4 坑位 2×2 预览各自拖拽与播放 |
 | M9 | 待开始 |

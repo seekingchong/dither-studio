@@ -1,0 +1,33 @@
+/* ============================================================
+   深色主题：覆盖 tokens.css 的颜色变量（设计稿只有浅色，色值按墨色反转推导，待 Figma 校正）。
+   其余令牌（字体、字号、间距、圆角、尺寸）不变。
+   ============================================================ */
+
+:root[data-theme='dark'] {
+  --tda-color-text-primary: #e8ecf4;
+  --tda-color-text-secondary: #8c97ab;
+  --tda-color-text-tertiary: rgba(232, 236, 244, 0.45);
+  --tda-color-text-disabled: rgba(232, 236, 244, 0.3);
+  --tda-color-control-strong: rgba(232, 236, 244, 0.1);
+  --tda-color-control-muted: rgba(232, 236, 244, 0.06);
+  --tda-color-control-subtle: rgba(232, 236, 244, 0.04);
+  --tda-color-white: #161c2b;
+  --tda-color-background-page: #0f1420;
+  --tda-color-border: var(--tda-color-control-strong);
+  --tda-shadow-tile: 0 0.714px 0.714px rgba(0, 0, 0, 0.3);
+  color-scheme: dark;
+}
+
+:root[data-theme='dark'] .tda-btn-primary {
+  background: var(--tda-color-text-primary);
+  color: var(--tda-color-background-page);
+}
+
+:root[data-theme='dark'] .tda-toast {
+  background: var(--tda-color-text-primary);
+  color: var(--tda-color-background-page);
+}
+
+:root[data-theme='dark'] .slot {
+  background: var(--tda-color-white);
+}

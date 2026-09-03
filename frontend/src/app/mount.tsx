@@ -5,6 +5,7 @@ import { DitherStudio } from '@/ui/DitherStudio';
 import '@/styles/fonts.css';
 import '@/styles/tokens.css';
 import '@/styles/app.css';
+import '@/styles/theme.css';
 
 export function mount(platform: Platform) {
   const container = document.getElementById('root');

@@ -1,10 +1,13 @@
-import { useState, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import { usePlatform } from '@/platform';
 import { PreviewPane } from './canvas/PreviewPane';
 import { useOpenMedia } from './media/useOpenMedia';
 import { ParamPane } from './panel/ParamPane';
 import { RendererProvider } from './renderer/RendererContext';
 import { TopBar } from './TopBar';
+import { useExport } from './export/useExport';
+import { usePersistence } from './state/usePersistence';
+import { useShortcuts } from './state/useShortcuts';
 
 /** 根组件：顶栏 + 左参数面板 + 右预览；整窗接受文件拖拽 */
 export function DitherStudio() {
@@ -17,8 +20,11 @@ export function DitherStudio() {
 
 function Shell() {
   const platform = usePlatform();
-  const { acceptDrop } = useOpenMedia();
+  const { acceptDrop, openDialog } = useOpenMedia();
+  const { exportPng, copyPng } = useExport();
   const [dragging, setDragging] = useState(false);
+  usePersistence();
+  useShortcuts(useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]));
 
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;

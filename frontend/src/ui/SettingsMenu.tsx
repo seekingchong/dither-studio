@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useStudioStore, type SlotCount } from '@/state';
+import { useStudioStore, type SlotCount, type ThemeSetting } from '@/state';
 import { IconButton, Select, ToggleField } from '@/ui/primitives';
 
 /** 顶栏齿轮：全局设置弹层（坑位数、GPU 加速） */
@@ -41,6 +41,17 @@ export function SettingsMenu() {
             data-param="settings.slotCount"
           />
           <ToggleField label="GPU 加速" value={settings.gpu} onChange={(v) => setSettings({ gpu: v })} data-param="settings.gpu" />
+          <Select
+            label="主题"
+            value={settings.theme}
+            options={[
+              { value: 'light', label: '浅色' },
+              { value: 'dark', label: '深色' },
+              { value: 'system', label: '跟随系统' },
+            ]}
+            onChange={(v) => setSettings({ theme: v as ThemeSetting })}
+            data-param="settings.theme"
+          />
         </div>
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { isAnimated } from '@/state';
 import { FAMILY_PARAM } from '@/engine';
 import { PARAM_SCHEMA, getParamDef, hasParam, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
@@ -6,13 +7,14 @@ import { useStudioStore } from '@/state';
 import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
-import { Button, Tabs } from '@/ui/primitives';
+import { Button, IconButton, Tabs } from '@/ui/primitives';
+import { PresetsPane } from './PresetsPane';
 import { ColorPreview } from './ColorPreview';
 import { EffectsEditor } from './EffectsEditor';
 import { GROUPS, QUICK_PARAMS } from './groups';
 import { ParamControl } from './ParamControl';
 
-type PaneTab = 'params';
+type PaneTab = 'params' | 'presets';
 
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
@@ -22,6 +24,9 @@ export function ParamPane() {
   const { canExport, exportPng, copyPng } = useExport();
   const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
   const [videoDialog, setVideoDialog] = useState(false);
+  const { canUndo, canRedo, undo, redo } = useStudioStore(
+    useShallow((s) => ({ canUndo: s.history.past.length > 0, canRedo: s.history.future.length > 0, undo: s.undo, redo: s.redo })),
+  );
 
   const family = String(params['dither.family']) as keyof typeof FAMILY_PARAM;
   const algorithmParamId = FAMILY_PARAM[family];
@@ -53,8 +58,17 @@ export function ParamPane() {
   return (
     <section className="pane pane--params" aria-label="参数面板">
       <div className="pane-actions">
-        <Tabs items={[{ id: 'params', label: '参数' }]} value={paneTab} onChange={setPaneTab} />
+        <Tabs
+          items={[
+            { id: 'params', label: '参数' },
+            { id: 'presets', label: '预设' },
+          ]}
+          value={paneTab}
+          onChange={setPaneTab}
+        />
         <div className="btn-group">
+          <IconButton icon="undo" label="撤销" disabled={!canUndo} onClick={undo} />
+          <IconButton icon="redo" label="重做" disabled={!canRedo} onClick={redo} />
           <Button variant="secondary" icon="folder" onClick={() => void openDialog()}>
             打开
           </Button>
@@ -74,6 +88,9 @@ export function ParamPane() {
       <ExportVideoDialog open={videoDialog} onClose={() => setVideoDialog(false)} />
 
       <div className="pane-content">
+        {paneTab === 'presets' && <PresetsPane />}
+        {paneTab === 'params' && (
+          <>
         <div className="param-grid" data-testid="quick-params">
           {quickDefs.map((def) => (
             <ParamControl key={def.id} def={def} label={def.id === algorithmParamId ? '算法' : undefined} />
@@ -108,6 +125,8 @@ export function ParamPane() {
             </section>
           )}
         </div>
+          </>
+        )}
       </div>
     </section>
   );

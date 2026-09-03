@@ -32,13 +32,25 @@ export type PreviewTab = 'result' | 'source';
 
 export type SlotCount = 1 | 4;
 
+export type ThemeSetting = 'light' | 'dark' | 'system';
+
 export interface Settings {
   slotCount: SlotCount;
   gpu: boolean;
-  theme: 'light' | 'dark';
+  theme: ThemeSetting;
 }
 
 export const DEFAULT_SETTINGS: Settings = { slotCount: 1, gpu: true, theme: 'light' };
+
+/** 从存储读出的设置做校验，缺项补默认 */
+export function sanitizeSettings(input: unknown): Settings {
+  const rec = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+  return {
+    slotCount: rec.slotCount === 4 ? 4 : 1,
+    gpu: typeof rec.gpu === 'boolean' ? rec.gpu : DEFAULT_SETTINGS.gpu,
+    theme: rec.theme === 'dark' || rec.theme === 'system' ? rec.theme : 'light',
+  };
+}
 
 /** 动态媒体的播放状态（不进撤销栈、不进预设） */
 export interface PlaybackState {

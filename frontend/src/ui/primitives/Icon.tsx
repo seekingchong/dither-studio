@@ -1,6 +1,6 @@
 import type { SVGProps } from 'react';
 
-export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash' | 'play' | 'pause' | 'settings' | 'film';
+export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash' | 'play' | 'pause' | 'settings' | 'film' | 'undo' | 'redo' | 'save' | 'edit' | 'star';
 
 const PATHS: Record<IconName, string> = {
   chevron: 'M3 4.5l3 3 3-3',
@@ -19,6 +19,11 @@ const PATHS: Record<IconName, string> = {
   pause: 'M5 3.5v9M11 3.5v9',
   settings: 'M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM13.2 9.6l1.1.7-1.2 2.1-1.3-.4a4.8 4.8 0 0 1-1.4.8L10.1 14H5.9l-.3-1.2a4.8 4.8 0 0 1-1.4-.8l-1.3.4-1.2-2.1 1.1-.7a5 5 0 0 1 0-1.6l-1.1-.7 1.2-2.1 1.3.4a4.8 4.8 0 0 1 1.4-.8L5.9 2h4.2l.3 1.2c.5.2 1 .5 1.4.8l1.3-.4 1.2 2.1-1.1.7a5 5 0 0 1 0 1.6z',
   film: 'M2.5 3.5h11v9h-11zM2.5 6h11M2.5 10h11M5.5 3.5v9M10.5 3.5v9',
+  undo: 'M6 4L2.5 7.5 6 11M2.5 7.5h7a4 4 0 0 1 0 8H8',
+  redo: 'M10 4l3.5 3.5L10 11M13.5 7.5h-7a4 4 0 0 0 0 8H8',
+  save: 'M3 2.5h8l2.5 2.5v8.5h-11zM5.5 2.5v4h5v-4M5 13.5v-4h6v4',
+  edit: 'M11.5 2.5l2 2-8 8-3 1 1-3zM10 4l2 2',
+  star: 'M8 2.5l1.7 3.6 3.9.5-2.9 2.7.8 3.9L8 11.3l-3.5 1.9.8-3.9L2.4 6.6l3.9-.5z',
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

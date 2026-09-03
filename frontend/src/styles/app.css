@@ -1035,3 +1035,99 @@ button {
   gap: var(--tda-spacing-xs);
   box-shadow: var(--tda-shadow-tile);
 }
+
+/* ---------- 预设 ---------- */
+
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--tda-spacing-2xs);
+  min-height: 64px;
+  padding: var(--tda-spacing-sm) var(--tda-control-padding-x);
+  border-radius: var(--tda-radius-md);
+  border: 1px solid var(--tda-color-border);
+  background: var(--tda-color-white);
+  text-align: left;
+  color: var(--tda-color-text-primary);
+}
+
+.preset-card:hover {
+  background: var(--tda-color-control-subtle);
+}
+
+.preset-card:active {
+  background: var(--tda-color-control-muted);
+}
+
+.preset-card__name {
+  font-family: var(--tda-font-family-latin);
+  font-weight: 500;
+}
+
+.preset-card__hint {
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-body-sm-line);
+}
+
+.preset-save {
+  display: flex;
+  gap: var(--tda-spacing-sm);
+  align-items: center;
+}
+
+.preset-save__field {
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-table {
+  background: var(--tda-color-white);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-md);
+  padding: var(--tda-spacing-2xs);
+}
+
+.preset-row {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+  height: var(--tda-table-row-height);
+  padding: 0 var(--tda-spacing-sm);
+}
+
+.preset-row__name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--tda-color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preset-row__name:hover {
+  color: var(--tda-color-brand-primary);
+}
+
+.preset-row__input {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 var(--tda-spacing-xs);
+  border-radius: var(--tda-radius-sm);
+  border: 1px solid var(--tda-color-text-primary);
+  background: var(--tda-color-white);
+  color: var(--tda-color-text-primary);
+  outline: none;
+}
+
+.preset-row__date {
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+  white-space: nowrap;
+}
