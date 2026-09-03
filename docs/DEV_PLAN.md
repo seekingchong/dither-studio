@@ -9,7 +9,7 @@
 - 未来同一份前端代码发布 web 端，因此壳层与前端之间只通过一个 `platform` 接口通信。
 - 本地能力清单：打开文件、保存文件、读取文件、预设持久化、剪贴板写入、HEIC 转码、在 Finder 中显示。
 - 样式只引用 `tokens.css` 的 `--tda-*` 变量，禁止裸色值、裸字号、裸圆角，零外部请求。
-- 二期会作为一个 APP 整体嵌入到一个基于 React Flow 的综合 AI 平台，可以使用平台的后端与 AI 能力。UI 层用 React 编写，整个 APP 是一个可嵌入的 React 组件，本地能力与平台能力都通过 `platform` 接口注入。
+- 二期会作为 SkillForge 平台上的一个应用整体发布。前端是独立整页应用，由平台静态托管，可通过平台 API 使用用户数据、用户文件和 AI 能力。本地能力与平台能力都通过 `platform` 接口注入。对接要点见 `docs/PLATFORM_NOTES.md`。
 
 ## 2. 技术选型
 
@@ -30,31 +30,38 @@
 
 ```
 dither-studio/
+├─ frontend/               Vite + React 应用，目录名与 SkillForge 应用布局一致
+│  ├─ src/
+│  │  ├─ platform/         平台接口 + electron / web 两套实现，二期加 skillforge
+│  │  ├─ engine/           抖动引擎，纯函数，无 DOM
+│  │  │  ├─ pipeline.ts    流水线编排
+│  │  │  ├─ preprocess/    影调与预处理
+│  │  │  ├─ dither/        算法族，每族一个文件，统一注册表
+│  │  │  ├─ color/         灰度公式、调色板、Tint、Accent
+│  │  │  ├─ render/        网格渲染：点形状、融合、间距、背景
+│  │  │  ├─ effects/       后处理特效栈
+│  │  │  ├─ gpu/           WebGL 路径
+│  │  │  └─ worker.ts
+│  │  ├─ params/           参数 schema，PRD 每个参数一条记录
+│  │  ├─ state/            zustand store、撤销重做、预设
+│  │  ├─ ui/               React 组件，根组件 <DitherStudio>
+│  │  │  ├─ panel/         参数面板，按 schema 生成控件
+│  │  │  ├─ canvas/        预览画布与坑位网格
+│  │  │  ├─ export/        导出与复制
+│  │  │  └─ primitives/    按钮、下拉、滑块、Tab 等设计系统组件
+│  │  ├─ app/              入口：electron.tsx、web.tsx，二期加 platform.tsx
+│  │  └─ styles/           tokens.css + 组件类
+│  ├─ index.html
+│  ├─ package.json
+│  └─ vite.config.ts       base 由 VITE_BASE 注入
 ├─ electron/               主进程、preload（本地能力实现）
-├─ src/
-│  ├─ platform/            平台接口 + electron / web 两套实现
-│  ├─ engine/              抖动引擎，纯函数，无 DOM
-│  │  ├─ pipeline.ts       流水线编排
-│  │  ├─ preprocess/       影调与预处理
-│  │  ├─ dither/           算法族，每族一个文件，统一注册表
-│  │  ├─ color/            灰度公式、调色板、Tint、Accent
-│  │  ├─ render/           网格渲染：点形状、融合、间距、背景
-│  │  ├─ effects/          后处理特效栈
-│  │  ├─ gpu/              WebGL 路径
-│  │  └─ worker.ts
-│  ├─ params/              参数 schema，PRD 每个参数一条记录
-│  ├─ state/               zustand store、撤销重做、预设
-│  ├─ ui/                  React 组件库，根组件 <DitherStudio>，二期整体迁移的单元
-│  │  ├─ panel/            参数面板，按 schema 生成控件
-│  │  ├─ canvas/           预览画布与坑位网格
-│  │  ├─ export/           导出与复制
-│  │  └─ primitives/       按钮、下拉、滑块、Tab 等设计系统组件
-│  ├─ app/                 应用入口，只做壳层装配：Electron 与 web 各一个
-│  └─ styles/              tokens.css + 组件类
 ├─ design-system/          设计系统原件
-├─ docs/                   PRD、DESIGN、DEV_PLAN
-└─ tests/                  引擎单测、UI 截图
+├─ docs/                   PRD、DESIGN、DEV_PLAN、PLATFORM_NOTES
+├─ tests/                  引擎单测、UI 截图
+└─ package.json            根：Electron 开发与打包脚本，workspace 引用 frontend
 ```
+
+二期只需在根目录加 `manifest.yaml`，`frontend/` 原样就是平台要的前端模块。
 
 ## 4. 核心架构
 
@@ -73,6 +80,8 @@ interface Platform {
 ```
 
 Electron 实现走 preload 的 `contextBridge`，web 实现走 File System Access API、`localStorage`、`navigator.clipboard`。前端代码只依赖这个接口。
+
+接口的分组按 SkillForge 的能力划分：`storage` 对应平台的用户数据 KV，`files` 对应用户文件存储，可选的 `ai` 对应 Agent 对话。二期的 skillforge 实现只是把这三组各自接到平台 API 上。
 
 ### 4.2 引擎流水线
 
@@ -106,22 +115,22 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 - 预览：逐帧送入流水线，慢算法自动降到预览分辨率。
 - 导出：按 60fps 时间线取帧，源视频帧率不足时重复帧，GIF 按各帧延时重采样。编码质量中、高、超高对应三档码率。
 
-### 4.6 二期作为平台 APP 嵌入
+### 4.6 二期作为 SkillForge 应用发布
 
-二期形态已确定：Dither Studio 是综合 AI 平台上的一个 APP，整体嵌入，可调用平台的后端与 AI 能力。为此一期按以下标准写：
+二期形态已按平台的发布技能仓库核实：Dither Studio 是 SkillForge 上的一个应用，前端是独立整页应用，由平台静态托管，不是嵌进平台 React 树的组件。React Flow 是平台自身的技术栈，与应用无关。细节见 `docs/PLATFORM_NOTES.md`。一期按以下标准写：
 
-- 组件边界：`src/ui` 是一个不依赖 Electron、不依赖入口的 React 组件库。根组件 `<DitherStudio platform={...} />` 接收平台接口作为 prop。二期平台只需要挂这一个组件。
-- 平台接口是二期的接缝：一期由 Electron 实现文件读写、本地存储、剪贴板；二期换成平台的后端存储、用户体系和文件服务，界面与引擎不改。接口上预留可选的 `ai` 扩展位，二期可以接"描述风格生成预设""AI 自动调参"这类能力，一期不实现。
-- 嵌入友好：所有样式限定在根组件作用域内，tokens 通过根节点注入而不是全局 `:root`，字体用 `@font-face` 随组件加载，不污染宿主页面。快捷键只在 APP 获得焦点时响应。布局按容器尺寸计算，不依赖 `100vh` 或 `window`。资源路径相对于构建 base，宿主可配置。
-- 状态：zustand store 挂在根组件内部，一个页面可以同时挂多个实例互不干扰。
-- 构建产物三种：Electron 应用、独立 web 站点、ESM library（导出 `DitherStudio` 组件与 `Platform` 类型）。
-- 不引入 React Flow。引擎保持固定流水线，不做节点化拆分。
+- 目录：Vite 应用放在 `frontend/`，与平台应用布局一致。二期在根目录加 `manifest.yaml` 即可发布。
+- 构建目标：`base` 由 `VITE_BASE` 注入。Electron 用 `./`，独立 web 用 `/`，平台用 `/skillforge/apps/dither-studio/static/`。
+- 入口拆分：`src/app/electron.tsx` 和 `src/app/web.tsx` 只做装配。二期加 `src/app/platform.tsx`，负责从 URL 读取 `X-User-Id`、认证失败页、带请求头的 `apiFetch`，并构造 `Platform` 接口的平台实现。
+- 平台接口是二期的接缝：一期由 Electron 实现文件读写、本地存储、剪贴板；二期 `storage` 接用户数据 KV，`files` 接用户文件存储，可选的 `ai` 接 Agent 对话。界面与引擎不改。
+- 资源体积：字体、蓝噪声纹理等随包资源计入平台 100MB 发布包上限。Electron 打包产物放 `release/` 并 gitignore，二期发布前用脚本把 `manifest.yaml` 和 `frontend/` 复制到干净目录再发布。
+- 不引入 React Flow。引擎保持固定流水线。
 
 ## 5. 里程碑
 
 | 阶段 | 内容 | 验收 |
 |---|---|---|
-| M0 脚手架 | Electron + Vite + React + TS 工程；tokens.css 按根组件作用域接入；platform 接口与两套实现；zustand store 骨架；vitest 与 Playwright 配置；CI 脚本 | `npm run dev` 能起窗口，`npm test` 通过 |
+| M0 脚手架 | Electron + Vite + React + TS 工程，Vite 应用置于 `frontend/`；`VITE_BASE` 三个构建目标；tokens.css 接入；platform 接口与两套实现；zustand store 骨架；vitest 与 Playwright 配置；CI 脚本 | `npm run dev` 能起窗口，`npm test` 通过 |
 | M1 端到端 MVP | 打开图片、拖拽；像素化；固定阈值、Bayer 4×4、Floyd–Steinberg 三个算法；1-bit 黑白；画布缩放档位；导出 PNG、复制 PNG；UI 骨架按 home 画板：顶栏、左参数面板、右预览 | Playwright 截图与设计稿比对；三个算法单测快照 |
 | M2 算法全量 | 阈值 3、噪声 4、有序 13、半调 10、误差扩散 14 + 自定义核、曲线 4、点扩散与 DBS、图案 9，各族参数齐全 | 每个算法一个确定性输出快照测试 |
 | M3 影调与像素化 | 预处理全部 12 项；降采样 4 种方法；网格偏移；像素尺寸按输入分辨率自适应默认 | 单测 + 截图 |
@@ -130,7 +139,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M6 特效栈 | 扫描线 CRT、胶片颗粒、JPEG glitch、块位移、行位移、像素排序、波形、桶形、散射；可堆叠、可排序 | 截图 |
 | M7 视频与 GPU | 视频与 GIF 动图输入；逐帧预览；MP4 H.264 导出三档质量；WebGL 路径与 GPU 开关；HEIC 转码 | 导出文件可在 QuickTime 播放 |
 | M8 预设与体验 | 内置预设 7 个起；用户预设保存、重命名、删除；撤销重做与快捷键；浅深主题；全局设置：坑位 1 或 4、GPU 开关；4 坑位预览 | 截图 + 预设持久化测试 |
-| M9 发布 | electron-builder 打 dmg；web 构建目标；ESM library 构建目标供二期平台 import；README | 你本机 `npm run dist` 出包并能打开；library 产物能在一个空白 React 页面里挂载 |
+| M9 发布 | electron-builder 打 dmg；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
 
 每个里程碑单独提交并推送到分支，M1 完成后你就能在本机跑起来看效果。
 
@@ -150,7 +159,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 10 | 导出固定 60fps，源视频 24 或 30fps | 重复帧补齐，不做插帧 |
 | 11 | 4 个坑位是否共用同一套参数 | 共用，PRD 描述的是同一效果同时预览 4 个媒体 |
 | 12 | 内置预设的具体参数 | 我先定初版，你看效果后调 |
-| 13 | 二期在 React Flow 平台上的形态 | 已确认：作为 APP 整体嵌入，见 4.6 |
+| 13 | 二期在平台上的形态 | 已确认并按发布技能仓库核实：SkillForge 应用，前端整页托管，见 4.6 与 `docs/PLATFORM_NOTES.md` |
 
 ## 7. 风险
 
@@ -158,6 +167,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 - 性能。画布 1000×600、像素尺寸 1 时误差扩散约 60 万像素，单帧 20 到 40ms，可接受。4 坑位加视频加慢算法会卡，靠预览降分辨率兜底。
 - 沙盒里无法执行 macOS 打包，M9 需要你本机执行并反馈。
 - 设计稿目前只有 home 画板一页。弹窗、导出面板、设置页需要新的 Figma 画板，你给带 node-id 的链接我用 MCP 读取。
+- 二期平台限制：上传请求体上限约 50MB，发布包上限 100MB。视频源文件上传到平台可能需要前端压缩或分片，二期评估，一期不受影响。
 
 ## 8. 状态
 
