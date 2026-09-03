@@ -16,6 +16,6 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: size, height: size }, deviceScaleFactor: 1 });
 await page.setContent(`<style>html,body{margin:0;background:transparent}svg{display:block}</style>${svg}`);
 const out = path.join(root, 'build', 'icon.png');
-await page.screenshot({ path: out, clip: { x: 0, y: 0, width: size, height: size } });
+await page.screenshot({ path: out, omitBackground: true, clip: { x: 0, y: 0, width: size, height: size } });
 await browser.close();
 console.log(`已生成 ${path.relative(root, out)}`);
