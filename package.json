@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Dither Studio — 抖动艺术工具（macOS 客户端，前端可发布 web / SkillForge）",
+  "author": "Dither Studio",
   "main": "electron/dist/main.cjs",
   "type": "module",
   "workspaces": [
@@ -21,7 +22,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "playwright test",
-    "sync-tokens": "node scripts/sync-tokens.mjs"
+    "sync-tokens": "node scripts/sync-tokens.mjs",
+    "package:platform": "node scripts/package-platform.mjs",
+    "check:platform": "node scripts/check-platform-build.mjs",
+    "smoke:electron": "DITHER_SMOKE=1 electron ."
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
@@ -36,7 +40,8 @@
     "appId": "com.tda.dither-studio",
     "productName": "Dither Studio",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "electron/dist/**/*",
@@ -52,8 +57,24 @@
     },
     "dmg": {
       "contents": [
-        { "x": 130, "y": 220 },
-        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "asarUnpack": [
+      "frontend/dist/**/*"
+    ],
+    "linux": {
+      "target": [
+        "dir"
       ]
     }
   }

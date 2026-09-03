@@ -1,0 +1,29 @@
+# SkillForge 应用清单模板（二期发布时复制到应用目录根部，按平台当时的文档校对字段）。
+# 一期不发布，仅作为打包脚本的骨架输入。字段名来自 docs/PLATFORM_NOTES.md 的记录。
+name: dither-studio
+display_name: Dither Studio
+description: 抖动艺术工具：图片与视频的抖动、调色板、网格与特效
+version: 0.1.0
+
+frontend:
+  enabled: true
+  # 平台在本地执行：npm install && <build_command>，要求产出 <output_dir>
+  build_command: npm run build:platform
+  output_dir: dist
+  # vite base 必须与平台托管路径一致：/skillforge/apps/{name}/static/
+  base_path: /skillforge/apps/dither-studio/static/
+
+backend:
+  enabled: false
+
+agent:
+  enabled: false
+
+user_data:
+  # 用户预设与全局设置（platform.storage）
+  enabled: true
+
+user_files:
+  # 源素材与导出产物（platform.files）
+  enabled: true
+  max_file_size_mb: 100
