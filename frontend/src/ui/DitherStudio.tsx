@@ -1,23 +1,60 @@
+import { useState, type DragEvent } from 'react';
 import { usePlatform } from '@/platform';
+import { PreviewPane } from './canvas/PreviewPane';
+import { useOpenMedia } from './media/useOpenMedia';
+import { ParamPane } from './panel/ParamPane';
+import { RendererProvider } from './renderer/RendererContext';
+import { TopBar } from './TopBar';
 
-/** 根组件。M0 只放骨架，M1 填入顶栏 / 参数面板 / 预览画布。 */
+/** 根组件：顶栏 + 左参数面板 + 右预览；整窗接受文件拖拽 */
 export function DitherStudio() {
-  const platform = usePlatform();
   return (
-    <div className="app" data-platform={platform.kind}>
-      <header className="topbar">
-        <div className="topbar__brand">
-          <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            <rect x="2" y="2" width="14" height="14" rx="3" />
-            <path d="M6 9h6M9 6v6" />
-          </svg>
-          Dither Studio
-        </div>
-      </header>
+    <RendererProvider>
+      <Shell />
+    </RendererProvider>
+  );
+}
+
+function Shell() {
+  const platform = usePlatform();
+  const { acceptDrop } = useOpenMedia();
+  const [dragging, setDragging] = useState(false);
+
+  const onDragOver = (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDragging(true);
+  };
+  const onDragLeave = (e: DragEvent) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragging(false);
+  };
+  const onDrop = (e: DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    setDragging(false);
+    void acceptDrop(e.dataTransfer.files);
+  };
+
+  return (
+    <div
+      className={['app', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')}
+      data-platform={platform.kind}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      <TopBar />
       <main className="panes">
-        <section className="pane pane--params" aria-label="参数面板" />
-        <section className="pane pane--preview" aria-label="预览" />
+        <ParamPane />
+        <PreviewPane />
       </main>
+      {dragging && (
+        <div className="drop-overlay" aria-hidden="true">
+          <div className="drop-overlay__box">松开以打开文件</div>
+        </div>
+      )}
     </div>
   );
 }

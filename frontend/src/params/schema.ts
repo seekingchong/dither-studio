@@ -7,15 +7,11 @@ import type { ParamDef, ParamOption } from './types';
 
 const opt = (value: string, label: string): ParamOption => ({ value, label });
 
+/** 算法族。M1 只开放已实现的三族；M2 补齐噪声、半调、曲线扫描、点扩散 / DBS、图案。 */
 export const DITHER_FAMILIES: ParamOption[] = [
   opt('threshold', '阈值'),
-  opt('noise', '噪声'),
   opt('ordered', '有序'),
-  opt('halftone', '半调'),
   opt('error-diffusion', '误差扩散'),
-  opt('curve', '曲线扫描'),
-  opt('search', '点扩散 / DBS'),
-  opt('pattern', '图案'),
 ];
 
 export const PARAM_SCHEMA: readonly ParamDef[] = [
@@ -48,6 +44,14 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   // ---------- 影调与预处理 ----------
   { id: 'tone.threshold', group: 'tone', label: '阈值', type: 'number', min: 0, max: 255, step: 1, default: 128 },
   { id: 'tone.invert', group: 'tone', label: '反相', type: 'boolean', default: false },
+  {
+    id: 'tone.linear',
+    group: 'tone',
+    label: '线性空间',
+    type: 'boolean',
+    default: true,
+    hint: '在线性光里量化，抖动后的平均亮度与原图一致；关闭后在 gamma 空间量化，中间调更亮。',
+  },
   {
     id: 'tone.grayFormula',
     group: 'tone',

@@ -160,6 +160,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 11 | 4 个坑位是否共用同一套参数 | 共用，PRD 描述的是同一效果同时预览 4 个媒体 |
 | 12 | 内置预设的具体参数 | 我先定初版，你看效果后调 |
 | 13 | 二期在平台上的形态 | 已确认并按发布技能仓库核实：SkillForge 应用，前端整页托管，见 4.6 与 `docs/PLATFORM_NOTES.md` |
+| 14 | 线性空间抖动。PRD 默认 BT.709 线性空间，物理上正确（抖动后平均亮度与原图一致），但比常见工具的 gamma 空间结果整体偏暗 | 默认线性，影调分区加"线性空间"开关可关掉；M3 的亮度 / 中间调再补偿。你看效果后决定默认值 |
 
 ## 7. 风险
 
@@ -174,7 +175,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 阶段 | 状态 |
 |---|---|
 | M0 | 已完成：`frontend/` Vite + React 18 + TS；`VITE_BASE` 三目标；`platform` 接口与 electron / web 实现；zustand store；vitest + Playwright；CI；Electron 44 剪贴板已用 W3C 风格异步 API |
-| M1 | 待开始 |
+| M1 | 已完成：打开 / 拖拽图片；像素化（box / bilinear / lanczos / nearest 与网格偏移已一并实现）；固定阈值、Bayer 2–32 与 3×3、Floyd–Steinberg；1-bit Tint；缩放 5 档；导出 / 复制 PNG；Worker 流水线分阶段缓存；Inter 与 Roboto Mono 随包；Playwright 5 个用例 + 4 张基线截图，引擎 50 个单测 |
 | M2 | 待开始 |
 | M3 | 待开始 |
 | M4 | 待开始 |

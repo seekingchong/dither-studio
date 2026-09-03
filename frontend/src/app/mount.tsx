@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PlatformProvider, type Platform } from '@/platform';
 import { DitherStudio } from '@/ui/DitherStudio';
+import '@/styles/fonts.css';
 import '@/styles/tokens.css';
 import '@/styles/app.css';
 

@@ -11,6 +11,25 @@ import { mimeFromName } from '@/platform/types';
 const execFileAsync = promisify(execFile);
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
 
+const SMOKE_SCRIPT = `(async () => {
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (let i = 0; i < 50 && !document.querySelector('[data-slot="0"]'); i++) await wait(100);
+  const slot = document.querySelector('[data-slot="0"]');
+  if (!slot) return 'no-slot';
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 64, 0);
+  g.addColorStop(0, '#000'); g.addColorStop(1, '#fff');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  const blob = await new Promise((r) => c.toBlob(r, 'image/png'));
+  const dt = new DataTransfer();
+  dt.items.add(new File([blob], 'smoke.png', { type: 'image/png' }));
+  slot.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  for (let i = 0; i < 100 && slot.getAttribute('data-rendered') !== 'true'; i++) await wait(100);
+  return slot.getAttribute('data-rendered') === 'true' ? 'rendered' : 'not-rendered';
+})()`;
+
 // ---------- 窗口 ----------
 
 function createWindow(): BrowserWindow {
@@ -31,10 +50,21 @@ function createWindow(): BrowserWindow {
   });
   win.once('ready-to-show', () => win.show());
   if (process.env.DITHER_SMOKE) {
-    // 冒烟模式：页面加载完成即退出，用于无头环境验证壳层能起来
-    win.webContents.once('did-finish-load', () => {
+    // 冒烟模式：页面加载后合成一张图丢进坑位，等待 Worker 渲染完成再退出。用于无头环境验证壳层 + Worker 可用。
+    win.webContents.on('console-message', (event) => {
+      const level = 'level' in event ? String(event.level) : 'log';
+      console.log(`[renderer:${level}]`, 'message' in event ? event.message : '');
+    });
+    win.webContents.once('did-finish-load', async () => {
       console.log('[smoke] 渲染进程加载完成:', win.webContents.getURL());
-      setTimeout(() => app.quit(), 500);
+      try {
+        const result = await win.webContents.executeJavaScript(SMOKE_SCRIPT, true);
+        console.log('[smoke] 结果:', result);
+        setTimeout(() => app.exit(result === 'rendered' ? 0 : 2), 200);
+      } catch (err) {
+        console.error('[smoke] 脚本失败', err);
+        app.exit(1);
+      }
     });
     win.webContents.once('did-fail-load', (_e, code, desc) => {
       console.error('[smoke] 加载失败', code, desc);
