@@ -41,7 +41,7 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
   {
     id: DEFAULT_PRESET_ID,
     name: '默认',
-    hint: 'Floyd–Steinberg 1-bit，全部参数可调',
+    hint: 'Bayer 2×2 1-bit，全参数可调',
     params: {},
     exposes: ALL_GROUPS,
   },

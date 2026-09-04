@@ -19,10 +19,10 @@ describe('参数 schema', () => {
   });
 
   it('coerceParam 夹紧数值并回退非法枚举', () => {
-    expect(coerceParam(getParamDef('pixel.size'), 999)).toBe(64);
+    expect(coerceParam(getParamDef('pixel.size'), 999)).toBe(16);
     expect(coerceParam(getParamDef('pixel.size'), -3)).toBe(1);
     expect(coerceParam(getParamDef('pixel.size'), 'abc')).toBe(4);
-    expect(coerceParam(getParamDef('dither.family'), 'nope')).toBe('error-diffusion');
+    expect(coerceParam(getParamDef('dither.family'), 'nope')).toBe('ordered');
     expect(coerceParam(getParamDef('color.tint.dark'), '#abcdef')).toBe('#ABCDEF');
     expect(coerceParam(getParamDef('color.tint.dark'), 'red')).toBe('#000000');
   });
@@ -34,12 +34,28 @@ describe('参数 schema', () => {
     expect(Object.keys(params).length).toBe(PARAM_SCHEMA.length);
   });
 
-  it('visibleWhen 按算法族切换', () => {
+  it('默认：有序 Bayer 2×2、单色、像素尺寸 4', () => {
     const params = defaultParams();
-    expect(isParamVisible(getParamDef('dither.ed.kernel'), params)).toBe(true);
-    expect(isParamVisible(getParamDef('dither.ordered.matrix'), params)).toBe(false);
-    params['dither.family'] = 'ordered';
+    expect(params['dither.family']).toBe('ordered');
+    expect(params['dither.ordered.matrix']).toBe('bayer2');
+    expect(params['color.mode']).toBe('mono');
+    expect(params['pixel.size']).toBe(4);
+    const size = getParamDef('pixel.size');
+    expect(size.type === 'number' && [size.min, size.max]).toEqual([1, 16]);
+  });
+
+  it('visibleWhen 按算法族切换；两端颜色在单色 / 灰阶 / Tint 下都可见', () => {
+    const params = defaultParams();
     expect(isParamVisible(getParamDef('dither.ordered.matrix'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('dither.ed.kernel'), params)).toBe(false);
+    params['dither.family'] = 'error-diffusion';
+    expect(isParamVisible(getParamDef('dither.ed.kernel'), params)).toBe(true);
+    for (const mode of ['mono', 'gray', 'tint']) {
+      params['color.mode'] = mode;
+      expect(isParamVisible(getParamDef('color.tint.dark'), params), mode).toBe(true);
+    }
+    params['color.mode'] = 'palette';
+    expect(isParamVisible(getParamDef('color.tint.dark'), params)).toBe(false);
   });
 });
 
@@ -51,7 +67,7 @@ describe('store', () => {
     store.setParam('pixel.size', 4);
     expect(useStudioStore.getState().params).toBe(before);
     store.setParam('pixel.size', 100);
-    expect(useStudioStore.getState().params['pixel.size']).toBe(64);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(16);
   });
 
   it('切换坑位数量时保留已有坑位', () => {

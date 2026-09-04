@@ -54,7 +54,9 @@ async function pick(page: Page, paramId: string, optionLabel: string) {
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
 }
 
+/** 缩放在「画布」菜单里：没开就先打开 */
 async function setZoom(page: Page, label: string) {
+  if ((await page.getByTestId('canvas-menu').count()) === 0) await page.getByTestId('canvas-menu-button').click();
   await page.locator('.preview-zoom').click();
   await page.getByRole('option', { name: label, exact: true }).click();
 }
@@ -100,11 +102,10 @@ test('按系统拖拽的事件顺序把文件放进坑位后，全窗遮罩要�
     slot.dispatchEvent(ev('drop'));
   }, file);
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
-  await expect(page.locator('.drop-overlay')).toHaveCount(0);
-  await expect(page.locator('.app')).not.toHaveClass(/is-dragging/);
+  await expect(page.locator('.app')).toHaveAttribute('data-file-drag', 'false');
 });
 
-test('拖到窗口外或系统取消拖拽后，遮罩也要自行消失', async ({ page }) => {
+test('拖文件进窗口时不盖全窗遮罩，由坑位自己标成可放置；拖到窗口外或系统取消后也要自行恢复', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-slot="0"]').waitFor();
   const file = await makePng(page, 0);
@@ -113,9 +114,13 @@ test('拖到窗口外或系统取消拖拽后，遮罩也要自行消失', async
     dt.items.add(file);
     document.querySelector('.pane--params')!.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
   }, file);
-  await expect(page.locator('.drop-overlay')).toHaveCount(1);
-  // 之后再无任何拖拽事件（Esc 取消 / 拖出窗口且没有 dragleave）：看门狗到期自动熄灭
-  await expect(page.locator('.drop-overlay')).toHaveCount(0, { timeout: 3000 });
+  await expect(page.locator('.drop-overlay')).toHaveCount(0);
+  await expect(page.locator('.app')).toHaveAttribute('data-file-drag', 'true');
+  // 可放置态落在坑位上：描边变虚线
+  await expect(page.locator('[data-slot="0"]')).toHaveCSS('border-top-style', 'dashed');
+  // 之后再无任何拖拽事件（Esc 取消 / 拖出窗口且没有 dragleave）：看门狗到期自动恢复
+  await expect(page.locator('.app')).toHaveAttribute('data-file-drag', 'false', { timeout: 3000 });
+  await expect(page.locator('[data-slot="0"]')).toHaveCSS('border-top-style', 'solid');
 });
 
 test('预览画布在任何缩放与坑位数下都上下左右居中', async ({ page }) => {
@@ -147,20 +152,16 @@ test('预览画布在任何缩放与坑位数下都上下左右居中', async ({
   }
 });
 
-test('4 坑位：顶部只有一个播放 / 暂停按钮控制全部动图，不显示进度条与分辨率信息', async ({ page }) => {
+test('4 坑位：顶部只有一个播放 / 暂停按钮控制全部动图，不显示进度条', async ({ page }) => {
   await page.goto('/');
   await dropImage(page, 0);
-  await expect(page.getByTestId('preview-meta')).toBeVisible();
   await useFourSlots(page);
-  await expect(page.getByTestId('preview-meta')).toHaveCount(0);
   await expect(page.getByTestId('transport-group')).toHaveCount(0);
 
   await dropGif(page, 1);
   await dropGif(page, 2);
   await expect(page.getByTestId('transport-group')).toBeVisible();
   await expect(page.locator('.transport__range')).toHaveCount(0);
-  await expect(page.locator('.transport__time')).toHaveCount(0);
-  await expect(page.getByTestId('preview-meta')).toHaveCount(0);
 
   const hashes = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-slot="1"] canvas, [data-slot="2"] canvas')).map((c) => (c as HTMLCanvasElement).toDataURL().length));
 
@@ -175,11 +176,10 @@ test('4 坑位：顶部只有一个播放 / 暂停按钮控制全部动图，不
   await expect(page.getByRole('button', { name: '全部暂停' })).toBeVisible();
   await expect.poll(hashes, { timeout: 3000 }).not.toEqual(paused);
 
-  // 切回 1 坑位：恢复进度条与分辨率信息
+  // 切回 1 坑位：进度条按坑位恢复，顶部不再有总控播放键
   await page.getByTestId('settings-button').click();
   await pick(page, 'settings.slotCount', '1 个媒体');
   await page.keyboard.press('Escape');
   await expect(page.locator('.slot')).toHaveCount(1);
-  await expect(page.getByTestId('preview-meta')).toBeVisible();
   await expect(page.getByTestId('transport-group')).toHaveCount(0);
 });

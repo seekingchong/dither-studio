@@ -20,7 +20,7 @@ function reset() {
     params: defaultParams(),
     presetId: DEFAULT_PRESET_ID,
     history: { past: [], future: [], lastEditId: null, lastEditAt: 0 },
-    view: { zoom: 'fit', tab: 'result', activeSlot: 0, autoPixelSize: true },
+    view: { zoom: 'fit', tab: 'result', activeSlot: 0 },
     presets: [],
   });
 }
@@ -77,19 +77,17 @@ describe('撤销 / 重做', () => {
     expect(useStudioStore.getState().history.past.length).toBeLessThanOrEqual(HISTORY_LIMIT);
   });
 
-  it('replaceParams / resetParams 进历史，自动像素尺寸不进', () => {
+  it('replaceParams / resetParams 进历史', () => {
     const s = useStudioStore.getState();
-    s.applySuggestedPixelSize(3);
-    expect(useStudioStore.getState().params['pixel.size']).toBe(3);
-    expect(useStudioStore.getState().history.past.length).toBe(0);
-    s.replaceParams({ 'pixel.size': 6, 'dither.family': 'ordered' });
+    expect(useStudioStore.getState().params['pixel.size']).toBe(4);
+    s.replaceParams({ 'pixel.size': 6, 'dither.family': 'error-diffusion' });
     expect(useStudioStore.getState().history.past.length).toBe(1);
-    expect(useStudioStore.getState().view.autoPixelSize).toBe(false);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(6);
     s.resetParams();
     expect(useStudioStore.getState().history.past.length).toBe(2);
-    expect(useStudioStore.getState().view.autoPixelSize).toBe(true);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(4);
     useStudioStore.getState().undo();
-    expect(useStudioStore.getState().params['dither.family']).toBe('ordered');
+    expect(useStudioStore.getState().params['dither.family']).toBe('error-diffusion');
   });
 
   it('应用预设记录来源，微调不改变来源，撤销 / 重做连同来源一起回退', () => {
@@ -103,7 +101,8 @@ describe('撤销 / 重做', () => {
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     useStudioStore.getState().undo();
     expect(useStudioStore.getState().presetId).toBe(DEFAULT_PRESET_ID);
-    expect(useStudioStore.getState().params['dither.family']).toBe('error-diffusion');
+    expect(useStudioStore.getState().params['dither.ordered.matrix']).toBe('bayer2');
+    expect(useStudioStore.getState().params['color.mode']).toBe('mono');
     useStudioStore.getState().redo();
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     expect(useStudioStore.getState().params['dither.ordered.matrix']).toBe('bayer4');
@@ -172,9 +171,15 @@ describe('预设与设置', () => {
     expect(list[1].base).toBeUndefined();
     expect(list[1].thumbnail).toBeUndefined();
     expect(sanitizeUserPresets('nope')).toEqual([]);
-    expect(sanitizeSettings({ slotCount: 4, gpu: false, theme: 'dark' })).toEqual({ slotCount: 4, gpu: false, theme: 'dark' });
-    expect(sanitizeSettings({ slotCount: 3, theme: 'purple' })).toEqual({ slotCount: 1, gpu: true, theme: 'light' });
+    expect(sanitizeSettings({ slotCount: 4, gpu: false, theme: 'dark' })).toEqual({ slotCount: 4, gpu: false, theme: 'dark', paneWidth: null });
+    expect(sanitizeSettings({ slotCount: 3, theme: 'purple' })).toEqual({ slotCount: 1, gpu: true, theme: 'light', paneWidth: null });
     expect(sanitizeSettings(null).theme).toBe('light');
+    // 左栏宽度：数值夹到可拖区间，非数值回到"均分"
+    expect(sanitizeSettings({ paneWidth: 500 }).paneWidth).toBe(500);
+    expect(sanitizeSettings({ paneWidth: 10 }).paneWidth).toBe(320);
+    expect(sanitizeSettings({ paneWidth: 99999 }).paneWidth).toBe(1200);
+    expect(sanitizeSettings({ paneWidth: 'wide' }).paneWidth).toBeNull();
+    expect(sanitizeSettings({ paneWidth: Number.NaN }).paneWidth).toBeNull();
   });
 
   it('切换坑位数时活动坑位回到范围内', () => {

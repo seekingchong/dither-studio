@@ -20,7 +20,6 @@ export { computeFit, fitFrame, type FitMode, type FitRect } from './preprocess/f
 export { pixelate, cellCount } from './preprocess/pixelate';
 export { applyTone, applyThresholdBias, thresholdBias, buildToneCurve, autoLevels, DEFAULT_TONE, type ToneOptions, type NoiseType } from './preprocess/tone';
 export { boxBlur, gaussianBlur, boxesForGauss, sobelMagnitude, bilateral } from './preprocess/filters';
-export { suggestPixelSize } from './preprocess/autoPixel';
 export * from './dither';
 export { renderCells } from './render/upscale';
 export { renderGrid, DEFAULT_GRID, type GridRenderOptions, type DotShape, type BackgroundKind, type LineDirection, type BgDotShape } from './render/grid';

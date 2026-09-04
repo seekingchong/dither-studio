@@ -22,8 +22,8 @@ describe('Pipeline', () => {
     for (let i = 3; i < out.data.length; i += 4) expect(out.data[i]).toBe(255);
   });
 
-  it('1-bit Tint 只出现两种颜色', () => {
-    const params = { ...smallParams(), 'color.tint.dark': '#112233', 'color.tint.light': '#FFEEDD' };
+  it('单色两端颜色可调，结果只出现这两种颜色', () => {
+    const params = { ...smallParams(), 'color.mode': 'mono', 'color.tint.dark': '#112233', 'color.tint.light': '#FFEEDD' };
     const out = renderImage(gradientSource(), params);
     const colors = new Set<string>();
     for (let i = 0; i < out.data.length; i += 4) colors.add(`${out.data[i]},${out.data[i + 1]},${out.data[i + 2]}`);
@@ -35,7 +35,7 @@ describe('Pipeline', () => {
     const src = gradientSource();
     const first = p.run(src, 'a', smallParams());
     expect(p.lastStats.recomputed).toContain('fit');
-    expect(p.lastStats.recomputed).toContain('dither:error-diffusion/floyd-steinberg');
+    expect(p.lastStats.recomputed).toContain('dither:ordered/bayer2');
     expect(p.lastStats.recomputed).toContain('render');
     const second = p.run(src, 'a', smallParams());
     expect(p.lastStats.recomputed).toEqual([]);
@@ -48,7 +48,7 @@ describe('Pipeline', () => {
     const src = gradientSource();
     p.run(src, 'a', smallParams());
     p.run(src, 'a', { ...smallParams(), 'tone.threshold': 100 });
-    expect(p.lastStats.recomputed).toEqual(['dither:error-diffusion/floyd-steinberg', 'color', 'render']);
+    expect(p.lastStats.recomputed).toEqual(['dither:ordered/bayer2', 'color', 'render']);
   });
 
   it('换源媒体时全部重算', () => {

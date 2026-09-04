@@ -43,7 +43,13 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
     const push = async (source: ImageBitmap | HTMLVideoElement, full: boolean) => {
       if (disposed) return;
       if (!full && client.isBusy(slot)) return; // 丢帧
-      const bitmap = await createImageBitmap(source);
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await createImageBitmap(source);
+      } catch {
+        // 媒体刚被换掉 / 释放（<video> 已卸掉 src、位图已 close），这一帧作废即可，不算错误
+        return;
+      }
       if (disposed) {
         bitmap.close();
         return;
@@ -129,7 +135,12 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
           'seeked',
           () => {
             void (async () => {
-              const bitmap = await createImageBitmap(video);
+              let bitmap: ImageBitmap;
+              try {
+                bitmap = await createImageBitmap(video);
+              } catch {
+                return; // 定位期间媒体被换掉
+              }
               const { params, settings } = useStudioStore.getState();
               client.setSource(slot, `${media.id}#${++counter.current}`, bitmap);
               client.render(slot, params, { gpu: settings.gpu, previewScale: 1 });

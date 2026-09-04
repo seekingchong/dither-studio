@@ -30,9 +30,9 @@ async function pick(page: Page, paramId: string, optionLabel: string) {
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
 }
 
-/** 读取画布左上角像素是否已被某次渲染更新：用 preview-meta 的耗时文本变化做信号 */
+/** 某次渲染是否已完成：坑位上的 data-render-seq 每收到一帧 +1 */
 async function metaText(page: Page) {
-  return page.getByTestId('preview-meta').textContent();
+  return page.locator('[data-slot="0"]').getAttribute('data-render-seq');
 }
 
 const FAMILIES: Array<[string, string, string[]]> = [

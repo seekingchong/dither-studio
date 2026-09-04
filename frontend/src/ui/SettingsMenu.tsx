@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useStudioStore, type SlotCount, type ThemeSetting } from '@/state';
 import { IconButton, Select, ToggleField } from '@/ui/primitives';
+import { SHORTCUTS } from '@/ui/state/useShortcuts';
 
-/** 顶栏齿轮：全局设置弹层（坑位数、GPU 加速） */
+/** 左栏操作行的齿轮：全局设置弹层（坑位数、GPU 加速、主题）与快捷键一览 */
 export function SettingsMenu() {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -52,6 +53,19 @@ export function SettingsMenu() {
             onChange={(v) => setSettings({ theme: v as ThemeSetting })}
             data-param="settings.theme"
           />
+          <div className="settings__shortcuts" aria-label="快捷键">
+            <span className="settings__heading">快捷键</span>
+            {SHORTCUTS.map((s) => (
+              <div key={s.label} className="shortcut-row">
+                <span className="shortcut-row__label">{s.label}</span>
+                <span className="shortcut-row__keys">
+                  {s.keys.map((k) => (
+                    <kbd key={k}>{k}</kbd>
+                  ))}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

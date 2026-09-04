@@ -5,6 +5,8 @@ export { Select, type SelectOption } from './Select';
 export { SliderField } from './SliderField';
 export { ToggleField } from './ToggleField';
 export { ColorField } from './ColorField';
+export { ColorPopover } from './ColorPopover';
+export { NumberField } from './NumberField';
 export { TextField } from './TextField';
 export { Toast, useToast } from './Toast';
 export { HelpLabel, HelpPopover, requestHelp, dismissHelp } from './Help';

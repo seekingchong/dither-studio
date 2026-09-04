@@ -25,12 +25,19 @@ interface PendingRender {
 /**
  * 主线程侧的渲染调度：每个坑位最多一个在途任务，期间到达的参数只保留最新一份，
  * 上一帧返回后再发。参数连续变化时自然合并，不会堆积任务。
+ *
+ * 渲染请求只在该坑位的源帧已经送进 Worker 之后才发出：载入媒体时源帧要先 createImageBitmap
+ * 再 postMessage，而参数 effect 在同一次提交里就会请求渲染，若不拦一下，渲染消息会先于源帧
+ * 到达 Worker，Worker 回一个「坑位没有源媒体」——这就是每次拖入素材都先弹一条报错、随后又渲染正常的原因。
+ * 现在这类请求留在队列里，等 setSource 一到立刻跟着发出。
  */
 export class RenderClient {
   private worker: Worker;
   private jobSeq = 0;
   private inflight = new Map<number, number>();
   private pending = new Map<number, PendingRender>();
+  /** 已把源帧送进 Worker 的坑位 */
+  private sourced = new Set<number>();
   private scheduled = false;
   private frameListeners = new Set<FrameListener>();
   private errorListeners = new Set<ErrorListener>();
@@ -45,17 +52,31 @@ export class RenderClient {
 
   setSource(slot: number, id: string, bitmap: ImageBitmap) {
     this.send({ type: 'setSource', slot, id, bitmap }, [bitmap]);
+    this.markSourced(slot);
   }
 
   setSourceFrame(slot: number, id: string, frame: RGBAFrame) {
     const buffer = frame.data.buffer.slice(0) as ArrayBuffer;
     this.send({ type: 'setSourceFrame', slot, id, width: frame.width, height: frame.height, buffer }, [buffer]);
+    this.markSourced(slot);
   }
 
   clearSource(slot: number) {
     this.pending.delete(slot);
     this.inflight.delete(slot);
+    this.sourced.delete(slot);
     this.send({ type: 'clearSource', slot });
+  }
+
+  /** 该坑位的源帧是否已送进 Worker */
+  hasSource(slot: number): boolean {
+    return this.sourced.has(slot);
+  }
+
+  /** 源帧刚发出去：先前因为没有源帧而压着的渲染请求现在可以紧跟着发了 */
+  private markSourced(slot: number) {
+    this.sourced.add(slot);
+    if (this.pending.has(slot)) this.flush();
   }
 
   /** 是否有在途渲染（视频逐帧时用来丢帧） */
@@ -110,6 +131,9 @@ export class RenderClient {
 
   dispose() {
     this.worker.terminate();
+    this.pending.clear();
+    this.inflight.clear();
+    this.sourced.clear();
     this.frameListeners.clear();
     this.errorListeners.clear();
   }
@@ -117,6 +141,8 @@ export class RenderClient {
   private flush() {
     for (const [slot, job] of this.pending) {
       if (this.inflight.has(slot)) continue;
+      // 源帧还没到 Worker：留在队里，等 setSource 之后再发，别让 Worker 回「坑位没有源媒体」
+      if (!this.sourced.has(slot)) continue;
       this.pending.delete(slot);
       const jobId = ++this.jobSeq;
       this.inflight.set(slot, jobId);

@@ -51,19 +51,22 @@ async function loadVideo(bytes: Uint8Array, mime: string, name: string, path?: s
       video.currentTime = 1e101;
     });
   }
-  // 定位到 0 确保首帧已解码
-  video.currentTime = 0;
-  await new Promise<void>((resolve) => {
-    const timer = window.setTimeout(() => resolve(), 2000);
-    video.addEventListener(
-      'seeked',
-      () => {
-        window.clearTimeout(timer);
-        resolve();
-      },
-      { once: true },
-    );
-  });
+  // 定位到 0 确保首帧已解码。loadeddata 之后本来就停在 0（且首帧已解码）的话跳过——
+  // 此时再赋 currentTime = 0 不会触发 seeked，只会白等到超时
+  if (video.currentTime !== 0) {
+    await new Promise<void>((resolve) => {
+      const timer = window.setTimeout(() => resolve(), 2000);
+      video.addEventListener(
+        'seeked',
+        () => {
+          window.clearTimeout(timer);
+          resolve();
+        },
+        { once: true },
+      );
+      video.currentTime = 0;
+    });
+  }
   const bitmap = await createImageBitmap(video);
   return {
     id: newId(),

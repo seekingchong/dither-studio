@@ -27,6 +27,7 @@ async function pick(page: Page, paramId: string, optionLabel: string) {
 }
 
 const familyValue = (page: Page) => page.locator('[data-param="dither.family"] .tda-select__value');
+const matrixValue = (page: Page) => page.locator('[data-param="dither.ordered.matrix"] .tda-select__value');
 
 test('预设模块在参数上方：选方案、微调、保存为我的预设、历史页编辑，并跨刷新保留', async ({ page }) => {
   await page.goto('/');
@@ -47,11 +48,13 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('[data-preset="gameboy"]')).toHaveClass(/is-active/);
   await expect(familyValue(page)).toHaveText('有序');
   await expect(page.locator('[data-param="color.mode"] .tda-select__value')).toHaveText('Palette');
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '画布']);
+  // 分节可折叠、排成一列；画布不在左栏（在预览区的「画布」菜单里）
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
+  await expect(page.locator('[data-group="canvas"]')).toHaveCount(0);
   await page.locator('[data-preset="dot-matrix"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '画布']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格']);
   await page.locator('[data-preset="default"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '特效', '画布']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '特效']);
 
   // 在 Game Boy 基础上微调 → 状态显示已微调，可还原
   await page.locator('[data-preset="gameboy"]').click();
@@ -72,7 +75,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '画布']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
 
   // 历史页：一条记录，带缩略图、来源与摘要
   await page.getByRole('tab', { name: '历史' }).click();
@@ -86,13 +89,15 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await page.reload();
   await page.locator('[data-slot="0"]').waitFor();
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
-  await expect(familyValue(page)).toHaveText('误差扩散');
+  // 参数本身不持久化：回到默认 Bayer 2×2
+  await expect(matrixValue(page)).toHaveText('Bayer 2×2');
 
   // 从历史页应用：回到参数页，参数与来源都恢复
   await page.getByRole('tab', { name: '历史' }).click();
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByTestId('preset-picker')).toBeVisible();
   await expect(familyValue(page)).toHaveText('有序');
+  await expect(matrixValue(page)).toHaveText('Bayer 4×4');
   await openSection(page, 'tone');
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('20');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
@@ -120,23 +125,25 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.history-item')).toHaveCount(0);
 });
 
-test('撤销 / 重做：按钮与快捷键，滑块拖动合并', async ({ page }) => {
+test('撤销 / 重做只走快捷键，滑块拖动合并', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
-  await expect(page.getByRole('button', { name: '撤销' })).toBeDisabled();
-  await pick(page, 'dither.family', '有序');
-  await expect(page.getByRole('button', { name: '撤销' })).toBeEnabled();
-  await page.getByRole('button', { name: '撤销' }).click();
+  // 面板上没有撤销 / 重做 / 打开 / 复制按钮
+  await expect(page.getByRole('button', { name: '撤销' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '重做' })).toHaveCount(0);
+  await pick(page, 'dither.family', '误差扩散');
   await expect(familyValue(page)).toHaveText('误差扩散');
-  await page.getByRole('button', { name: '重做' }).click();
-  await expect(familyValue(page)).toHaveText('有序');
 
-  // 键盘：Ctrl+Z / Shift+Ctrl+Z
+  // 键盘：Ctrl+Z / Shift+Ctrl+Z / Ctrl+Y
   await page.locator('body').click({ position: { x: 5, y: 5 } });
   await page.keyboard.press('Control+z');
-  await expect(familyValue(page)).toHaveText('误差扩散');
-  await page.keyboard.press('Control+Shift+z');
   await expect(familyValue(page)).toHaveText('有序');
+  await page.keyboard.press('Control+Shift+z');
+  await expect(familyValue(page)).toHaveText('误差扩散');
+  await page.keyboard.press('Control+z');
+  await expect(familyValue(page)).toHaveText('有序');
+  await page.keyboard.press('Control+y');
+  await expect(familyValue(page)).toHaveText('误差扩散');
 
   // 拖动滑块的连续变化只算一步
   const range = page.locator('[data-param="pixel.size"] .tda-slider__range');
@@ -146,10 +153,10 @@ test('撤销 / 重做：按钮与快捷键，滑块拖动合并', async ({ page 
   for (let i = 1; i <= 8; i++) await page.mouse.move(box.x + 8 + i * 6, box.y + box.height / 2);
   await page.mouse.up();
   const after = await range.inputValue();
-  expect(Number(after)).toBeGreaterThan(2);
+  expect(Number(after)).toBeGreaterThan(4);
   await page.keyboard.press('Control+z');
-  await expect(range).toHaveValue('2');
-  await expect(familyValue(page)).toHaveText('有序');
+  await expect(range).toHaveValue('4');
+  await expect(familyValue(page)).toHaveText('误差扩散');
 });
 
 test('深色主题与 4 坑位预览', async ({ page }) => {
@@ -167,7 +174,7 @@ test('深色主题与 4 坑位预览', async ({ page }) => {
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
   await dropImage(page, 2);
   await expect(page.locator('[data-slot="2"]')).toHaveClass(/is-active/);
-  await expect(page).toHaveScreenshot('m8-dark-4slots.png', { maxDiffPixelRatio: 0.02, mask: [page.getByTestId('preview-meta')] });
+  await expect(page).toHaveScreenshot('m8-dark-4slots.png', { maxDiffPixelRatio: 0.02 });
 
   // 设置跨刷新保留
   await page.reload();

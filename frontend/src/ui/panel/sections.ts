@@ -29,6 +29,7 @@ const signed = (label: string, value: number) => `${label} ${value > 0 ? '+' : '
 /**
  * 左栏的参数分节。原来是一排 tab，一次只看得见一节；现在整栏一列，
  * 每节可折叠、收起时显示当前值摘要，几节的关系一眼可见。
+ * 画布尺寸 / 适配不在这里，在预览区右上角的「画布」菜单里。
  */
 export const SECTIONS: SectionMeta[] = [
   {
@@ -82,7 +83,7 @@ export const SECTIONS: SectionMeta[] = [
   {
     id: 'color',
     label: '颜色',
-    hint: '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、双色、调色板、分通道，以及在结果上撒跳色的强调层。',
+    hint: '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、两端色、调色板、分通道，以及在结果上撒跳色的强调层。色块可以点开改颜色或直接输入色值。',
     groups: ['color'],
     summary: (p) => {
       const mode = str(p, 'color.mode');
@@ -113,7 +114,7 @@ export const SECTIONS: SectionMeta[] = [
   {
     id: 'effects',
     label: '特效',
-    hint: '抖动完成后叠加的后处理，按列表顺序依次应用，可添加多个、调整顺序或临时关闭。',
+    hint: '抖动完成后叠加的后处理，按列表顺序依次应用。点选项添加，可添加多个、调整顺序或临时关闭。',
     groups: ['effects'],
     summary: (p) => {
       const raw = str(p, 'effects.stack').trim();
@@ -125,13 +126,6 @@ export const SECTIONS: SectionMeta[] = [
         return '无';
       }
     },
-  },
-  {
-    id: 'canvas',
-    label: '画布',
-    hint: '画布尺寸就是导出尺寸，默认 1000 × 600。适配方式决定源图如何放进画布。',
-    groups: ['canvas'],
-    summary: (p) => `${num(p, 'canvas.width')} × ${num(p, 'canvas.height')} · ${optionLabel('canvas.fit', p)}`,
   },
 ];
 

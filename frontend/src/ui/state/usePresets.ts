@@ -18,12 +18,8 @@ import { useToast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { frameToThumbnail } from './thumbnail';
 
-/** 比较两套参数；像素尺寸仍由载入媒体时自动建议决定时不算用户微调 */
-function sameParams(a: Params, b: Params, ignorePixelSize: boolean): boolean {
-  for (const key of Object.keys(a)) {
-    if (ignorePixelSize && key === 'pixel.size') continue;
-    if (a[key] !== b[key]) return false;
-  }
+function sameParams(a: Params, b: Params): boolean {
+  for (const key of Object.keys(a)) if (a[key] !== b[key]) return false;
   return true;
 }
 
@@ -62,9 +58,7 @@ export function usePresets() {
   const platform = usePlatform();
   const client = useRenderClient();
   const show = useToast((s) => s.show);
-  const { presets, params, activeId, autoPixelSize } = useStudioStore(
-    useShallow((s) => ({ presets: s.presets, params: s.params, activeId: s.presetId, autoPixelSize: s.view.autoPixelSize })),
-  );
+  const { presets, params, activeId } = useStudioStore(useShallow((s) => ({ presets: s.presets, params: s.params, activeId: s.presetId })));
 
   /** 活动预设本身（内置或用户），以及它的来源内置预设（决定参数范围） */
   const activeUser = useMemo(() => presets.find((p) => p.id === activeId), [presets, activeId]);
@@ -72,8 +66,8 @@ export function usePresets() {
   const activeName = activeUser?.name ?? findBuiltinPreset(activeId)?.name ?? base.name;
   const dirty = useMemo(() => {
     const reference = activeUser ? sanitizeParams(activeUser.params) : builtinPresetParams(findBuiltinPreset(activeId) ?? base);
-    return !sameParams(reference, params, autoPixelSize);
-  }, [activeUser, activeId, base, params, autoPixelSize]);
+    return !sameParams(reference, params);
+  }, [activeUser, activeId, base, params]);
 
   const persist = useCallback(
     async (list: UserPreset[]) => {

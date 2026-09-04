@@ -40,9 +40,8 @@ async function pick(page: Page, paramId: string, optionLabel: string) {
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
 }
 
-const screenshotOptions = (page: Page) => ({
+const screenshotOptions = (_page: Page) => ({
   maxDiffPixelRatio: 0.01,
-  mask: [page.getByTestId('preview-meta')],
 });
 
 test.beforeEach(async ({ page }) => {
@@ -53,10 +52,13 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('空态：顶栏、参数面板、拖拽区', async ({ page }) => {
+test('空态：无顶栏，设置在左栏操作行，参数面板与拖拽区', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('dropzone')).toBeVisible();
-  await expect(page.locator('.topbar__brand')).toHaveText(/Dither Studio/);
+  // 应用内不再有顶栏；「设置」齿轮在左栏操作行里，预览头里没有分辨率 / 耗时小字
+  await expect(page.locator('.topbar')).toHaveCount(0);
+  await expect(page.locator('.pane--params .pane-actions').getByTestId('settings-button')).toBeVisible();
+  await expect(page.getByTestId('preview-meta')).toHaveCount(0);
   await expect(page.getByRole('button', { name: '导出 PNG' })).toBeDisabled();
   await expect(page).toHaveScreenshot('m1-empty.png', screenshotOptions(page));
 });
@@ -64,13 +66,16 @@ test('空态：顶栏、参数面板、拖拽区', async ({ page }) => {
 test('打开图片后三个算法各出一张截图', async ({ page }) => {
   await page.goto('/');
   await dropSyntheticImage(page);
-  await expect(page.locator('[data-param="dither.ed.kernel"]')).toBeVisible();
-  await expect(page).toHaveScreenshot('m1-floyd-steinberg.png', screenshotOptions(page));
+  // 默认：有序 Bayer 2×2、单色、像素尺寸 4
+  await expect(page.locator('[data-param="dither.ordered.matrix"]')).toContainText('Bayer 2×2');
+  await expect(page.locator('[data-param="color.mode"]')).toContainText('单色');
+  await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('4');
+  await expect(page).toHaveScreenshot('m1-bayer2.png', screenshotOptions(page));
 
-  await pick(page, 'dither.family', '有序');
-  await expect(page.locator('[data-param="dither.ordered.matrix"]')).toContainText('Bayer 4×4');
+  await pick(page, 'dither.family', '误差扩散');
+  await expect(page.locator('[data-param="dither.ed.kernel"]')).toContainText('Floyd–Steinberg');
   await page.waitForTimeout(200);
-  await expect(page).toHaveScreenshot('m1-bayer4.png', screenshotOptions(page));
+  await expect(page).toHaveScreenshot('m1-floyd-steinberg.png', screenshotOptions(page));
 
   await pick(page, 'dither.family', '阈值');
   await expect(page.locator('[data-param="dither.threshold.method"]')).toContainText('固定阈值');
@@ -85,6 +90,9 @@ test('缩放档位改变画布显示尺寸', async ({ page }) => {
   const fitBox = (await canvas.boundingBox())!;
   expect(fitBox.width).toBeLessThan(1000);
 
+  // 缩放在预览区右上角的「画布」菜单里
+  await page.getByTestId('canvas-menu-button').click();
+  await expect(page.getByTestId('canvas-menu')).toBeVisible();
   await page.locator('.preview-zoom .tda-select').click();
   await page.getByRole('option', { name: '100%' }).click();
   await expect.poll(async () => (await canvas.boundingBox())!.width).toBe(1000);
@@ -92,6 +100,18 @@ test('缩放档位改变画布显示尺寸', async ({ page }) => {
   await page.locator('.preview-zoom .tda-select').click();
   await page.getByRole('option', { name: '25%' }).click();
   await expect.poll(async () => (await canvas.boundingBox())!.width).toBe(250);
+  await expect(page.getByTestId('canvas-menu-button')).toContainText('1000 × 600 · 25%');
+
+  // 画布尺寸也在这里改：预设尺寸芯片与直接输入
+  await page.getByRole('button', { name: '800 × 800' }).click();
+  await expect(page.getByTestId('canvas-menu-button')).toContainText('800 × 800');
+  await expect.poll(async () => (await canvas.boundingBox())!.width).toBe(200);
+  const width = page.locator('[data-param="canvas.width"] input');
+  await width.fill('640');
+  await width.press('Enter');
+  await expect(page.getByTestId('canvas-menu-button')).toContainText('640 × 800');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('canvas-menu')).toHaveCount(0);
 });
 
 test('原图 / 结果切换与像素尺寸滑块', async ({ page }) => {
@@ -108,7 +128,7 @@ test('原图 / 结果切换与像素尺寸滑块', async ({ page }) => {
   await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('16');
 });
 
-test('导出 PNG 触发下载，复制 PNG 写入剪贴板', async ({ page, context }) => {
+test('导出 PNG 触发下载，Ctrl+C 复制当前帧 PNG 到剪贴板', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-write', 'clipboard-read']);
   await page.goto('/');
   await dropSyntheticImage(page);
@@ -126,6 +146,10 @@ test('导出 PNG 触发下载，复制 PNG 写入剪贴板', async ({ page, cont
   expect(bytes.readUInt32BE(16)).toBe(1000);
   expect(bytes.readUInt32BE(20)).toBe(600);
 
-  await page.getByRole('button', { name: '复制 PNG' }).click();
+  // 面板上没有复制按钮：焦点不在输入框时按复制快捷键即复制当前帧
+  await expect(page.getByRole('button', { name: '复制 PNG' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: '打开', exact: true })).toHaveCount(0);
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('Control+c');
   await expect(page.getByRole('status')).toContainText('已复制');
 });
