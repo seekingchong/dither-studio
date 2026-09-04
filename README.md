@@ -64,8 +64,8 @@ npm run package:platform          # 组装 release/platform/dither-studio/{manif
 
 不想在本机装 Node 就用 GitHub Actions 打好的包：`.github/workflows/release-macos.yml` 在
 GitHub 的 macOS runner 上跑，产出 `Dither-Studio-<版本>-arm64.dmg`（Apple 芯片）和
-`-x64.dmg`（Intel）两个安装包。**推到 `main` 分支、推 `release/**` 分支或打 `v*` tag 都会触发**，
-所以每次合并进 main 都会有一份对应的安装包，不会再出现"装的包里没有最新改动"的情况。
+`-x64.dmg`（Intel）两个安装包。**只在打 `v*` tag 或在 Actions 页手动运行时才会出包**，
+日常推 `main` 不打包；需要安装包时再手动触发一次即可。
 
 两种取包方式：
 
