@@ -58,6 +58,7 @@
       "icon": "build/icon.png"
     },
     "dmg": {
+      "artifactName": "Dither-Studio-${version}-${arch}.dmg",
       "contents": [
         {
           "x": 130,

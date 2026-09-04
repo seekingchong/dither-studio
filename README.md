@@ -59,6 +59,27 @@ npm run package:platform          # 组装 release/platform/dither-studio/{manif
 
 `npm run dist` 使用 `package.json` 里的 `build` 配置：`build/icon.png` 会转成 icns，`frontend/dist` 以 `asarUnpack` 方式放在包外以便 Worker 与字体按文件加载。未签名的包首次打开需在「系统设置 → 隐私与安全性」里允许。
 
+## 下载安装包
+
+不想在本机装 Node 就用 GitHub Actions 打好的包：`.github/workflows/release-macos.yml` 在
+GitHub 的 macOS runner 上跑，产出 `Dither-Studio-<版本>-arm64.dmg`（Apple 芯片）和
+`-x64.dmg`（Intel）两个安装包。
+
+两种取包方式：
+
+- **Actions artifact**：仓库 → Actions → 左侧 `Release macOS` → 点一次绿勾的运行 →
+  页面底部 Artifacts → `dither-studio-macos-dmg`（下载下来是 zip，解压得到两个 dmg 和
+  `SHA256SUMS.txt`）。保留 30 天。
+- **GitHub Release**：推一个 `v` 开头的 tag（`git tag v0.1.0 && git push origin v0.1.0`），
+  流水线会建 Release 并把 dmg 挂上去，之后从 Releases 页面直接下载，长期有效。
+
+包是**未签名未公证**的（没有 Apple 开发者证书）。安装：打开 dmg，把 Dither Studio 拖进
+「应用程序」；首次打开会被 Gatekeeper 拦下，去「系统设置 → 隐私与安全性」，在下方点
+「仍要打开」即可。如果连那一项都没出现，终端执行一次
+`xattr -dr com.apple.quarantine "/Applications/Dither Studio.app"`。
+
+有 Node 22 的话本机 `npm install && npm run dist` 一样出包，产物在 `release/`。
+
 平台发布：`platform/manifest.yaml` 是清单模板，`npm run package:platform` 把它和 `frontend/` 源码复制到干净目录；平台发布脚本会在该目录执行 `npm install && npm run build:platform`。二期接入 `X-User-Id` 引导与平台 API 时加 `src/app/platform.tsx`。
 
 ## 目录
