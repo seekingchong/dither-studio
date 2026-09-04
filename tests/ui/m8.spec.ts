@@ -36,7 +36,12 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.getByRole('tab', { name: '预设' })).toHaveCount(0);
   const picker = page.getByTestId('preset-picker');
   await expect(picker).toBeVisible();
+  // 卡片最多露三行：这个栏宽下一排三张，11 套内置里先露 9 张，其余折起来
+  await expect(page.locator('.preset-card')).toHaveCount(9);
+  await expect(page.getByTestId('preset-more')).toHaveText('还有 2 个');
+  await page.getByTestId('preset-more').click();
   await expect(page.locator('.preset-card')).toHaveCount(11);
+  await expect(page.getByTestId('preset-more')).toHaveText('收起');
   const pickerBox = await picker.boundingBox();
   const paramsBox = await page.getByTestId('params-module').boundingBox();
   expect(pickerBox!.y).toBeLessThan(paramsBox!.y);
@@ -49,12 +54,12 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(familyValue(page)).toHaveText('有序');
   await expect(page.locator('[data-param="color.mode"] .tda-select__value')).toHaveText('Palette');
   // 分节可折叠、排成一列；画布不在左栏（在预览区的「画布」菜单里）
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
   await expect(page.locator('[data-group="canvas"]')).toHaveCount(0);
   await page.locator('[data-preset="dot-matrix"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格']);
   await page.locator('[data-preset="default"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '特效']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);
 
   // 在 Game Boy 基础上微调 → 状态显示已微调，可还原
   await page.locator('[data-preset="gameboy"]').click();
@@ -65,17 +70,42 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('[data-preset="gameboy"]')).toHaveClass(/is-active/);
   await page.getByRole('button', { name: '还原' }).click();
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+  await expect(page.getByRole('button', { name: '还原' })).toBeDisabled();
+
+  // 分节标题右端的「重置」只退这一节：影调与基础各改一处，重置影调后基础的改动还在
+  await brightness.fill('20');
+  const pixel = page.locator('[data-param="pixel.size"] .tda-slider__input');
+  await pixel.fill('8');
+  await pixel.press('Enter');
+  await expect(page.getByTestId('reset-tone')).toBeEnabled();
+  await expect(page.getByTestId('reset-color')).toBeDisabled();
+  await page.getByTestId('reset-tone').click();
+  await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('0');
+  await expect(page.getByTestId('reset-tone')).toBeDisabled();
+  // 影调退回的是 Game Boy 自己的值（对比 +15），不是 schema 默认值
+  await expect(page.locator('[data-param="tone.contrast"] input[type="range"]')).toHaveValue('15');
+  await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('8');
+  await page.getByTestId('reset-basic').click();
+  await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('4');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+
   await brightness.fill('20');
 
-  // 保存为我的预设：出现在预设卡片里并成为当前方案；来源是 Game Boy
+  // 保存预设在左栏操作行：点开浮层，名字已经预填成「当前方案 副本」，改个名再存
+  await expect(page.locator('.pane--params .pane-actions').getByTestId('preset-save-button')).toBeVisible();
+  await page.getByTestId('preset-save-button').click();
+  await expect(page.getByLabel('新预设名称')).toHaveValue('Game Boy 副本');
   await page.getByLabel('新预设名称').fill('我的 GB');
-  await page.getByRole('button', { name: '保存为我的预设' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByTestId('preset-save-menu')).toHaveCount(0);
+  // 存下来的方案排在内置方案前面，成为当前方案；来源是 Game Boy
+  await expect(page.locator('.preset-card').first()).toHaveClass(/preset-card--user/);
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await expect(page.locator('.preset-card--user')).toContainText('我的 GB');
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
 
   // 历史页：一条记录，带缩略图、来源与摘要
   await page.getByRole('tab', { name: '历史' }).click();
@@ -123,6 +153,15 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toHaveCount(0);
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.locator('.history-item')).toHaveCount(0);
+
+  // 预设模块自己的「重置」= 退回「默认」；已经在默认且没微调时置灰
+  await page.getByRole('tab', { name: '参数' }).click();
+  await page.locator('[data-preset="gameboy"]').click();
+  await expect(page.getByTestId('reset-preset')).toBeEnabled();
+  await page.getByTestId('reset-preset').click();
+  await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('reset-preset')).toBeDisabled();
 });
 
 test('撤销 / 重做只走快捷键，滑块拖动合并', async ({ page }) => {

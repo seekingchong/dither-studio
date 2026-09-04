@@ -3,6 +3,7 @@ import { create } from 'zustand';
 import { RenderClient, type RenderedFrame } from '@/engine';
 import { useStudioStore } from '@/state';
 import { playbackOf } from '@/ui/media/playback';
+import { editKey, editOf, editedBitmap, useSourceEditStore } from '@/ui/media/sourceEdit';
 import { useToast } from '@/ui/primitives/Toast';
 
 interface FrameState {
@@ -61,6 +62,8 @@ export function RendererProvider({ children }: { children: ReactNode }) {
   const slots = useStudioStore((s) => s.slots);
   const params = useStudioStore((s) => s.params);
   const gpu = useStudioStore((s) => s.settings.gpu);
+  // 素材编辑（旋转 / 镜像 / 裁剪缩放）也决定送进 Worker 的源帧，改了要重推
+  const edits = useSourceEditStore((s) => s.slots);
 
   // 坑位媒体 → Worker 源帧
   useEffect(() => {
@@ -77,15 +80,16 @@ export function RendererProvider({ children }: { children: ReactNode }) {
         }
         return;
       }
-      if (postedId === media.id) return;
-      map.set(i, media.id);
-      createImageBitmap(media.bitmap).then(
+      const key = `${media.id}#${editKey(editOf(i))}`;
+      if (postedId === key) return;
+      map.set(i, key);
+      editedBitmap(media.bitmap, editOf(i)).then(
         (bitmap) => {
-          if (map.get(i) !== media.id) {
+          if (map.get(i) !== key) {
             bitmap.close();
             return;
           }
-          client.setSource(i, media.id, bitmap);
+          client.setSource(i, key, bitmap);
           const { params, settings } = useStudioStore.getState();
           client.render(i, params, { gpu: settings.gpu, previewScale: 1 });
         },
@@ -99,13 +103,15 @@ export function RendererProvider({ children }: { children: ReactNode }) {
         useFrameStore.getState().clear(i);
       }
     }
-  }, [client, slots]);
+  }, [client, slots, edits]);
 
   // 参数或 GPU 开关变化 → 重渲染所有已就绪的坑位（播放中的坑位沿用当前预览倍率）
   useEffect(() => {
     if (!client) return;
-    for (const [i, id] of posted.current) {
-      if (slots[i]?.media?.id === id) {
+    for (const [i, key] of posted.current) {
+      // 推送键是「媒体 id # 编辑」，这里只认媒体那一截
+      const mediaId = slots[i]?.media?.id;
+      if (mediaId && key.slice(0, key.indexOf('#')) === mediaId) {
         const pb = playbackOf(i);
         client.render(i, params, { gpu, previewScale: pb.playing && pb.duration > 0 ? pb.previewScale : 1 });
       }

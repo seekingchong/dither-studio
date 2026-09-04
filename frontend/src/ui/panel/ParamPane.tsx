@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
-import { isAnimated, isParamExposed, resolveBase, useStudioStore } from '@/state';
-import { useExport } from '@/ui/export/useExport';
-import { Button, Icon, Tabs } from '@/ui/primitives';
+import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup, type Params } from '@/params';
+import { isParamExposed, presetReferenceParams, resolveBase, useStudioStore } from '@/state';
+import { Icon, IconButton, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
 import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
+import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
 import { leadParamIds, SECTIONS, type SectionMeta } from './sections';
 
@@ -26,22 +26,51 @@ interface SectionContent {
  * 「历史」页 = 保存过的所有方案。
  *
  * 参数不再分 tab：整栏一列，每节可折叠、收起时显示当前值摘要。
- * 默认只展开「基础」，其余按需打开，几节之间的关系一眼可见，也不用来回切 tab 找参数。
+ * 默认全部展开，需要时可逐节收起（收起后标题右侧显示当前值摘要），几节之间的关系一眼可见，也不用来回切 tab 找参数。
  * 画布尺寸 / 适配在预览区右上角的「画布」菜单里，不在这儿。
- * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留导出与设置。
+ * 导出也不在这儿：唯一的导出按钮在预览头里，跟着媒体类型在「导出图片」/「导出视频」之间切。
+ * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留页签、「设置」与预设动作（还原 / 保存预设）。
  */
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
+  const setParams = useStudioStore((s) => s.setParams);
   // 当前方案的来源预设决定参数面板露出哪些分组 / 参数
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
+  // 「重置」把这一节退回当前方案本身的值（不是 schema 默认值），跟操作行的「还原」同一把尺子
+  const reference = useStudioStore(useShallow((s) => presetReferenceParams(s.presetId, s.presets)));
   const [paneTab, setPaneTab] = useState<PaneTab>('params');
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ basic: true });
-  const { canExport, exportPng } = useExport();
-  const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
+  // 分节默认全展开；点标题仍可单独收起，收起后标题右侧显示当前值摘要
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const family = String(params['dither.family']) as DitherFamily;
   const algorithmId = FAMILY_PARAM[family];
   const leads = useMemo(() => leadParamIds(family), [family]);
+
+  /**
+   * 每一节管着哪些参数——重置要把没露出来、当前条件下不可见的一并退回去，
+   * 所以按整份 schema 算，不用面板上正在显示的那份。
+   */
+  const sectionParamIds = useMemo(() => {
+    const sectionOfGroup = new Map<ParamGroup, string>();
+    for (const meta of SECTIONS) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
+    const leadSet = new Set(leads);
+    const bySection = new Map<string, string[]>();
+    for (const def of PARAM_SCHEMA) {
+      const id = leadSet.has(def.id) ? 'basic' : sectionOfGroup.get(def.group);
+      if (!id) continue;
+      const list = bySection.get(id);
+      if (list) list.push(def.id);
+      else bySection.set(id, [def.id]);
+    }
+    return bySection;
+  }, [leads]);
+
+  const sectionDirty = (id: string) => (sectionParamIds.get(id) ?? []).some((pid) => params[pid] !== reference[pid]);
+  const resetSection = (id: string) => {
+    const patch: Partial<Params> = {};
+    for (const pid of sectionParamIds.get(id) ?? []) patch[pid] = reference[pid];
+    setParams(patch);
+  };
 
   const sections = useMemo<SectionContent[]>(() => {
     const sectionOfGroup = new Map<ParamGroup, string>();
@@ -85,11 +114,9 @@ export function ParamPane() {
           value={paneTab}
           onChange={setPaneTab}
         />
-        <div className="btn-group">
-          <Button variant={animated ? 'secondary' : 'primary'} icon="download" disabled={!canExport} onClick={() => void exportPng()}>
-            导出 PNG
-          </Button>
+        <div className="pane-actions__tools">
           <SettingsMenu />
+          <PresetActions />
         </div>
       </div>
 
@@ -101,7 +128,7 @@ export function ParamPane() {
 
             <div className="sections" data-testid="params-module">
               {sections.map(({ meta, basic, advanced }) => {
-                const open = openSections[meta.id] ?? false;
+                const open = openSections[meta.id] ?? true;
                 return (
                   <section key={meta.id} className="section section--fold" data-section={meta.id} data-group={meta.id} data-open={open}>
                     <h3 className="section__head">
@@ -115,6 +142,15 @@ export function ParamPane() {
                         <span className="section__label">{meta.label}</span>
                         <span className="section__summary">{meta.summary(params)}</span>
                       </button>
+                      {/* 只退回这一节，其余分节的微调留着；没改过就置灰 */}
+                      <IconButton
+                        icon="undo"
+                        label={`重置${meta.label}`}
+                        className="tda-iconbtn--sm section__reset"
+                        disabled={!sectionDirty(meta.id)}
+                        onClick={() => resetSection(meta.id)}
+                        data-testid={`reset-${meta.id}`}
+                      />
                     </h3>
                     {open && (
                       <div className="section__body">

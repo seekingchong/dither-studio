@@ -28,7 +28,8 @@ const signed = (label: string, value: number) => `${label} ${value > 0 ? '+' : '
 
 /**
  * 左栏的参数分节。原来是一排 tab，一次只看得见一节；现在整栏一列，
- * 每节可折叠、收起时显示当前值摘要，几节的关系一眼可见。
+ * 每节默认展开、可单独收起，收起时显示当前值摘要，几节的关系一眼可见。
+ * 「颜色」紧跟「基础」：颜色模式就在「基础」那一排里选，细节挨着它才接得上，影调再往后。
  * 画布尺寸 / 适配不在这里，在预览区右上角的「画布」菜单里。
  */
 export const SECTIONS: SectionMeta[] = [
@@ -43,6 +44,21 @@ export const SECTIONS: SectionMeta[] = [
       const parts = [optionLabel('dither.family', p)];
       if (algorithmId) parts.push(optionLabel(algorithmId, p));
       parts.push(`像素 ${num(p, 'pixel.size')}`);
+      return parts.join(' · ');
+    },
+  },
+  {
+    id: 'color',
+    label: '颜色',
+    hint: '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、两端色、调色板、分通道，以及在结果上撒跳色的强调层。色块可以点开改颜色或直接输入色值。',
+    groups: ['color'],
+    summary: (p) => {
+      const mode = str(p, 'color.mode');
+      const parts = [optionLabel('color.mode', p)];
+      if (mode === 'palette') parts.push(optionLabel('color.palette.preset', p));
+      else if (mode !== 'mono') parts.push(`${num(p, 'color.levels')} 级`);
+      if (mode === 'palette' && bool(p, 'color.mismatch')) parts.push('深度错配');
+      if (bool(p, 'color.accent.enabled')) parts.push('强调层');
       return parts.join(' · ');
     },
   },
@@ -78,21 +94,6 @@ export const SECTIONS: SectionMeta[] = [
       }
       if (bool(p, 'tone.invert')) parts.push('反相');
       return join(parts, '未调整');
-    },
-  },
-  {
-    id: 'color',
-    label: '颜色',
-    hint: '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、两端色、调色板、分通道，以及在结果上撒跳色的强调层。色块可以点开改颜色或直接输入色值。',
-    groups: ['color'],
-    summary: (p) => {
-      const mode = str(p, 'color.mode');
-      const parts = [optionLabel('color.mode', p)];
-      if (mode === 'palette') parts.push(optionLabel('color.palette.preset', p));
-      else if (mode !== 'mono') parts.push(`${num(p, 'color.levels')} 级`);
-      if (mode === 'palette' && bool(p, 'color.mismatch')) parts.push('深度错配');
-      if (bool(p, 'color.accent.enabled')) parts.push('强调层');
-      return parts.join(' · ');
     },
   },
   {

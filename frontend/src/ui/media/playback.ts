@@ -9,6 +9,8 @@ export interface PlaybackEntry {
   previewScale: number;
   /** GIF 当前帧 */
   frameIndex: number;
+  /** 视频裁剪窗口的起点（秒）；窗长固定 TRIM_SECONDS，短于它的视频就是整段 */
+  trimStart: number;
 }
 
 interface PlaybackStore {
@@ -17,7 +19,7 @@ interface PlaybackStore {
   remove(slot: number): void;
 }
 
-const DEFAULT_ENTRY: PlaybackEntry = { playing: true, time: 0, duration: 0, previewScale: 1, frameIndex: 0 };
+const DEFAULT_ENTRY: PlaybackEntry = { playing: true, time: 0, duration: 0, previewScale: 1, frameIndex: 0, trimStart: 0 };
 
 /** 动态媒体的播放状态：不进撤销栈、不进预设 */
 export const usePlaybackStore = create<PlaybackStore>((set) => ({
@@ -35,6 +37,32 @@ export const usePlaybackStore = create<PlaybackStore>((set) => ({
 
 export function playbackOf(slot: number): PlaybackEntry {
   return usePlaybackStore.getState().slots[slot] ?? DEFAULT_ENTRY;
+}
+
+/** 视频裁剪窗口的长度（秒），固定值 */
+export const TRIM_SECONDS = 3;
+
+export interface TrimRange {
+  start: number;
+  end: number;
+  length: number;
+  /** 起点最远能滑到哪；视频不够 TRIM_SECONDS 长时为 0（整段就是全部，滑不动） */
+  maxStart: number;
+}
+
+/** 起点钳在 [0, duration - 窗长] 里；视频短于窗长时窗口就是整段 */
+export function trimRange(duration: number, trimStart: number): TrimRange {
+  const total = Math.max(0, duration);
+  const length = Math.min(TRIM_SECONDS, total);
+  const maxStart = Math.max(0, total - length);
+  const start = Math.min(maxStart, Math.max(0, Number.isFinite(trimStart) ? trimStart : 0));
+  return { start, end: start + length, length, maxStart };
+}
+
+/** 某个坑位当前的裁剪窗口 */
+export function trimOf(slot: number): TrimRange {
+  const entry = playbackOf(slot);
+  return trimRange(entry.duration, entry.trimStart);
 }
 
 /** GIF：按累计时长找当前时间落在哪一帧（循环） */

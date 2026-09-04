@@ -1,6 +1,8 @@
 import type { SVGProps } from 'react';
 
-export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash' | 'play' | 'pause' | 'settings' | 'film' | 'undo' | 'redo' | 'save' | 'edit' | 'star';
+export type IconName =
+  | 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash'
+  | 'play' | 'pause' | 'settings' | 'film' | 'undo' | 'redo' | 'save' | 'edit' | 'star' | 'rotate' | 'flipH' | 'flipV' | 'crop';
 
 /**
  * 齿轮：6 齿外轮廓 + 中心孔，几何由半径与角度算出（外径 7、齿根 5、孔 2.1），线条在 16–18px 下不糊成一团。
@@ -30,6 +32,13 @@ const PATHS: Record<IconName, string> = {
   save: 'M3 2.5h8l2.5 2.5v8.5h-11zM5.5 2.5v4h5v-4M5 13.5v-4h6v4',
   edit: 'M11.5 2.5l2 2-8 8-3 1 1-3zM10 4l2 2',
   star: 'M8 2.5l1.7 3.6 3.9.5-2.9 2.7.8 3.9L8 11.3l-3.5 1.9.8-3.9L2.4 6.6l3.9-.5z',
+  // 顺时针旋转 90°：一个方框加一段带箭头的回转弧
+  rotate: 'M3.5 6.5h7a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-5a1 1 0 0 1 1-1zM8 4.5h2.5a3 3 0 0 1 3 3M10.5 2.5l2 2-2 2',
+  // 左右镜像：中间一条虚轴，两侧对称的三角
+  flipH: 'M8 2v12M6 5L2.5 8 6 11zM10 5l3.5 3-3.5 3z',
+  // 上下镜像：同上转 90°
+  flipV: 'M2 8h12M5 6L8 2.5 11 6zM5 10l3 3.5 3-3.5z',
+  crop: 'M4.5 1.5v10h10M1.5 4.5h10v10',
 };
 
 interface IconProps extends SVGProps<SVGSVGElement> {

@@ -8,6 +8,7 @@ import {
   builtinPresetParams,
   findBuiltinPreset,
   newPresetId,
+  presetReferenceParams,
   resolveBase,
   useStudioStore,
   type BuiltinPreset,
@@ -64,10 +65,9 @@ export function usePresets() {
   const activeUser = useMemo(() => presets.find((p) => p.id === activeId), [presets, activeId]);
   const base = useMemo(() => resolveBase(activeId, presets), [activeId, presets]);
   const activeName = activeUser?.name ?? findBuiltinPreset(activeId)?.name ?? base.name;
-  const dirty = useMemo(() => {
-    const reference = activeUser ? sanitizeParams(activeUser.params) : builtinPresetParams(findBuiltinPreset(activeId) ?? base);
-    return !sameParams(reference, params);
-  }, [activeUser, activeId, base, params]);
+  /** 当前方案没微调过时该有的那套参数；「还原」与各分节的「重置」都以它为准 */
+  const reference = useMemo(() => presetReferenceParams(activeId, presets), [activeId, presets]);
+  const dirty = useMemo(() => !sameParams(reference, params), [reference, params]);
 
   const persist = useCallback(
     async (list: UserPreset[]) => {
@@ -156,5 +156,5 @@ export function usePresets() {
     [persist],
   );
 
-  return { presets, activeId, activeUser, activeName, base, dirty, applyBuiltin, applyUser, revert, save, update, rename, remove };
+  return { presets, activeId, activeUser, activeName, base, reference, dirty, applyBuiltin, applyUser, revert, save, update, rename, remove };
 }

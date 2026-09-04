@@ -155,7 +155,8 @@ function registerIpc() {
     const win = BrowserWindow.fromWebContents(event.sender) ?? undefined;
     const ext = path.extname(name).replace('.', '');
     const result = await dialog.showSaveDialog(win!, {
-      defaultPath: path.join(app.getPath('pictures'), name),
+      // 默认存到桌面
+      defaultPath: path.join(app.getPath('desktop'), name),
       filters: ext ? [{ name: mime || ext.toUpperCase(), extensions: [ext] }] : [],
     });
     if (result.canceled || !result.filePath) return null;

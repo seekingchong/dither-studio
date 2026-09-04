@@ -119,10 +119,19 @@ test('色块点开可改色、可直接输入色值；灰阶改中间级转 Tint
   const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
   const popover = page.getByTestId('color-popover');
 
-  // 单色：两块，第一块是暗色，输入色值即生效并同步到「暗色」字段
+  // 单色：两块，第一块是暗色。取色层默认 HSB，改 H / S / B 即时生效
   await expect(swatches).toHaveCount(2);
   await swatches.first().click();
   await expect(popover).toBeVisible();
+  await expect(popover).toHaveAttribute('data-mode', 'hsb');
+  await popover.getByLabel('暗色明度').fill('100');
+  await popover.getByLabel('暗色饱和度').fill('100');
+  await popover.getByLabel('暗色色相').fill('0');
+  await expect(page.locator('[data-param="color.tint.dark"] .tda-color__hex')).toHaveValue('#FF0000');
+  await expect(swatches.first()).toHaveAttribute('aria-label', '暗色 #FF0000');
+
+  // 切到 HEX 输入色值即生效并同步到「暗色」字段；这个选择会记住，后面的色块直接是 HEX
+  await popover.locator('.color-mode__btn[data-mode="hex"]').click();
   const darkHex = popover.getByLabel('暗色色值');
   await darkHex.fill('#123456');
   await darkHex.press('Enter');

@@ -33,7 +33,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     group: 'canvas',
     label: '适配',
     type: 'select',
-    default: 'contain',
+    default: 'cover',
     advanced: true,
     options: [opt('contain', 'Contain'), opt('cover', 'Cover'), opt('fill', 'Fill'), opt('native', '原尺寸')],
   },

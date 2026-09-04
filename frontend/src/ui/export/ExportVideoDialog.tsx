@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { usePlatform } from '@/platform';
 import { useStudioStore } from '@/state';
-import { usePlaybackStore } from '@/ui/media/playback';
+import { trimOf, usePlaybackStore } from '@/ui/media/playback';
+import { editOf } from '@/ui/media/sourceEdit';
 import { Button, Select, useToast } from '@/ui/primitives';
 import { exportFileName } from './png';
 import { QUALITY_OPTIONS, exportVideo, type EncoderChoice, type VideoQuality } from './video';
@@ -41,6 +42,8 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
     const media = slots[view.activeSlot]?.media;
     if (!media) return;
     usePlaybackStore.getState().update(view.activeSlot, { playing: false });
+    // 视频只导出「原图」页裁出来的那一段；GIF 没有裁剪，整段出
+    const trim = media.kind === 'video' ? trimOf(view.activeSlot) : null;
     const controller = new AbortController();
     abortRef.current = controller;
     setPhase('running');
@@ -51,6 +54,8 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
         params,
         quality,
         gpu: settings.gpu,
+        trim: trim ? { start: trim.start, length: trim.length } : undefined,
+        edit: editOf(view.activeSlot),
         signal: controller.signal,
         onProgress: (done, total) => setProgress([done, total]),
       });

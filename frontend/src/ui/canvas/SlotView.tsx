@@ -4,6 +4,9 @@ import type { FitMode } from '@/engine';
 import { useStudioStore } from '@/state';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { SourceEditBar } from '@/ui/media/SourceEditBar';
+import { useSourceEditStore } from '@/ui/media/sourceEdit';
+import { VideoTrim } from '@/ui/media/VideoTrim';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { DropZone } from './DropZone';
 import { SlotCanvas } from './SlotCanvas';
@@ -57,6 +60,12 @@ export function SlotView({ index }: SlotViewProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [width, height]);
+
+  // 换素材就把旋转 / 镜像 / 裁剪清掉：这些编辑属于上一段素材
+  const mediaId = media?.id;
+  useEffect(() => {
+    useSourceEditStore.getState().reset(index);
+  }, [index, mediaId]);
 
   const scale = zoom === 'fit' ? fitScale : zoom;
 
@@ -113,6 +122,13 @@ export function SlotView({ index }: SlotViewProps) {
           )}
         </div>
       </div>
+      {/* 「原图」页看的是素材本身：这儿做旋转 / 镜像 / 裁剪缩放，视频再多一条挑哪三秒的裁剪条 */}
+      {tab === 'source' && media && (
+        <div className="slot__editor">
+          <SourceEditBar slot={index} media={media} />
+          {media.kind === 'video' && <VideoTrim slot={index} media={media} />}
+        </div>
+      )}
     </div>
   );
 }
