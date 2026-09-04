@@ -36,7 +36,12 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.getByRole('tab', { name: '预设' })).toHaveCount(0);
   const picker = page.getByTestId('preset-picker');
   await expect(picker).toBeVisible();
+  // 卡片最多露三行：这个栏宽下一排三张，11 套内置里先露 9 张，其余折起来
+  await expect(page.locator('.preset-card')).toHaveCount(9);
+  await expect(page.getByTestId('preset-more')).toHaveText('还有 2 个');
+  await page.getByTestId('preset-more').click();
   await expect(page.locator('.preset-card')).toHaveCount(11);
+  await expect(page.getByTestId('preset-more')).toHaveText('收起');
   const pickerBox = await picker.boundingBox();
   const paramsBox = await page.getByTestId('params-module').boundingBox();
   expect(pickerBox!.y).toBeLessThan(paramsBox!.y);
@@ -65,11 +70,18 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('[data-preset="gameboy"]')).toHaveClass(/is-active/);
   await page.getByRole('button', { name: '还原' }).click();
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+  await expect(page.getByRole('button', { name: '还原' })).toBeDisabled();
   await brightness.fill('20');
 
-  // 保存为我的预设：出现在预设卡片里并成为当前方案；来源是 Game Boy
+  // 保存预设在左栏操作行：点开浮层，名字已经预填成「当前方案 副本」，改个名再存
+  await expect(page.locator('.pane--params .pane-actions').getByTestId('preset-save-button')).toBeVisible();
+  await page.getByTestId('preset-save-button').click();
+  await expect(page.getByLabel('新预设名称')).toHaveValue('Game Boy 副本');
   await page.getByLabel('新预设名称').fill('我的 GB');
-  await page.getByRole('button', { name: '保存为我的预设' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.getByTestId('preset-save-menu')).toHaveCount(0);
+  // 存下来的方案排在内置方案前面，成为当前方案；来源是 Game Boy
+  await expect(page.locator('.preset-card').first()).toHaveClass(/preset-card--user/);
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await expect(page.locator('.preset-card--user')).toContainText('我的 GB');
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');

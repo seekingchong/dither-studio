@@ -246,6 +246,13 @@ body.is-resizing * {
   padding: 20px var(--tda-pane-padding-x);
 }
 
+/* 操作行右端：设置齿轮 → 还原 → 保存预设 */
+.pane-actions__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+}
+
 .pane-content {
   padding: var(--tda-spacing-sm) var(--tda-pane-padding-x) var(--tda-spacing-2xl);
   display: flex;
@@ -1465,14 +1472,10 @@ body.is-resizing * {
   background: var(--tda-color-control-muted);
 }
 
-/* 选中的方案：橙色描边 + 名称（规范：brand-primary 只留给"当前选中"） */
+/* 选中的方案：墨色描边（描两层等于 2px），不用品牌橙 */
 .preset-card.is-active {
-  border-color: var(--tda-color-brand-primary);
-  box-shadow: inset 0 0 0 1px var(--tda-color-brand-primary);
-}
-
-.preset-card.is-active .preset-card__name {
-  color: var(--tda-color-brand-primary);
+  border-color: var(--tda-color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--tda-color-text-primary);
 }
 
 .preset-card--user .preset-card__hint {
@@ -1504,7 +1507,7 @@ body.is-resizing * {
 }
 
 .history-item.is-active {
-  border-color: var(--tda-color-brand-primary);
+  border-color: var(--tda-color-text-primary);
 }
 
 .history-item__thumb {
@@ -1562,8 +1565,8 @@ body.is-resizing * {
   flex: none;
   padding: 0 var(--tda-spacing-2xs);
   border-radius: var(--tda-radius-sm);
-  background: var(--tda-color-brand-secondary);
-  color: var(--tda-color-brand-primary);
+  background: var(--tda-color-control-strong);
+  color: var(--tda-color-text-primary);
   font-size: var(--tda-typography-label-size);
   line-height: var(--tda-typography-label-line);
   font-weight: 500;
@@ -1602,15 +1605,62 @@ body.is-resizing * {
   line-height: var(--tda-typography-body-sm-line);
 }
 
-.preset-save {
+.preset-actions {
+  position: relative;
   display: flex;
-  gap: var(--tda-spacing-sm);
   align-items: center;
+  gap: var(--tda-spacing-xs);
 }
 
-.preset-save__field {
-  flex: 1;
-  min-width: 0;
+.preset-save-menu {
+  position: absolute;
+  top: calc(100% + var(--tda-spacing-2xs));
+  right: 0;
+  z-index: 100;
+  width: 320px;
+  padding: var(--tda-spacing-sm);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-md);
+  background: var(--tda-color-white);
+  box-shadow: var(--tda-shadow-tile);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-sm);
+}
+
+.preset-save-menu__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--tda-spacing-xs);
+}
+
+/* 卡片超过三行时的展开 / 收起，跟着「更多参数」的样子走 */
+.preset-more {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tda-spacing-2xs);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+}
+
+.preset-more:hover {
+  color: var(--tda-color-text-secondary);
+}
+
+.preset-more__caret {
+  flex: none;
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+
+.preset-more[aria-expanded='true'] .preset-more__caret {
+  transform: rotate(0deg);
 }
 
 .preset-table {
@@ -1642,7 +1692,7 @@ body.is-resizing * {
 }
 
 .preset-row__name:hover {
-  color: var(--tda-color-brand-primary);
+  text-decoration: underline;
 }
 
 .preset-row__input {

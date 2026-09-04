@@ -9,6 +9,7 @@ import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
 import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
+import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
 import { leadParamIds, SECTIONS, type SectionMeta } from './sections';
 
@@ -28,7 +29,7 @@ interface SectionContent {
  * 默认只展开「基础」，其余按需打开，几节之间的关系一眼可见，也不用来回切 tab 找参数。
  * 画布尺寸 / 适配在预览区右上角的「画布」菜单里，不在这儿。
  * 导出也不在这儿：唯一的导出按钮在预览头里，跟着媒体类型在「导出图片」/「导出视频」之间切。
- * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留页签与设置。
+ * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留页签、「设置」与预设动作（还原 / 保存预设）。
  */
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
@@ -83,7 +84,10 @@ export function ParamPane() {
           value={paneTab}
           onChange={setPaneTab}
         />
-        <SettingsMenu />
+        <div className="pane-actions__tools">
+          <SettingsMenu />
+          <PresetActions />
+        </div>
       </div>
 
       <div className="pane-content">
