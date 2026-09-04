@@ -104,11 +104,16 @@ test('缩放档位改变画布显示尺寸', async ({ page }) => {
   await expect.poll(async () => (await canvas.boundingBox())!.width).toBe(250);
   await expect(page.getByTestId('canvas-menu-button')).toContainText('1000 × 600 · 25%');
 
-  // 画布尺寸也在这里改：预设尺寸芯片与直接输入
-  await page.getByRole('button', { name: '800 × 800' }).click();
+  // 画布尺寸也在这里改：只有宽高两个输入框，常用尺寸芯片已去掉
+  await expect(page.locator('.size-chip')).toHaveCount(0);
+  const width = page.locator('[data-param="canvas.width"] input');
+  const height = page.locator('[data-param="canvas.height"] input');
+  await width.fill('800');
+  await width.press('Enter');
+  await height.fill('800');
+  await height.press('Enter');
   await expect(page.getByTestId('canvas-menu-button')).toContainText('800 × 800');
   await expect.poll(async () => (await canvas.boundingBox())!.width).toBe(200);
-  const width = page.locator('[data-param="canvas.width"] input');
   await width.fill('640');
   await width.press('Enter');
   await expect(page.getByTestId('canvas-menu-button')).toContainText('640 × 800');

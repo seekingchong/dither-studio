@@ -26,7 +26,7 @@ interface SectionContent {
  * 「历史」页 = 保存过的所有方案。
  *
  * 参数不再分 tab：整栏一列，每节可折叠、收起时显示当前值摘要。
- * 默认只展开「基础」，其余按需打开，几节之间的关系一眼可见，也不用来回切 tab 找参数。
+ * 默认全部展开，需要时可逐节收起（收起后标题右侧显示当前值摘要），几节之间的关系一眼可见，也不用来回切 tab 找参数。
  * 画布尺寸 / 适配在预览区右上角的「画布」菜单里，不在这儿。
  * 导出也不在这儿：唯一的导出按钮在预览头里，跟着媒体类型在「导出图片」/「导出视频」之间切。
  * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留页签、「设置」与预设动作（还原 / 保存预设）。
@@ -36,7 +36,8 @@ export function ParamPane() {
   // 当前方案的来源预设决定参数面板露出哪些分组 / 参数
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
   const [paneTab, setPaneTab] = useState<PaneTab>('params');
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ basic: true });
+  // 分节默认全展开；点标题仍可单独收起，收起后标题右侧显示当前值摘要
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   const family = String(params['dither.family']) as DitherFamily;
   const algorithmId = FAMILY_PARAM[family];
@@ -98,7 +99,7 @@ export function ParamPane() {
 
             <div className="sections" data-testid="params-module">
               {sections.map(({ meta, basic, advanced }) => {
-                const open = openSections[meta.id] ?? false;
+                const open = openSections[meta.id] ?? true;
                 return (
                   <section key={meta.id} className="section section--fold" data-section={meta.id} data-group={meta.id} data-open={open}>
                     <h3 className="section__head">

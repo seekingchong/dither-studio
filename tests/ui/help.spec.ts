@@ -66,8 +66,9 @@ test('左栏不再有参数 tab：分节可折叠，收起时显示当前值摘�
   const module = page.getByTestId('params-module');
   await expect(module.getByRole('tab')).toHaveCount(0);
 
-  // 默认只展开「基础」，那一排快捷参数都在里面
+  // 分节默认全部展开，那一排快捷参数在「基础」里
   await expect(page.locator('[data-section="basic"]')).toHaveAttribute('data-open', 'true');
+  await expect(page.locator('[data-section="color"]')).toHaveAttribute('data-open', 'true');
   const basic = page.locator('[data-section="basic"] .param-grid').first().locator('.tda-select, .tda-field');
   await expect(basic.nth(0)).toHaveAttribute('data-param', 'dither.family');
   await expect(basic.nth(1)).toHaveAttribute('data-param', 'dither.ordered.matrix');
@@ -75,13 +76,15 @@ test('左栏不再有参数 tab：分节可折叠，收起时显示当前值摘�
   await expect(basic.nth(3)).toHaveAttribute('data-param', 'pixel.size');
   await expect(basic.nth(4)).toHaveAttribute('data-param', 'pixel.method');
 
-  // 其余分节收起，标题右侧是当前值摘要
+  // 收起一节后，标题右侧才是当前值摘要；展开时摘要不占位
   const tone = page.locator('[data-section="tone"]');
+  await expect(tone).toHaveAttribute('data-open', 'true');
+  await expect(page.locator('[data-section="basic"] .section__summary')).toBeHidden();
+  await tone.locator('.section__toggle').click();
   await expect(tone).toHaveAttribute('data-open', 'false');
   await expect(tone.locator('.section__summary')).toHaveText('未调整');
-  await expect(page.locator('[data-section="basic"] .section__summary')).toBeHidden();
 
-  // 展开影调、改一个参数，摘要跟着变
+  // 再展开、改一个参数，收起后摘要跟着变
   await openSection(page, 'tone');
   await page.locator('[data-param="tone.contrast"] input[type="range"]').fill('20');
   await tone.locator('.section__toggle').click();

@@ -62,10 +62,7 @@ export function PresetPicker() {
 
   return (
     <section className="section preset-picker" data-testid="preset-picker">
-      <h3 className="section__title">
-        预设
-        <Icon name="star" size={16} />
-      </h3>
+      <h3 className="section__title">预设</h3>
       <p className="section__hint">选一套方案作为起点，下面只列出这套方案用到的参数，可在它基础上微调；调好后点上方「保存预设」，会出现在这里和「历史」里。</p>
 
       <div className="param-grid" role="listbox" aria-label="预设" ref={gridRef}>

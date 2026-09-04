@@ -54,12 +54,12 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(familyValue(page)).toHaveText('有序');
   await expect(page.locator('[data-param="color.mode"] .tda-select__value')).toHaveText('Palette');
   // 分节可折叠、排成一列；画布不在左栏（在预览区的「画布」菜单里）
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
   await expect(page.locator('[data-group="canvas"]')).toHaveCount(0);
   await page.locator('[data-preset="dot-matrix"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格']);
   await page.locator('[data-preset="default"]').click();
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '特效']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);
 
   // 在 Game Boy 基础上微调 → 状态显示已微调，可还原
   await page.locator('[data-preset="gameboy"]').click();
@@ -87,7 +87,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
-  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
 
   // 历史页：一条记录，带缩略图、来源与摘要
   await page.getByRole('tab', { name: '历史' }).click();

@@ -745,34 +745,6 @@ body.is-resizing * {
   font-family: var(--tda-font-family-latin);
 }
 
-.size-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--tda-spacing-2xs);
-}
-
-.size-chip {
-  height: 28px;
-  padding: 0 var(--tda-spacing-xs);
-  border-radius: var(--tda-radius-full);
-  border: 1px solid var(--tda-color-border);
-  background: var(--tda-color-white);
-  color: var(--tda-color-text-secondary);
-  font-family: var(--tda-font-family-latin);
-  font-size: var(--tda-typography-label-size);
-  white-space: nowrap;
-}
-
-.size-chip:hover {
-  background: var(--tda-color-control-subtle);
-  color: var(--tda-color-text-primary);
-}
-
-.size-chip.is-active {
-  border-color: var(--tda-color-text-primary);
-  color: var(--tda-color-text-primary);
-}
-
 /* 数字输入 */
 .tda-number__input {
   flex: 1;
@@ -1079,18 +1051,98 @@ body.is-resizing * {
   cursor: pointer;
 }
 
-.color-popover__field {
+.color-popover__title {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.color-popover__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--tda-color-text-tertiary);
   font-size: var(--tda-typography-label-size);
   line-height: var(--tda-typography-label-line);
+}
+
+/* HSB / HEX 两种输入方式的切换，默认 HSB */
+.color-mode {
+  flex: none;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--tda-radius-sm);
+  background: var(--tda-color-control-subtle);
+}
+
+.color-mode__btn {
+  height: 22px;
+  padding: 0 var(--tda-spacing-xs);
+  border: 0;
+  border-radius: var(--tda-radius-xs);
+  background: none;
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+}
+
+.color-mode__btn.is-active {
+  background: var(--tda-color-white);
+  color: var(--tda-color-text-primary);
+  box-shadow: var(--tda-shadow-tile);
+}
+
+.color-hsb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--tda-spacing-xs);
+}
+
+.color-hsb__field {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 32px;
+  padding: 0 var(--tda-spacing-2xs);
+  border-radius: var(--tda-radius-sm);
+  border: 1px solid var(--tda-color-border);
+  background: var(--tda-color-white);
+}
+
+.color-hsb__field:focus-within {
+  border-color: var(--tda-color-text-primary);
+}
+
+.color-hsb__label {
+  flex: none;
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+}
+
+.color-hsb__unit {
+  flex: none;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+}
+
+.color-hsb__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: none;
+  outline: none;
+  color: var(--tda-color-text-primary);
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-body-sm-size);
+  text-align: right;
+  /* 数字输入框自带的上下箭头太占地方，宽度只够放三位数 */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.color-hsb__input::-webkit-inner-spin-button,
+.color-hsb__input::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .color-popover__hex {
@@ -1719,15 +1771,9 @@ body.is-resizing * {
   gap: var(--tda-spacing-xs);
 }
 
+/* 分节之间不画线，靠留白分层 */
 .section--fold {
   gap: 0;
-  border-top: 1px solid var(--tda-color-border);
-  padding-top: var(--tda-spacing-xs);
-}
-
-.section--fold:first-child {
-  border-top: 0;
-  padding-top: 0;
 }
 
 .section__head {
