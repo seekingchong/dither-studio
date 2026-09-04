@@ -70,6 +70,7 @@ export const SECTIONS: SectionMeta[] = [
     summary: (p) => {
       const parts: string[] = [];
       if (bool(p, 'tone.auto')) parts.push('自动调整');
+      if (bool(p, 'tone.bg.enabled')) parts.push(`强制背景 ${num(p, 'tone.bg.density')}%`);
       const threshold = num(p, 'tone.threshold');
       if (threshold !== 128) parts.push(`阈值 ${threshold}`);
       for (const [id, label] of [

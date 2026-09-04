@@ -6,6 +6,7 @@ import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
+import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
 import type { ResampleMethod } from './preprocess/resample';
 
@@ -14,6 +15,8 @@ export interface PipelineOptions {
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
   tone: ToneOptions & { linear: boolean; threshold: number; grayFormula: GrayFormula };
+  /** 强制背景：参数在 tone.bg.* 下，但作用在阈值偏置之后、抖动之前 */
+  forcedBg: ForcedBackgroundOptions;
   color: {
     mode: ColorMode;
     /** 灰阶 / Tint / Channels 的级数 */
@@ -83,6 +86,18 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       threshold: num(params, 'tone.threshold'),
       grayFormula: str(params, 'tone.grayFormula') as GrayFormula,
     },
+    forcedBg: {
+      enabled: bool(params, 'tone.bg.enabled'),
+      density: num(params, 'tone.bg.density') / 100,
+      polarity: str(params, 'tone.bg.polarity') as BgPolarity,
+      strength: num(params, 'tone.bg.strength') / 100,
+      margin: Math.max(0, Math.round(num(params, 'tone.bg.margin'))),
+      scope: str(params, 'tone.bg.scope') as BgScope,
+      reference: str(params, 'tone.bg.reference') as BgReference,
+      color: hexToRgb(str(params, 'tone.bg.color')).map((v) => v / 255) as [number, number, number],
+      tolerance: num(params, 'tone.bg.tolerance') / 100,
+      smooth: num(params, 'tone.bg.smooth') / 100,
+    },
     color: {
       mode,
       levels: mode === 'mono' ? 2 : Math.max(2, Math.round(num(params, 'color.levels'))),
@@ -130,12 +145,12 @@ export function keyOf(params: Params, ...prefixes: string[]): string {
   return keyOfExcept(params, [], ...prefixes);
 }
 
-/** 同 keyOf，但跳过 exclude 里的参数 */
+/** 同 keyOf，但跳过 exclude 里的参数；exclude 项以 "." 结尾时按前缀跳过整组 */
 export function keyOfExcept(params: Params, exclude: string[], ...prefixes: string[]): string {
   const parts: string[] = [];
   const ids = Object.keys(params).sort();
   for (const id of ids) {
-    if (exclude.includes(id)) continue;
+    if (exclude.some((e) => (e.endsWith('.') ? id.startsWith(e) : id === e))) continue;
     if (prefixes.some((p) => id.startsWith(p))) parts.push(`${id}=${String(params[id])}`);
   }
   return parts.join('|');

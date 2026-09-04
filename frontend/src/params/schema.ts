@@ -19,6 +19,7 @@ export const DITHER_FAMILIES: ParamOption[] = [
 ];
 
 const fam = (family: string) => ({ id: 'dither.family', equals: family });
+const bgOn = { id: 'tone.bg.enabled', equals: true };
 const famAnd = (family: string, id: string, value: string | string[]) => [
   fam(family),
   Array.isArray(value) ? { id, in: value } : { id, equals: value },
@@ -77,6 +78,43 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'tone.noiseSeed', group: 'tone', label: '噪点种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: { id: 'tone.noise', gt: 0 }, advanced: true },
   { id: 'tone.outline', group: 'tone', label: '边缘描边', type: 'number', min: 0, max: 100, step: 1, default: 0 },
   { id: 'tone.outlineThreshold', group: 'tone', label: '描边阈值', type: 'number', min: 0, max: 100, step: 1, default: 20, visibleWhen: { id: 'tone.outline', gt: 0 } },
+
+  // 强制背景：把与画面边缘相连的干净背景换成一片规则的点，前景与高光原样保留
+  { id: 'tone.bg.enabled', group: 'tone', label: '强制背景', type: 'boolean', default: false, hint: '把干净的背景换成一片规则的点，前景和高光原样保留' },
+  { id: 'tone.bg.density', group: 'tone', label: '点密度', type: 'number', min: 0, max: 100, step: 1, default: 25, unit: '%', visibleWhen: bgOn },
+  {
+    id: 'tone.bg.polarity',
+    group: 'tone',
+    label: '点的明暗',
+    type: 'select',
+    default: 'auto',
+    visibleWhen: bgOn,
+    options: [opt('auto', '自动'), opt('light', '亮底暗点'), opt('dark', '暗底亮点')],
+  },
+  { id: 'tone.bg.strength', group: 'tone', label: '强度', type: 'number', min: 0, max: 100, step: 1, default: 100, unit: '%', visibleWhen: bgOn },
+  { id: 'tone.bg.margin', group: 'tone', label: '边缘留白', type: 'number', min: 0, max: 8, step: 1, default: 0, unit: '格', visibleWhen: bgOn },
+  {
+    id: 'tone.bg.reference',
+    group: 'tone',
+    label: '背景色',
+    type: 'select',
+    default: 'auto',
+    visibleWhen: bgOn,
+    options: [opt('auto', '自动取边缘'), opt('manual', '手动指定')],
+  },
+  { id: 'tone.bg.color', group: 'tone', label: '指定背景色', type: 'color', default: '#FFFFFF', visibleWhen: [bgOn, { id: 'tone.bg.reference', equals: 'manual' }] },
+  { id: 'tone.bg.tolerance', group: 'tone', label: '容差', type: 'number', min: 0, max: 100, step: 1, default: 30, unit: '%', visibleWhen: bgOn, advanced: true },
+  { id: 'tone.bg.smooth', group: 'tone', label: '渐变容差', type: 'number', min: 0, max: 100, step: 1, default: 6, unit: '%', visibleWhen: bgOn, advanced: true },
+  {
+    id: 'tone.bg.scope',
+    group: 'tone',
+    label: '背景范围',
+    type: 'select',
+    default: 'connected',
+    visibleWhen: bgOn,
+    advanced: true,
+    options: [opt('connected', '连通画面边缘'), opt('all', '全图同色')],
+  },
   {
     id: 'tone.linear',
     group: 'tone',

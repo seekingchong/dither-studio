@@ -4,12 +4,13 @@ import { rgbToCmyk } from './color/cmyk';
 import { toGray } from './color/gray';
 import { buildLevelPalette, combineChannels, mapLevels, mapPaletteIndices } from './color/map';
 import { resolvePalette, type Palette } from './color/palettes';
-import { srgbToLinearFast } from './color/srgb';
+import { linearToSrgb, srgbToLinearFast } from './color/srgb';
 import { colorDither } from './dither/color';
 import { resolveAlgorithm } from './dither/registry';
 import type { AlgorithmDef, DitherInput } from './dither/types';
 import { applyEffects, parseStack } from './effects/stack';
 import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
+import { backgroundMask, backgroundTarget, forceBackgroundGray, forceBackgroundRgb, isLightBackground } from './preprocess/background';
 import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
@@ -25,6 +26,14 @@ interface Cached<T> {
   value: T;
 }
 
+/** 本次运行的强制背景状态：蒙版 + 极性 + 密度 / 强度 */
+interface BackgroundState {
+  mask: Uint8Array;
+  light: boolean;
+  density: number;
+  strength: number;
+}
+
 export interface PipelineStats {
   /** 本次实际重算的阶段 */
   recomputed: string[];
@@ -34,8 +43,9 @@ export interface PipelineStats {
 }
 
 /**
- * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 抖动 → 颜色映射 → Accent → 网格渲染。
+ * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 抖动 → 颜色映射 → Accent → 网格渲染。
  * 每个阶段按"上游键 + 本阶段参数"缓存，参数没变的阶段直接复用。
+ * 强制背景的蒙版按像素化结果算（与影调无关），替换发生在阈值偏置之后，所以背景点密度不随阈值滑块漂移。
  * 颜色映射按模式分三条路：亮度路径（单色 / 灰阶 / Tint / 深度错配）、真彩调色板路径、分通道路径。
  */
 export class Pipeline {
@@ -44,6 +54,8 @@ export class Pipeline {
   private toned?: Cached<RGBFrame>;
   private gray?: Cached<GrayFrame>;
   private biased?: Cached<GrayFrame>;
+  private bgMask?: Cached<Uint8Array>;
+  private forced?: Cached<GrayFrame>;
   private levels?: Cached<LevelFrame>;
   private cells?: Cached<CellFrame>;
   lastStats: PipelineStats = { recomputed: [], elapsedMs: 0, gpu: false };
@@ -69,8 +81,8 @@ export class Pipeline {
       recomputed.push('pixelate');
     }
 
-    // 阈值、灰度公式、线性空间不属于影调阶段，排除在键之外
-    const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear'], 'tone.')}`;
+    // 阈值、灰度公式、线性空间、强制背景不属于影调阶段，排除在键之外
+    const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear', 'tone.bg.'], 'tone.')}`;
     if (this.toned?.key !== toneKey) {
       this.toned = { key: toneKey, value: applyTone(this.pixelated.value, opts.tone) };
       recomputed.push('tone');
@@ -87,12 +99,40 @@ export class Pipeline {
       this.biased = { key: biasedKey, value: applyThresholdBias(this.gray.value, opts.tone.threshold) };
     }
 
+    // 强制背景：蒙版只看像素化后的颜色与连通性；极性按抖动输入的亮度判断
+    const fb = opts.forcedBg;
+    let bg: BackgroundState | null = null;
+    let bgKey = '';
+    if (fb.enabled) {
+      const maskKey = `${pixelKey}|${keyOfExcept(params, ['tone.bg.density', 'tone.bg.strength', 'tone.bg.polarity'], 'tone.bg.')}`;
+      if (this.bgMask?.key !== maskKey) {
+        this.bgMask = { key: maskKey, value: backgroundMask(this.pixelated.value, fb) };
+        recomputed.push('background');
+      }
+      const mask = this.bgMask.value;
+      const light = fb.polarity === 'auto' ? isLightBackground(this.gray.value.data, mask) : fb.polarity === 'light';
+      bg = { mask, light, density: fb.density, strength: fb.strength };
+      bgKey = `|bg=${keyOf(params, 'tone.bg.')}`;
+    }
+
     const algo = resolveAlgorithm(params);
     const ditherParams = keyOf(params, 'dither.');
     const palette = resolvePalette(opts.color.palettePreset, opts.color.paletteCustom);
     const paletteKey = `${opts.color.palettePreset}:${opts.color.paletteCustom}`;
     const { width, height } = this.biased.value;
     const mode = opts.color.mode;
+
+    // 抖动输入：阈值偏置后的亮度，开了强制背景则蒙版内换成目标亮度（目标随该路径的级数变化）
+    const pathLevels =
+      mode === 'palette' && !opts.color.mismatch ? palette.size : mode === 'channels' ? opts.color.levels : mode === 'palette' ? opts.color.paletteLevels : opts.color.levels;
+    const forcedKey = `${biasedKey}${bgKey}|fb=${pathLevels}`;
+    if (this.forced?.key !== forcedKey) {
+      this.forced = {
+        key: forcedKey,
+        value: bg ? forceBackgroundGray(this.biased.value, bg.mask, backgroundTarget(bg.light, bg.density, pathLevels), bg.strength) : this.biased.value,
+      };
+    }
+    const ditherGray = this.forced.value;
 
     let levelFrame: LevelFrame;
     let cellsKey: string;
@@ -107,9 +147,9 @@ export class Pipeline {
 
     if (mode === 'palette' && !opts.color.mismatch) {
       // 真彩调色板路径：直接在 RGB 上量化到最近色
-      const key = `${toneKey}|threshold=${opts.tone.threshold}|palette=${paletteKey}|${ditherParams}|path=color`;
+      const key = `${toneKey}|threshold=${opts.tone.threshold}|palette=${paletteKey}|${ditherParams}|path=color${bgKey}`;
       if (this.levels?.key !== key) {
-        const data = this.runColorPath(algo, params, opts, palette);
+        const data = this.runColorPath(algo, params, opts, palette, bg);
         this.levels = { key, value: { width, height, levels: palette.size, data } };
         recomputed.push(`dither:${algo.family}/${algo.id}:palette`);
       }
@@ -120,10 +160,10 @@ export class Pipeline {
       ink = paletteInk;
     } else if (mode === 'channels') {
       const n = opts.color.levels;
-      const key = `${toneKey}|threshold=${opts.tone.threshold}|linear=${opts.tone.linear}|levels=${n}|space=${opts.color.channelSpace}|${ditherParams}|path=channels`;
+      const key = `${toneKey}|threshold=${opts.tone.threshold}|linear=${opts.tone.linear}|levels=${n}|space=${opts.color.channelSpace}|${ditherParams}|path=channels${bgKey}`;
       let frames: LevelFrame[];
       if (this.channels?.key !== key) {
-        frames = this.runChannelPath(algo, params, opts);
+        frames = this.runChannelPath(algo, params, opts, bg);
         this.channels = { key, value: frames };
         recomputed.push(`dither:${algo.family}/${algo.id}:channels`);
       } else {
@@ -135,9 +175,9 @@ export class Pipeline {
     } else {
       // 亮度路径
       const n = mode === 'palette' ? opts.color.paletteLevels : opts.color.levels;
-      const key = `${biasedKey}|levels=${n}|${ditherParams}|path=gray`;
+      const key = `${biasedKey}${bgKey}|levels=${n}|${ditherParams}|path=gray`;
       if (this.levels?.key !== key) {
-        const input: DitherInput = { width, height, gray: this.biased.value.data, levels: n, seed: 0 };
+        const input: DitherInput = { width, height, gray: ditherGray.data, levels: n, seed: 0 };
         let data: Uint8Array | null = null;
         if (this.gpu && algo.family === 'ordered') {
           data = orderedDitherGpu(input.gray, width, height, n, getMatrix(str(params, 'dither.ordered.matrix')), {
@@ -181,7 +221,7 @@ export class Pipeline {
       if (opts.color.accent.enabled) {
         cells = applyAccent(
           cells,
-          { width, height, levels: levelFrame.data, levelCount: levelFrame.levels, gray: this.biased.value.data },
+          { width, height, levels: levelFrame.data, levelCount: levelFrame.levels, gray: ditherGray.data },
           opts.color.accent,
         );
       }
@@ -226,7 +266,7 @@ export class Pipeline {
   private channels?: Cached<LevelFrame[]>;
 
   /** 真彩路径；算法没有颜色实现时回退到亮度路径并按亮度秩取色 */
-  private runColorPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions, palette: Palette): Uint8Array {
+  private runColorPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions, palette: Palette, bg: BackgroundState | null): Uint8Array {
     const toned = this.toned!.value;
     const { width, height } = toned;
     const bias = thresholdBias(opts.tone.threshold);
@@ -235,14 +275,19 @@ export class Pipeline {
       rgb = new Float32Array(toned.data);
       for (let i = 0; i < rgb.length; i++) rgb[i] += bias;
     }
+    if (bg) {
+      // 背景换成中性灰：目标亮度定义在抖动的灰度空间，这里的 RGB 是 sRGB，线性模式下要换算回去
+      const target = backgroundTarget(bg.light, bg.density, palette.size);
+      rgb = forceBackgroundRgb(rgb, bg.mask, opts.tone.linear ? linearToSrgb(target) : target, bg.strength);
+    }
     const out = colorDither(algo, { width, height, rgb, palette, seed: 0 }, params);
     if (out) return out;
-    const input: DitherInput = { width, height, gray: this.biased!.value.data, levels: palette.size, seed: 0 };
+    const input: DitherInput = { width, height, gray: this.forced!.value.data, levels: palette.size, seed: 0 };
     return algo.run(input, params);
   }
 
   /** 分通道路径：RGB 三通道或 CMYK 四通道各自当作灰度抖动 */
-  private runChannelPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions): LevelFrame[] {
+  private runChannelPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions, bg: BackgroundState | null): LevelFrame[] {
     const toned = this.toned!.value;
     const { width, height } = toned;
     const n = opts.color.levels;
@@ -272,6 +317,14 @@ export class Pipeline {
         channels[2][i] = b + bias;
       }
     }
+    if (bg) {
+      // 中性灰在各通道里的值：RGB 三通道都是目标亮度，CMYK 只有 K = 1 - 目标亮度
+      const target = backgroundTarget(bg.light, bg.density, n);
+      const values = count === 4 ? [0, 0, 0, 1 - target] : [target, target, target];
+      channels.forEach((ch, c) => {
+        for (let i = 0; i < ch.length; i++) if (bg.mask[i]) ch[i] += (values[c] - ch[i]) * bg.strength;
+      });
+    }
     return channels.map((gray) => ({ width, height, levels: n, data: algo.run({ width, height, gray, levels: n, seed: 0 }, params) }));
   }
 
@@ -281,7 +334,7 @@ export class Pipeline {
   }
 
   clear() {
-    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
+    this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.bgMask = this.forced = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
   }
 }
 
