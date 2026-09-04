@@ -3,6 +3,7 @@ import { nextPreviewScale, type RenderClient } from '@/engine';
 import { isAnimated, useStudioStore, type LoadedMedia } from '@/state';
 import { useFrameStore } from '@/ui/renderer/RendererContext';
 import { gifFrameAt, playbackOf, trimOf, usePlaybackStore } from './playback';
+import { IDENTITY_EDIT, editKey, editOf, editedBitmap, useSourceEditStore } from './sourceEdit';
 
 /**
  * 动态媒体的逐帧驱动：视频用 requestVideoFrameCallback，GIF 用各帧时长计时；
@@ -37,6 +38,37 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
     });
   }, [slot, media]);
 
+  /**
+   * 旋转 / 镜像 / 裁剪缩放变了：播放中下一帧自然带上，暂停时得手动补一帧，
+   * 否则画面要等到下次播放才更新。
+   */
+  const currentEditKey = useSourceEditStore((s) => editKey(s.slots[slot] ?? IDENTITY_EDIT));
+  useEffect(() => {
+    if (!client || !media || !isAnimated(media) || playbackOf(slot).playing) return;
+    let cancelled = false;
+    void (async () => {
+      const frames = media.frames;
+      const source = media.kind === 'video' && media.video ? media.video : frames?.[playbackOf(slot).frameIndex % frames.length];
+      if (!source) return;
+      let bitmap: ImageBitmap;
+      try {
+        bitmap = await editedBitmap(source, editOf(slot));
+      } catch {
+        return;
+      }
+      if (cancelled) {
+        bitmap.close();
+        return;
+      }
+      const { params, settings } = useStudioStore.getState();
+      client.setSource(slot, `${media.id}#edit${++counter.current}`, bitmap);
+      client.render(slot, params, { gpu: settings.gpu, previewScale: 1 });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [client, media, slot, currentEditKey]);
+
   useEffect(() => {
     if (!client || !media || !isAnimated(media)) return;
     let disposed = false;
@@ -45,7 +77,7 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
       if (!full && client.isBusy(slot)) return; // 丢帧
       let bitmap: ImageBitmap;
       try {
-        bitmap = await createImageBitmap(source);
+        bitmap = await editedBitmap(source, editOf(slot));
       } catch {
         // 媒体刚被换掉 / 释放（<video> 已卸掉 src、位图已 close），这一帧作废即可，不算错误
         return;
@@ -149,7 +181,7 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
             void (async () => {
               let bitmap: ImageBitmap;
               try {
-                bitmap = await createImageBitmap(video);
+                bitmap = await editedBitmap(video, editOf(slot));
               } catch {
                 return; // 定位期间媒体被换掉
               }

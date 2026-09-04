@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { usePlatform } from '@/platform';
 import { useStudioStore } from '@/state';
 import { trimOf, usePlaybackStore } from '@/ui/media/playback';
+import { editOf } from '@/ui/media/sourceEdit';
 import { Button, Select, useToast } from '@/ui/primitives';
 import { exportFileName } from './png';
 import { QUALITY_OPTIONS, exportVideo, type EncoderChoice, type VideoQuality } from './video';
@@ -54,6 +55,7 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
         quality,
         gpu: settings.gpu,
         trim: trim ? { start: trim.start, length: trim.length } : undefined,
+        edit: editOf(view.activeSlot),
         signal: controller.signal,
         onProgress: (done, total) => setProgress([done, total]),
       });

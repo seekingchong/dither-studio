@@ -4,6 +4,7 @@ import { RenderClient } from '@/engine';
 import type { Params } from '@/params';
 import type { LoadedMedia } from '@/state';
 import { gifFrameAt } from '@/ui/media/playback';
+import { IDENTITY_EDIT, editedBitmap, type SourceEdit } from '@/ui/media/sourceEdit';
 
 export type VideoQuality = 'medium' | 'high' | 'ultra';
 
@@ -70,6 +71,8 @@ export interface ExportVideoOptions {
   gpu: boolean;
   /** 只导出这一段（视频的裁剪窗口）；不给就是整段 */
   trim?: { start: number; length: number };
+  /** 素材编辑（旋转 / 镜像 / 裁剪缩放）；不给就是原样 */
+  edit?: SourceEdit;
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
 }
@@ -149,14 +152,15 @@ export async function exportVideo(opts: ExportVideoOptions): Promise<ExportVideo
       if (signal?.aborted) throw new Error('已取消');
       if (encodeError) throw encodeError;
       const t = offset + i / EXPORT_FPS;
+      const edit = opts.edit ?? IDENTITY_EDIT;
       let bitmap: ImageBitmap;
       if (video) {
         await seekVideo(video, Math.min(t, Math.max(0, duration - 1 / EXPORT_FPS)));
-        bitmap = await createImageBitmap(video);
+        bitmap = await editedBitmap(video, edit);
       } else if (media.frames && media.delays) {
-        bitmap = await createImageBitmap(media.frames[gifFrameAt(media.delays, t)]);
+        bitmap = await editedBitmap(media.frames[gifFrameAt(media.delays, t)], edit);
       } else {
-        bitmap = await createImageBitmap(media.bitmap);
+        bitmap = await editedBitmap(media.bitmap, edit);
       }
       client.setSource(0, `export#${i}`, bitmap);
       const rendered = await client.renderOnce(0, renderParams, { previewScale: 1, gpu: opts.gpu });

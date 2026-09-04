@@ -651,12 +651,77 @@ body.is-resizing * {
   outline: none;
 }
 
+/* ---------- 「原图」页的素材编辑条 ---------- */
+
+/* 编辑区整体挂在视口下面，与画面之间一条分隔线 */
+.slot__editor {
+  flex: none;
+  border-top: 1px solid var(--tda-color-border);
+}
+
+.source-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-md);
+  padding: var(--tda-spacing-xs) var(--tda-spacing-lg);
+  min-height: 44px;
+}
+
+.source-edit__group {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-2xs);
+}
+
+/* 镜像是开关：开着就反白，跟特效芯片一个路子 */
+.tda-iconbtn.is-on {
+  background: var(--tda-color-text-primary);
+  color: var(--tda-color-white);
+}
+
+.tda-iconbtn.is-on:hover {
+  background: var(--tda-color-text-primary);
+}
+
+.source-edit__zoom {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+}
+
+.source-edit__label {
+  flex: none;
+  color: var(--tda-color-text-secondary);
+  font-size: var(--tda-typography-label-size);
+}
+
+.source-edit__value,
+.source-edit__size {
+  flex: none;
+  color: var(--tda-color-text-tertiary);
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+  white-space: nowrap;
+}
+
+.source-edit__zoom .tda-slider__range {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 放大后画面可以拖着挪裁剪窗口 */
+.slot__canvas[data-pannable='true'] {
+  cursor: grab;
+}
+
 /* ---------- 视频裁剪条（「原图」页的视频卡片） ---------- */
 
 .trim {
   flex: none;
-  padding: var(--tda-spacing-sm) var(--tda-spacing-lg) var(--tda-spacing-md);
-  border-top: 1px solid var(--tda-color-border);
+  padding: 0 var(--tda-spacing-lg) var(--tda-spacing-md);
   display: flex;
   flex-direction: column;
   gap: var(--tda-spacing-xs);
