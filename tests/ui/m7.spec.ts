@@ -146,10 +146,10 @@ async function recompute(page: Page) {
   await expect.poll(() => canvasHash(page)).not.toBe(nudged);
 }
 
-test('视频裁剪：「原图」页上一条固定 3 秒的窗口，左右拖挑哪三秒，导出只出这一段', async ({ page }) => {
+test('视频裁剪：「原图」页上一条固定 4 秒的窗口，左右拖挑哪四秒，导出只出这一段', async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto('/');
-  const webm = await recordWebm(page, 4.5);
+  const webm = await recordWebm(page, 6);
   await dropBytes(page, webm, 'clip.webm', 'video/webm');
   await expect(page.getByTestId('transport')).toBeVisible();
 
@@ -158,24 +158,24 @@ test('视频裁剪：「原图」页上一条固定 3 秒的窗口，左右拖�
   await page.getByRole('tab', { name: '原图' }).click();
   const trim = page.getByTestId('trim-0');
   await expect(trim).toBeVisible();
-  await expect(trim).toContainText('裁剪 3.0 秒');
+  await expect(trim).toContainText('裁剪 4.0 秒');
   await expect(trim).toHaveAttribute('data-trim-start', '0.00');
   const track = trim.locator('.trim__track');
   const duration = Number(await trim.getAttribute('data-duration'));
-  expect(duration).toBeGreaterThan(3);
+  expect(duration).toBeGreaterThan(4);
 
-  // 窗口宽度就是 3 秒占整段的比例
+  // 窗口宽度就是 4 秒占整段的比例
   const trackBox = (await track.boundingBox())!;
   const windowBox = (await trim.locator('.trim__window').boundingBox())!;
-  expect(windowBox.width / trackBox.width).toBeCloseTo(3 / duration, 1);
+  expect(windowBox.width / trackBox.width).toBeCloseTo(4 / duration, 1);
 
-  // 拖到最右：起点贴到 时长 - 3，再往右也不动
+  // 拖到最右：起点贴到 时长 - 4，再往右也不动
   await page.mouse.move(trackBox.x + trackBox.width - 2, trackBox.y + trackBox.height / 2);
   await page.mouse.down();
   await page.mouse.move(trackBox.x + trackBox.width + 200, trackBox.y + trackBox.height / 2);
   await page.mouse.up();
   const maxStart = Number(await trim.getAttribute('data-trim-start'));
-  expect(maxStart).toBeCloseTo(duration - 3, 1);
+  expect(maxStart).toBeCloseTo(duration - 4, 1);
   await expect(trim.getByTestId('trim-range-0')).toContainText('–');
 
   // 方向键微调；Home 回到开头
@@ -187,16 +187,16 @@ test('视频裁剪：「原图」页上一条固定 3 秒的窗口，左右拖�
 
   // 进度条就是裁出来的这一段：min / max 跟着窗口走，拖不到被裁掉的部分
   await track.press('End');
-  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('min'))).toBeCloseTo(duration - 3, 1);
+  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('min'))).toBeCloseTo(duration - 4, 1);
   expect(Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(duration, 1);
   await track.press('Home');
-  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(3, 1);
+  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(4, 1);
   await track.press('End');
 
-  // 导出只出这 3 秒：60 fps × 3 秒 = 180 帧
+  // 导出只出这 4 秒：60 fps × 4 秒 = 240 帧
   await page.getByRole('button', { name: '导出视频' }).click();
   await page.getByRole('button', { name: '开始导出' }).click();
-  await expect(page.getByTestId('export-video-dialog')).toContainText('/ 180 帧', { timeout: 30_000 });
+  await expect(page.getByTestId('export-video-dialog')).toContainText('/ 240 帧', { timeout: 30_000 });
   await page.getByRole('button', { name: '取消' }).click();
   await page.getByRole('button', { name: '关闭' }).click();
 });

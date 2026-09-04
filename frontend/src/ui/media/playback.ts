@@ -40,7 +40,7 @@ export function playbackOf(slot: number): PlaybackEntry {
 }
 
 /** 视频裁剪窗口的长度（秒），固定值 */
-export const TRIM_SECONDS = 3;
+export const TRIM_SECONDS = 4;
 
 export interface TrimRange {
   start: number;

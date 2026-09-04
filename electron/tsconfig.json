@@ -15,5 +15,10 @@
       "@/*": ["frontend/src/*"]
     }
   },
-  "include": ["*.ts", "../frontend/src/platform/types.ts", "../frontend/src/platform/bridge.ts"]
+  "include": [
+    "*.ts",
+    "../frontend/src/platform/types.ts",
+    "../frontend/src/platform/bridge.ts",
+    "../frontend/src/ui/interface-preview/route.ts"
+  ]
 }

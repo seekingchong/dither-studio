@@ -7,6 +7,8 @@ import { usePlaybackController } from '@/ui/media/usePlaybackController';
 import { SourceEditBar } from '@/ui/media/SourceEditBar';
 import { useSourceEditStore } from '@/ui/media/sourceEdit';
 import { VideoTrim } from '@/ui/media/VideoTrim';
+import { openInterfacePreview } from '@/ui/interface-preview/openPreview';
+import { useToast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { DropZone } from './DropZone';
 import { SlotCanvas } from './SlotCanvas';
@@ -86,6 +88,18 @@ export function SlotView({ index }: SlotViewProps) {
     if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
     setDragging(false);
   };
+  /**
+   * 双击坑位打开「界面预览」：新窗口里是一张完整的静态界面，
+   * 当前这份素材放进界面的 video cover 容器里跟着一起动（视频 / GIF 照样循环）。
+   */
+  const onDoubleClick = () => {
+    if (!media) return;
+    setActiveSlot(index);
+    if (!openInterfacePreview(index)) {
+      useToast.getState().show('新窗口被拦下了，请允许本页弹出窗口后重试', 'error');
+    }
+  };
+
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
@@ -109,6 +123,7 @@ export function SlotView({ index }: SlotViewProps) {
           }
         : {})}
       onClick={() => setActiveSlot(index)}
+      onDoubleClick={onDoubleClick}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
@@ -122,7 +137,7 @@ export function SlotView({ index }: SlotViewProps) {
           )}
         </div>
       </div>
-      {/* 「原图」页看的是素材本身：这儿做旋转 / 镜像 / 裁剪缩放，视频再多一条挑哪三秒的裁剪条 */}
+      {/* 「原图」页看的是素材本身：这儿做旋转 / 镜像 / 裁剪缩放，视频再多一条挑哪四秒的裁剪条 */}
       {tab === 'source' && media && (
         <div className="slot__editor">
           <SourceEditBar slot={index} media={media} />

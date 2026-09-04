@@ -13,7 +13,7 @@ interface VideoTrimProps {
 
 /**
  * 「原图」页里视频素材卡片下的裁剪条：窗长固定 TRIM_SECONDS 秒，
- * 左右拖窗口挑这段视频里的哪三秒。播放在这个窗口里循环，导出也只出这一段。
+ * 左右拖窗口挑这段视频里的哪四秒。播放在这个窗口里循环，导出也只出这一段。
  * 视频短于窗长时窗口就是整段，滑不动。
  */
 export function VideoTrim({ slot, media }: VideoTrimProps) {

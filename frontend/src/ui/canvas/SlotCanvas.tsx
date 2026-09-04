@@ -3,6 +3,7 @@ import { computeFit, type FitMode, type RenderedFrame } from '@/engine';
 import type { LoadedMedia, PreviewTab } from '@/state';
 import { usePlaybackStore } from '@/ui/media/playback';
 import { IDENTITY_EDIT, drawEditedInto, editGeometry, editedSize, useSourceEditStore } from '@/ui/media/sourceEdit';
+import { registerSlotCanvas } from './slotCanvasRegistry';
 
 interface SlotCanvasProps {
   slot: number;
@@ -27,6 +28,12 @@ export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, sca
   const scratch = useRef<HTMLCanvasElement | null>(null);
   const frameIndex = usePlaybackStore((s) => s.slots[slot]?.frameIndex ?? 0);
   const edit = useSourceEditStore((s) => s.slots[slot] ?? IDENTITY_EDIT);
+
+  // 界面预览窗口要帧时按坑位号来取这块画布
+  useEffect(() => {
+    const canvas = ref.current;
+    return canvas ? registerSlotCanvas(slot, canvas) : undefined;
+  }, [slot]);
 
   useEffect(() => {
     const canvas = ref.current;

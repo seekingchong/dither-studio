@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, shell, type WebContents } from 'electron';
 import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { installMenu, type MenuAction } from './menu';
 import type { MediaFile, SavedFile } from '@/platform/types';
 import { mimeFromName } from '@/platform/types';
+import { isPreviewUrl } from '@/ui/interface-preview/route';
 
 const execFileAsync = promisify(execFile);
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL;
@@ -58,6 +59,9 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // 界面预览窗口会盖住主窗口，被判成"不可见"后连消息回调都要被节流，
+      // 那边的画面就会卡住；主窗口是取景来源，不能睡。
+      backgroundThrottling: false,
     },
   });
   win.once('ready-to-show', () => win.show());
@@ -88,12 +92,46 @@ function createWindow(): BrowserWindow {
   } else {
     void win.loadFile(path.join(__dirname, '..', '..', 'frontend', 'dist', 'index.html'));
   }
-  // 外链一律交给系统浏览器
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  applyWindowOpenHandler(win.webContents);
+  return win;
+}
+
+/** 界面预览窗口的尺寸下限：再小就看不出界面长什么样了 */
+const PREVIEW_MIN_WIDTH = 720;
+const PREVIEW_MIN_HEIGHT = 450;
+
+/**
+ * 新窗口的去处。
+ * 界面预览是自己人（同一份前端，只是地址上多个 hash），放行成一扇普通带标题栏的窗口；
+ * 其余外链一律交给系统浏览器。预览窗口里再开窗同样按这套规矩来。
+ */
+function applyWindowOpenHandler(contents: WebContents) {
+  contents.setWindowOpenHandler(({ url }) => {
+    if (isPreviewUrl(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          title: '界面预览',
+          backgroundColor: '#F9F9F9',
+          minWidth: PREVIEW_MIN_WIDTH,
+          minHeight: PREVIEW_MIN_HEIGHT,
+          // 主窗口在 macOS 上是无边框的，预览窗口要普通标题栏，别把设置继承过来
+          titleBarStyle: 'default' as const,
+          webPreferences: {
+            preload: path.join(__dirname, 'preload.cjs'),
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            spellcheck: false,
+            backgroundThrottling: false,
+          },
+        },
+      };
+    }
     if (/^https?:/.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
-  return win;
+  contents.on('did-create-window', (child) => applyWindowOpenHandler(child.webContents));
 }
 
 // ---------- 本地存储（预设、设置） ----------
