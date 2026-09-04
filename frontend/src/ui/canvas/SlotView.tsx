@@ -123,12 +123,12 @@ export function SlotView({ index }: SlotViewProps) {
           }
         : {})}
       onClick={() => setActiveSlot(index)}
-      onDoubleClick={onDoubleClick}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
-      <div className="slot__viewport" ref={viewportRef}>
+      {/* 双击只认画面这块：底下的素材编辑条与裁剪条上双击不该弹预览窗 */}
+      <div className="slot__viewport" ref={viewportRef} onDoubleClick={onDoubleClick}>
         <div className="slot__stage">
           {media ? (
             <SlotCanvas slot={index} media={media} rendered={rendered} tab={tab} width={width} height={height} fit={fit} scale={scale} />

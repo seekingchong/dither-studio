@@ -177,6 +177,24 @@ test('界面整体等比缩放：任何窗口大小下都完整可见、居中�
   }
 });
 
+test('双击只认画面那块：素材编辑条与裁剪条上双击不弹预览窗', async ({ page, context }) => {
+  await page.goto('/');
+  await dropInto(page, GIF_B64, 'anim.gif', 'image/gif');
+  // 编辑条只在「原图」页出现
+  await page.getByRole('tab', { name: '原图' }).click();
+  const editBar = page.locator('[data-slot="0"] .slot__editor');
+  await expect(editBar).toBeVisible();
+
+  const before = context.pages().length;
+  await editBar.dblclick({ position: { x: 10, y: 10 } });
+  await page.waitForTimeout(600);
+  expect(context.pages().length, '编辑条上双击不该开窗').toBe(before);
+
+  // 画面上双击照样开
+  const popup = await openPreview(page, context);
+  expect(popup.url()).toContain('#interface-preview');
+});
+
 test('再次双击同一个坑位复用同一扇预览窗口，不会越开越多', async ({ page, context }) => {
   await page.goto('/');
   await dropSyntheticImage(page);
