@@ -35,6 +35,7 @@ export function SlotView({ index }: SlotViewProps) {
     })),
   );
   const rendered = useFrameStore((s) => s.frames[index]);
+  const renderSeq = useFrameStore((s) => s.seq[index] ?? 0);
   const client = useRenderClient();
   usePlaybackController(index, media, client);
   const { openDialog, acceptDrop } = useOpenMedia();
@@ -90,6 +91,14 @@ export function SlotView({ index }: SlotViewProps) {
       className={['slot', active ? 'is-active' : '', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')}
       data-slot={index}
       data-rendered={rendered ? 'true' : 'false'}
+      {...(rendered
+        ? {
+            // 渲染细节不再显示成灰色小字，但仍留在 DOM 上，方便验收脚本判断"这一帧渲染完了吗 / 走没走 GPU"
+            'data-render-seq': String(renderSeq),
+            'data-gpu': rendered.gpu ? 'true' : 'false',
+            'data-preview-scale': String(rendered.scale),
+          }
+        : {})}
       onClick={() => setActiveSlot(index)}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

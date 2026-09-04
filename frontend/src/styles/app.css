@@ -21,6 +21,18 @@ body {
   -webkit-user-select: none;
 }
 
+/* 所有滚动容器都照常能滚，只是不画滚动条（Firefox / 旧 Edge 用标准属性，WebKit 用伪元素） */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
 button,
 input,
 select {
@@ -39,39 +51,23 @@ button {
   flex-direction: column;
   height: 100%;
   background: var(--tda-color-white);
+  /* 整窗大圆角，对齐 macOS 最新的窗口形状；系统同样按窗口形状裁剪，两边取一致的值 */
+  border-radius: var(--tda-radius-window);
+  overflow: hidden;
 }
 
-.topbar {
+/*
+ * 无边框标题栏：不放任何内容，只给系统的红黄绿三个圆点留一条可拖动的透明区。
+ * 只有 macOS 的 Electron 窗口才隐藏了系统标题栏，其它场合高度为 0。
+ */
+.app__titlebar {
   flex: none;
-  height: var(--tda-topbar-height);
-  padding: 0 9px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--tda-color-white);
-  border-bottom: 1px solid var(--tda-color-border);
+  height: 0;
 }
 
-.topbar__brand {
-  display: flex;
-  align-items: center;
-  gap: var(--tda-spacing-xs);
-  padding-left: 11px;
-  font-weight: 500;
-  font-size: var(--tda-typography-body-sm-size);
-  line-height: var(--tda-typography-heading-sm-line);
-}
-
-.topbar__brand svg {
-  width: 18px;
-  height: 18px;
-  flex: none;
-}
-
-.topbar__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--tda-spacing-2xs);
+.app[data-platform='electron'][data-os='darwin'] .app__titlebar {
+  height: var(--tda-titlebar-height);
+  -webkit-app-region: drag;
 }
 
 .panes {
@@ -83,20 +79,61 @@ button {
 .pane {
   flex: 1 0 0;
   min-width: 0;
-  padding: 0 var(--tda-pane-padding-x);
   overflow: auto;
 }
 
+/*
+ * 左栏宽度可拖：--tda-pane-split 由 PaneSplitter 写在 .panes 上，没拖过时左右均分。
+ * max-width 保证右侧预览至少留得下一格画布，窗口变窄时左栏跟着让位。
+ */
 .pane--params {
+  flex: none;
+  width: var(--tda-pane-split, 50%);
+  min-width: var(--tda-pane-min-width);
+  max-width: calc(100% - var(--tda-preview-min-width));
   background: var(--tda-color-white);
-  border-right: 1px solid var(--tda-color-border);
+  /* 参数栏自己当容器：里面的栅格按栏宽自适应，而不是按窗口宽 */
+  container-type: inline-size;
+  container-name: params;
 }
 
 .pane--preview {
+  padding: 0 var(--tda-pane-padding-x);
   background: var(--tda-color-background-page);
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+
+/* ---------- 左右分栏拖拽条 ---------- */
+
+.pane-splitter {
+  flex: none;
+  width: 1px;
+  /* 命中区比可见的那条线宽，好抓；用外扩的 margin 抵消掉多占的宽度 */
+  margin: 0 -4px;
+  padding: 0 4px;
+  background-clip: content-box;
+  background-color: var(--tda-color-border);
+  cursor: col-resize;
+  z-index: 10;
+  touch-action: none;
+}
+
+.pane-splitter:hover,
+.pane-splitter:focus-visible {
+  background-color: var(--tda-color-text-primary);
+  outline: none;
+}
+
+/* 拖动过程中别让指针划过内容时选中文字或改成别的光标 */
+body.is-resizing {
+  cursor: col-resize;
+}
+
+body.is-resizing * {
+  pointer-events: none;
+  cursor: col-resize !important;
 }
 
 /* ---------- 按钮 ---------- */
@@ -193,27 +230,54 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--tda-spacing-md);
-  padding: 20px 0;
+  padding: 20px var(--tda-pane-padding-x);
 }
 
 .btn-group {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--tda-spacing-sm);
 }
 
 .pane-content {
-  padding-top: var(--tda-spacing-sm);
-  padding-bottom: var(--tda-spacing-2xl);
+  padding: var(--tda-spacing-sm) var(--tda-pane-padding-x) var(--tda-spacing-2xl);
   display: flex;
   flex-direction: column;
   gap: 48px;
 }
 
+/*
+ * 参数栅格按左栏宽度自适应：宽到放得下就一排三，窄了退到二、再窄退到一，
+ * 不再固定一排四，免得每格挤成一堆省略号。
+ */
 .param-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--tda-spacing-md);
+}
+
+@container params (max-width: 720px) {
+  .param-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container params (max-width: 520px) {
+  .pane-actions,
+  .pane-content {
+    padding-inline: var(--tda-spacing-lg);
+  }
+
+  .param-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .param-span-2 {
+    grid-column: auto;
+  }
 }
 
 .sections {
@@ -593,12 +657,6 @@ button {
   gap: var(--tda-spacing-md);
 }
 
-.preview-meta {
-  color: var(--tda-color-text-tertiary);
-  font-family: var(--tda-font-family-latin);
-  white-space: nowrap;
-}
-
 .preview-zoom {
   width: 172px;
 }
@@ -630,8 +688,18 @@ button {
   position: relative;
 }
 
-.slot.is-dragging {
+/* 窗口里正在拖文件：所有坑位标成"可以放这儿"，指针停在哪个坑位哪个再强调一层，
+   这样落点一眼可见，不再靠一层盖住全窗的遮罩 */
+.app[data-file-drag='true'] .slot {
+  border-style: dashed;
+  border-color: var(--tda-color-text-secondary);
+}
+
+.slot.is-dragging,
+.app[data-file-drag='true'] .slot.is-dragging {
+  border-style: solid;
   border-color: var(--tda-color-text-primary);
+  background: var(--tda-color-control-subtle);
 }
 
 .preview-body--grid .slot.is-active {
@@ -683,30 +751,6 @@ button {
   color: var(--tda-color-text-disabled);
   font-size: var(--tda-typography-label-size);
   line-height: var(--tda-typography-label-line);
-}
-
-/* ---------- 全窗拖拽遮罩 ---------- */
-
-.drop-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: var(--tda-color-control-muted);
-  pointer-events: none;
-}
-
-.drop-overlay__box {
-  position: absolute;
-  inset: var(--tda-spacing-md);
-  border: 2px dashed var(--tda-color-text-primary);
-  border-radius: var(--tda-radius-lg);
-  background: var(--tda-color-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--tda-typography-heading-sm-size);
-  line-height: var(--tda-typography-heading-sm-line);
-  font-weight: 500;
 }
 
 /* ---------- 轻提示 ---------- */
@@ -941,13 +985,6 @@ button {
 .transport__range {
   flex: 1;
   min-width: 80px;
-}
-
-.transport__time {
-  color: var(--tda-color-text-tertiary);
-  font-family: var(--tda-font-family-latin);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- 弹窗 / 进度 ---------- */

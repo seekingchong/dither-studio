@@ -7,6 +7,8 @@ import { useToast } from '@/ui/primitives/Toast';
 
 interface FrameState {
   frames: Record<number, RenderedFrame>;
+  /** 每个坑位的渲染序号，每收到一帧 +1。落到 DOM 上供验收脚本判断"又渲染了一次" */
+  seq: Record<number, number>;
   setFrame(frame: RenderedFrame): void;
   clear(slot: number): void;
 }
@@ -14,13 +16,17 @@ interface FrameState {
 /** 每个坑位最近一帧渲染结果，画布与导出都从这里取 */
 export const useFrameStore = create<FrameState>((set) => ({
   frames: {},
-  setFrame: (frame) => set((s) => ({ frames: { ...s.frames, [frame.slot]: frame } })),
+  seq: {},
+  setFrame: (frame) =>
+    set((s) => ({ frames: { ...s.frames, [frame.slot]: frame }, seq: { ...s.seq, [frame.slot]: (s.seq[frame.slot] ?? 0) + 1 } })),
   clear: (slot) =>
     set((s) => {
       if (!(slot in s.frames)) return s;
       const frames = { ...s.frames };
       delete frames[slot];
-      return { frames };
+      const seq = { ...s.seq };
+      delete seq[slot];
+      return { frames, seq };
     }),
 }));
 

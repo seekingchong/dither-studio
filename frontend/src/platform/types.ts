@@ -54,8 +54,13 @@ export interface PlatformAI {
   chat(message: string, sessionId: string): AsyncIterable<string>;
 }
 
+/** 壳层所在的操作系统；web 端无从得知，为 undefined */
+export type PlatformOs = 'darwin' | 'win32' | 'linux';
+
 export interface Platform {
   readonly kind: PlatformKind;
+  /** 仅 Electron 有：决定要不要给无边框标题栏的三个圆点留位 */
+  readonly os?: PlatformOs;
   readonly files: PlatformFiles;
   readonly storage: PlatformStorage;
   readonly clipboard: PlatformClipboard;

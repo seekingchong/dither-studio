@@ -34,13 +34,21 @@ export type SlotCount = 1 | 4;
 
 export type ThemeSetting = 'light' | 'dark' | 'system';
 
+/** 左栏宽度（像素）的可拖拽区间；null 表示还没拖过，左右各占一半 */
+export const PANE_WIDTH_MIN = 320;
+export const PANE_WIDTH_MAX = 1200;
+
 export interface Settings {
   slotCount: SlotCount;
   gpu: boolean;
   theme: ThemeSetting;
+  /** 左栏宽度，null = 未调整过（左右均分） */
+  paneWidth: number | null;
 }
 
-export const DEFAULT_SETTINGS: Settings = { slotCount: 1, gpu: true, theme: 'light' };
+export const DEFAULT_SETTINGS: Settings = { slotCount: 1, gpu: true, theme: 'light', paneWidth: null };
+
+export const clampPaneWidth = (px: number) => Math.round(Math.min(PANE_WIDTH_MAX, Math.max(PANE_WIDTH_MIN, px)));
 
 /** 从存储读出的设置做校验，缺项补默认 */
 export function sanitizeSettings(input: unknown): Settings {
@@ -49,6 +57,7 @@ export function sanitizeSettings(input: unknown): Settings {
     slotCount: rec.slotCount === 4 ? 4 : 1,
     gpu: typeof rec.gpu === 'boolean' ? rec.gpu : DEFAULT_SETTINGS.gpu,
     theme: rec.theme === 'dark' || rec.theme === 'system' ? rec.theme : 'light',
+    paneWidth: typeof rec.paneWidth === 'number' && Number.isFinite(rec.paneWidth) ? clampPaneWidth(rec.paneWidth) : null,
   };
 }
 

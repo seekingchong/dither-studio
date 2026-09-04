@@ -1,9 +1,12 @@
 import { useShallow } from 'zustand/react/shallow';
 import { isAnimated, useStudioStore, ZOOM_LEVELS, type PreviewTab, type ZoomLevel } from '@/state';
-import { formatTime, usePlaybackStore } from '@/ui/media/playback';
+import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
+import { useExport } from '@/ui/export/useExport';
+import { usePlaybackStore } from '@/ui/media/playback';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
-import { IconButton, Select, Tabs, Toast } from '@/ui/primitives';
-import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
+import { Button, IconButton, Select, Tabs, Toast } from '@/ui/primitives';
+import { useUiStore } from '@/ui/state/uiStore';
+import { useRenderClient } from '@/ui/renderer/RendererContext';
 import { SlotView } from './SlotView';
 
 /** 播放 / 暂停 + 进度条，只在当前坑位是视频或 GIF 时出现 */
@@ -28,9 +31,6 @@ function Transport({ slot }: { slot: number }) {
         onChange={(e) => seek(Number(e.target.value))}
         aria-label="进度"
       />
-      <span className="transport__time">
-        {formatTime(entry.time)} / {formatTime(duration)}
-      </span>
     </div>
   );
 }
@@ -62,23 +62,20 @@ const PREVIEW_TABS: Array<{ id: PreviewTab; label: string }> = [
 ];
 
 export function PreviewPane() {
-  const { slots, zoom, tab, activeSlot, width, height, setZoom, setTab } = useStudioStore(
+  const { slots, zoom, tab, activeSlot, setZoom, setTab } = useStudioStore(
     useShallow((s) => ({
       slots: s.slots,
       zoom: s.view.zoom,
       tab: s.view.tab,
       activeSlot: s.view.activeSlot,
-      width: Number(s.params['canvas.width']),
-      height: Number(s.params['canvas.height']),
       setZoom: s.setZoom,
       setTab: s.setTab,
     })),
   );
-  const rendered = useFrameStore((s) => s.frames[activeSlot]);
-  const media = slots[activeSlot]?.media;
+  const { canExport } = useExport();
+  const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
+  const { videoDialog, setVideoDialog } = useUiStore(useShallow((s) => ({ videoDialog: s.exportVideoOpen, setVideoDialog: s.setExportVideoOpen })));
   const multi = slots.length > 1;
-  const previewNote = rendered && rendered.scale < 1 ? ` · 预览 ${Math.round(rendered.scale * 100)}%` : '';
-  const gpuNote = rendered?.gpu ? ' · GPU' : '';
 
   return (
     <section className="pane pane--preview" aria-label="预览">
@@ -86,13 +83,6 @@ export function PreviewPane() {
         <Tabs items={PREVIEW_TABS} value={tab} onChange={setTab} />
         {multi ? <GroupTransport /> : <Transport slot={activeSlot} />}
         <div className="preview-tools">
-          {/* 多坑位下顶部只留播放按钮与缩放，不显示分辨率 / 耗时 */}
-          {!multi && (
-            <span className="preview-meta" data-testid="preview-meta">
-              {media ? `${media.width} × ${media.height} → ${width} × ${height}` : `${width} × ${height}`}
-              {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms${previewNote}${gpuNote}` : ''}
-            </span>
-          )}
           <Select
             label="缩放"
             value={String(zoom)}
@@ -101,6 +91,11 @@ export function PreviewPane() {
             labelWidth={36}
             className="preview-zoom"
           />
+          {animated && (
+            <Button variant="primary" icon="film" disabled={!canExport} onClick={() => setVideoDialog(true)}>
+              导出视频
+            </Button>
+          )}
         </div>
       </div>
       <div className={['preview-body', multi ? 'preview-body--grid' : ''].filter(Boolean).join(' ')}>
@@ -108,6 +103,7 @@ export function PreviewPane() {
           <SlotView key={slot.id} index={slot.id} />
         ))}
       </div>
+      <ExportVideoDialog open={videoDialog} onClose={() => setVideoDialog(false)} />
       <Toast />
     </section>
   );

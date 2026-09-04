@@ -5,6 +5,7 @@ import type { MenuAction, Platform } from './types';
 export function createElectronPlatform(bridge: DitherBridge): Platform {
   return {
     kind: 'electron',
+    os: bridge.platform,
     files: {
       openMedia: () => bridge.files.openMedia(),
       save: (bytes, name, mime) => bridge.files.save(bytes, name, mime),

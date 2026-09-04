@@ -3,11 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
 import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
 import { isAnimated, isParamExposed, resolveBase, useStudioStore } from '@/state';
-import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { Button, Icon, IconButton, Tabs } from '@/ui/primitives';
-import { useUiStore } from '@/ui/state/uiStore';
+import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorPreview } from './ColorPreview';
 import { EffectsEditor } from './EffectsEditor';
 import { HistoryPane } from './HistoryPane';
@@ -39,7 +38,6 @@ export function ParamPane() {
   const { openDialog } = useOpenMedia();
   const { canExport, exportPng, copyPng } = useExport();
   const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
-  const { videoDialog, setVideoDialog } = useUiStore(useShallow((s) => ({ videoDialog: s.exportVideoOpen, setVideoDialog: s.setExportVideoOpen })));
   const { canUndo, canRedo, undo, redo } = useStudioStore(
     useShallow((s) => ({ canUndo: s.history.past.length > 0, canRedo: s.history.future.length > 0, undo: s.undo, redo: s.redo })),
   );
@@ -102,14 +100,9 @@ export function ParamPane() {
           <Button variant={animated ? 'secondary' : 'primary'} icon="download" disabled={!canExport} onClick={() => void exportPng()}>
             导出 PNG
           </Button>
-          {animated && (
-            <Button variant="primary" icon="film" disabled={!canExport} onClick={() => setVideoDialog(true)}>
-              导出视频
-            </Button>
-          )}
+          <SettingsMenu />
         </div>
       </div>
-      <ExportVideoDialog open={videoDialog} onClose={() => setVideoDialog(false)} />
 
       <div className="pane-content">
         {paneTab === 'history' && <HistoryPane onApplied={() => setPaneTab('params')} />}

@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type DragEvent } from 'react';
 import { usePlatform } from '@/platform';
+import { useStudioStore } from '@/state';
 import { PreviewPane } from './canvas/PreviewPane';
 import { useOpenMedia } from './media/useOpenMedia';
+import { PaneSplitter } from './PaneSplitter';
 import { ParamPane } from './panel/ParamPane';
 import { HelpPopover } from './primitives/Help';
 import { RendererProvider } from './renderer/RendererContext';
-import { TopBar } from './TopBar';
 import { useExport } from './export/useExport';
 import { useMenuActions } from './state/useMenuActions';
 import { usePersistence } from './state/usePersistence';
 import { useShortcuts } from './state/useShortcuts';
 
-/** 根组件：顶栏 + 左参数面板 + 右预览；整窗接受文件拖拽 */
+/** 根组件：可拖动的窗口标题条 + 左参数面板 + 右预览；整窗接受文件拖拽 */
 export function DitherStudio() {
   return (
     <RendererProvider>
@@ -28,12 +29,13 @@ const DRAG_IDLE_MS = 800;
 const DRAG_LEAVE_MS = 150;
 
 /**
- * 全窗拖拽遮罩的显隐。用 window 捕获阶段监听，不依赖 React 事件冒泡：
- * 坑位自己处理 drop 时会 stopPropagation，根节点收不到 drop，遮罩就永远留在屏幕上。
- * 遮罩由 dragover 点亮，由 drop / dragend / 离开窗口的 dragleave 熄灭，再加一个空闲看门狗兜底
+ * 窗口里是否正在拖文件。用 window 捕获阶段监听，不依赖 React 事件冒泡：
+ * 坑位自己处理 drop 时会 stopPropagation，根节点收不到 drop，状态就永远留着。
+ * 由 dragover 点亮，由 drop / dragend / 离开窗口的 dragleave 熄灭，再加一个空闲看门狗兜底
  * （按 Esc 取消系统拖拽时有的平台不发任何结束事件）。
+ * 只用来把所有坑位标成"可放置"，落点提示交给坑位自己，免得整窗遮罩盖住谁是落点。
  */
-function useFileDragOverlay(): boolean {
+function useFileDragActive(): boolean {
   const [dragging, setDragging] = useState(false);
   useEffect(() => {
     let timer = 0;
@@ -74,7 +76,8 @@ function Shell() {
   const platform = usePlatform();
   const { acceptDrop, openDialog } = useOpenMedia();
   const { exportPng, copyPng } = useExport();
-  const dragging = useFileDragOverlay();
+  const dragging = useFileDragActive();
+  const paneWidth = useStudioStore((s) => s.settings.paneWidth);
   usePersistence();
   const actions = useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]);
   useShortcuts(actions);
@@ -85,7 +88,7 @@ function Shell() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   };
-  // 落在坑位之外（顶栏、参数面板）的文件：填入当前坑位；坑位内的 drop 由 SlotView 自己接住
+  // 落在坑位之外（标题条、参数面板）的文件：填入当前坑位；坑位内的 drop 由 SlotView 自己接住
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
@@ -93,17 +96,21 @@ function Shell() {
   };
 
   return (
-    <div className={['app', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')} data-platform={platform.kind} onDragOver={onDragOver} onDrop={onDrop}>
-      <TopBar />
-      <main className="panes">
+    <div
+      className="app"
+      data-platform={platform.kind}
+      data-os={platform.os ?? 'web'}
+      data-file-drag={dragging ? 'true' : 'false'}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {/* 无边框标题栏：只留一条透明拖动区给系统的三个圆点，没有标题、没有分隔线 */}
+      <div className="app__titlebar" aria-hidden="true" />
+      <main className="panes" style={paneWidth != null ? ({ '--tda-pane-split': `${paneWidth}px` } as CSSProperties) : undefined}>
         <ParamPane />
+        <PaneSplitter />
         <PreviewPane />
       </main>
-      {dragging && (
-        <div className="drop-overlay" aria-hidden="true">
-          <div className="drop-overlay__box">松开以打开文件</div>
-        </div>
-      )}
       <HelpPopover />
     </div>
   );

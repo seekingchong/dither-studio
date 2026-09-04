@@ -44,8 +44,14 @@ function createWindow(): BrowserWindow {
     height: 992,
     minWidth: 1180,
     minHeight: 720,
-    title: 'Dither Studio',
+    title: APP_NAME,
     show: false,
+    // 圆角由系统按窗口形状裁剪，应用侧用 --tda-radius-window 对齐；窗口底色取页面底色，
+    // 免得系统圆角比应用圆角小的时候在四角露出一圈不同的颜色。
+    backgroundColor: '#F9F9F9',
+    // macOS：隐藏标题栏（连带标题文字与那条分隔线），只把红黄绿三个圆点浮在内容上，
+    // 位置对齐 --tda-titlebar-height 那条透明拖动区。Windows / Linux 保留系统标题栏。
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hidden' as const, trafficLightPosition: { x: 16, y: 11 } } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

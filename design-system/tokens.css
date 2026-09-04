@@ -67,12 +67,15 @@
   --tda-radius-lg: 18px;      /* 浮窗、弹窗、模态类组件 */
   --tda-radius-xl: 22px;      /* 文件预览容器、全屏预览弹窗 */
   --tda-radius-full: 9999px;  /* 头像、圆形按钮、单选多选框 */
+  --tda-radius-window: 26px;  /* 应用窗口外框：对齐 macOS 26 的大圆角 */
 
   /* ---------- 组件尺寸（来自参照页面 home 1:2032） ---------- */
   --tda-control-height: 40px;      /* 按钮 / 下拉 / 输入框统一高度 */
   --tda-control-padding-x: 16px;
-  --tda-topbar-height: 58px;
+  --tda-titlebar-height: 36px;    /* 无边框标题栏：仅给红黄绿三个圆点留位，可拖动 */
   --tda-pane-padding-x: 46px;      /* 左右面板内边距 */
+  --tda-pane-min-width: 320px;     /* 左栏拖到最窄的宽度（与 state 的 PANE_WIDTH_MIN 一致） */
+  --tda-preview-min-width: 420px;  /* 左栏再宽也要给右侧预览留下的宽度 */
   --tda-tab-height: 48px;
   --tda-table-row-height: 44px;
   --tda-shadow-tile: 0 0.714px 0.714px rgba(0, 0, 0, 0.04);
