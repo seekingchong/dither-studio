@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 async function dropImage(page: Page) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -38,7 +39,7 @@ async function canvasHash(page: Page): Promise<number> {
 test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
-  await page.getByRole('tab', { name: '特效' }).click();
+  await openSection(page, 'effects');
   await expect(page.getByTestId('effects-editor')).toContainText('还没有特效');
   const base = await canvasHash(page);
 

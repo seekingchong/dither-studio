@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 async function dropImage(page: Page, width: number, height: number) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -59,7 +60,7 @@ test('像素尺寸按输入分辨率自适应，手动改过后不再覆盖', as
 test('影调滑块改变渲染结果', async ({ page }) => {
   await page.goto('/');
   await dropImage(page, 800, 500);
-  await page.getByRole('tab', { name: '影调' }).click();
+  await openSection(page, 'tone');
   const base = await lightRatio(page);
   await setSlider(page, 'tone.brightness', 60);
   await expect.poll(() => lightRatio(page)).toBeGreaterThan(base + 0.05);
@@ -73,7 +74,7 @@ test('影调滑块改变渲染结果', async ({ page }) => {
 test('噪点与描边的从属参数按条件出现', async ({ page }) => {
   await page.goto('/');
   await dropImage(page, 400, 250);
-  await page.getByRole('tab', { name: '影调' }).click();
+  await openSection(page, 'tone');
   await expect(page.locator('[data-param="tone.noiseType"]')).toHaveCount(0);
   await setSlider(page, 'tone.noise', 30);
   await expect(page.locator('[data-param="tone.noiseType"]')).toBeVisible();

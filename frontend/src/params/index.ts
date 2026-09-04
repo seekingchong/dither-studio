@@ -2,6 +2,7 @@ import { PARAM_SCHEMA } from './schema';
 import type { ParamDef, ParamValue, Params, VisibleWhen } from './types';
 
 export * from './types';
+export * from './help';
 export { PARAM_SCHEMA, DITHER_FAMILIES } from './schema';
 
 const byId = new Map<string, ParamDef>(PARAM_SCHEMA.map((p) => [p.id, p]));

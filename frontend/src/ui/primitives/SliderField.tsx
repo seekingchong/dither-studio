@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import type { HelpContent } from '@/ui/state/helpStore';
+import { HelpLabel } from './Help';
 
 interface SliderFieldProps {
   label: string;
@@ -12,10 +14,12 @@ interface SliderFieldProps {
   onCommit?: () => void;
   disabled?: boolean;
   'data-param'?: string;
+  /** 标签上的解读浮层 */
+  help?: HelpContent | null;
 }
 
 /** 滑块：与下拉同样 40px 高、同样描边圆角；标签 + 滑轨 + 可编辑数值 */
-export function SliderField({ label, value, min, max, step, unit, onChange, onCommit, disabled, ...rest }: SliderFieldProps) {
+export function SliderField({ label, value, min, max, step, unit, onChange, onCommit, disabled, help, ...rest }: SliderFieldProps) {
   const [text, setText] = useState(String(value));
   useEffect(() => setText(String(value)), [value]);
 
@@ -30,7 +34,9 @@ export function SliderField({ label, value, min, max, step, unit, onChange, onCo
 
   return (
     <label className={['tda-field tda-slider', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ')} {...rest}>
-      <span className="tda-field__label">{label}</span>
+      <HelpLabel content={help ?? null} className="tda-field__label">
+        {label}
+      </HelpLabel>
       <input
         type="range"
         className="tda-slider__range"

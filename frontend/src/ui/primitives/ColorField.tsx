@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import type { HelpContent } from '@/ui/state/helpStore';
+import { HelpLabel } from './Help';
 
 interface ColorFieldProps {
   label: string;
@@ -6,12 +8,14 @@ interface ColorFieldProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   'data-param'?: string;
+  /** 标签上的解读浮层 */
+  help?: HelpContent | null;
 }
 
 const HEX = /^#?([0-9a-fA-F]{6})$/;
 
 /** 颜色：标签 + 色块（点开系统取色器）+ 可编辑十六进制 */
-export function ColorField({ label, value, onChange, disabled, ...rest }: ColorFieldProps) {
+export function ColorField({ label, value, onChange, disabled, help, ...rest }: ColorFieldProps) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
 
@@ -23,7 +27,9 @@ export function ColorField({ label, value, onChange, disabled, ...rest }: ColorF
 
   return (
     <div className={['tda-field tda-color', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ')} {...rest}>
-      <span className="tda-field__label">{label}</span>
+      <HelpLabel content={help ?? null} className="tda-field__label">
+        {label}
+      </HelpLabel>
       <label className="tda-color__swatch" style={{ background: value }}>
         <input
           type="color"

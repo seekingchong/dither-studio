@@ -2,7 +2,8 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EFFECT_DEFS, defaultEffectInstance, parseStack, serializeStack, type EffectInstance, type EffectParamDef } from '@/engine';
 import { useStudioStore } from '@/state';
-import { IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
+import { HelpLabel, IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
+import { helpForEffect } from '@/ui/state/helpStore';
 
 const STACK_ID = 'effects.stack';
 
@@ -60,7 +61,9 @@ export function EffectsEditor() {
           <section key={`${inst.type}-${index}`} className={['effect-card', inst.enabled ? '' : 'is-disabled'].filter(Boolean).join(' ')} data-effect={inst.type}>
             <header className="effect-card__head">
               <span className="effect-card__index">{index + 1}</span>
-              <span className="effect-card__title">{def.label}</span>
+              <HelpLabel content={helpForEffect(def.id, def.label)} className="effect-card__title">
+                {def.label}
+              </HelpLabel>
               {def.hint && <span className="effect-card__hint">{def.hint}</span>}
               <label className="effect-card__switch">
                 <input type="checkbox" role="switch" checked={inst.enabled} onChange={(e) => update(index, { enabled: e.target.checked })} aria-label={`启用 ${def.label}`} />
@@ -81,7 +84,15 @@ export function EffectsEditor() {
         );
       })}
       <div className="effects__add">
-        <Select label="添加" value="" options={addOptions} onChange={add} data-param="effects.add" className="effects__add-select" />
+        <Select
+          label="添加"
+          value=""
+          options={addOptions}
+          onChange={add}
+          optionHelp={(o) => helpForEffect(o.value, o.label)}
+          data-param="effects.add"
+          className="effects__add-select"
+        />
       </div>
     </div>
   );

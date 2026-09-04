@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 async function dropColorImage(page: Page) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -43,7 +44,7 @@ async function distinctColors(page: Page): Promise<number> {
 test('五种颜色模式与色板预览', async ({ page }) => {
   await page.goto('/');
   await dropColorImage(page);
-  await page.getByRole('tab', { name: '颜色' }).click();
+  await openSection(page, 'color');
   await expect(page.getByTestId('color-preview')).toContainText('2 色');
   await expect.poll(() => distinctColors(page)).toBe(2);
 
@@ -78,7 +79,7 @@ test('五种颜色模式与色板预览', async ({ page }) => {
 test('Tint 双色与 Accent 层', async ({ page }) => {
   await page.goto('/');
   await dropColorImage(page);
-  await page.getByRole('tab', { name: '颜色' }).click();
+  await openSection(page, 'color');
   const dark = page.locator('[data-param="color.tint.dark"] .tda-color__hex');
   await dark.fill('#112233');
   await dark.press('Enter');

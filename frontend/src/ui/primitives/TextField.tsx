@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import type { HelpContent } from '@/ui/state/helpStore';
+import { HelpLabel } from './Help';
 
 interface TextFieldProps {
   label: string;
@@ -7,11 +9,13 @@ interface TextFieldProps {
   multiline?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  /** 标签上的解读浮层 */
+  help?: HelpContent | null;
   'data-param'?: string;
 }
 
 /** 文本：单行与下拉同框同高；多行是同样描边圆角的文本域（用于自定义扩散核） */
-export function TextField({ label, value, onChange, multiline, placeholder, disabled, ...rest }: TextFieldProps) {
+export function TextField({ label, value, onChange, multiline, placeholder, disabled, help, ...rest }: TextFieldProps) {
   const [text, setText] = useState(value);
   useEffect(() => setText(value), [value]);
   const commit = () => {
@@ -21,7 +25,9 @@ export function TextField({ label, value, onChange, multiline, placeholder, disa
   if (multiline) {
     return (
       <label className={['tda-field tda-textarea', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ')} {...rest}>
-        <span className="tda-field__label">{label}</span>
+        <HelpLabel content={help ?? null} className="tda-field__label">
+          {label}
+        </HelpLabel>
         <textarea
           className="tda-textarea__input"
           value={text}
@@ -39,7 +45,9 @@ export function TextField({ label, value, onChange, multiline, placeholder, disa
 
   return (
     <label className={['tda-field tda-text', disabled ? 'is-disabled' : ''].filter(Boolean).join(' ')} {...rest}>
-      <span className="tda-field__label">{label}</span>
+      <HelpLabel content={help ?? null} className="tda-field__label">
+          {label}
+        </HelpLabel>
       <input
         type="text"
         className="tda-text__input"

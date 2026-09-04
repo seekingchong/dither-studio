@@ -7,3 +7,4 @@ export { ToggleField } from './ToggleField';
 export { ColorField } from './ColorField';
 export { TextField } from './TextField';
 export { Toast, useToast } from './Toast';
+export { HelpLabel, HelpPopover, requestHelp, dismissHelp } from './Help';

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection, sectionLabels } from './helpers';
 
 async function dropImage(page: Page, slot = 0) {
   await page.locator(`[data-slot="${slot}"]`).waitFor();
@@ -46,16 +47,15 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('[data-preset="gameboy"]')).toHaveClass(/is-active/);
   await expect(familyValue(page)).toHaveText('有序');
   await expect(page.locator('[data-param="color.mode"] .tda-select__value')).toHaveText('Palette');
-  const groupTabs = page.getByTestId('params-module').getByRole('tab');
-  await expect(groupTabs).toHaveText(['像素化', '影调', '抖动算法', '颜色', '画布']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '画布']);
   await page.locator('[data-preset="dot-matrix"]').click();
-  await expect(groupTabs).toHaveText(['像素化', '影调', '抖动算法', '颜色', '画布', '网格']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '画布']);
   await page.locator('[data-preset="default"]').click();
-  await expect(groupTabs).toHaveText(['像素化', '影调', '抖动算法', '颜色', '画布', '网格', '特效']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '网格', '特效', '画布']);
 
   // 在 Game Boy 基础上微调 → 状态显示已微调，可还原
   await page.locator('[data-preset="gameboy"]').click();
-  await page.getByRole('tab', { name: '影调' }).click();
+  await openSection(page, 'tone');
   const brightness = page.locator('[data-param="tone.brightness"] input[type="range"]');
   await brightness.fill('20');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy · 已微调');
@@ -72,7 +72,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
-  await expect(groupTabs).toHaveText(['像素化', '影调', '抖动算法', '颜色', '画布']);
+  await expect(sectionLabels(page)).toHaveText(['基础', '影调', '颜色', '画布']);
 
   // 历史页：一条记录，带缩略图、来源与摘要
   await page.getByRole('tab', { name: '历史' }).click();
@@ -93,7 +93,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByTestId('preset-picker')).toBeVisible();
   await expect(familyValue(page)).toHaveText('有序');
-  await page.getByRole('tab', { name: '影调' }).click();
+  await openSection(page, 'tone');
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('20');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
 

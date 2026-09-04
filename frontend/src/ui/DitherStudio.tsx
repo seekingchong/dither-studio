@@ -3,6 +3,7 @@ import { usePlatform } from '@/platform';
 import { PreviewPane } from './canvas/PreviewPane';
 import { useOpenMedia } from './media/useOpenMedia';
 import { ParamPane } from './panel/ParamPane';
+import { HelpPopover } from './primitives/Help';
 import { RendererProvider } from './renderer/RendererContext';
 import { TopBar } from './TopBar';
 import { useExport } from './export/useExport';
@@ -103,6 +104,7 @@ function Shell() {
           <div className="drop-overlay__box">松开以打开文件</div>
         </div>
       )}
+      <HelpPopover />
     </div>
   );
 }

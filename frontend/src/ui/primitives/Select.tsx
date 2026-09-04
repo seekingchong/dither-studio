@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useHelpStore, type HelpContent } from '@/ui/state/helpStore';
+import { dismissHelp, HelpLabel, requestHelp } from './Help';
 import { Icon } from './Icon';
 
 export interface SelectOption<T extends string = string> {
@@ -15,6 +17,10 @@ interface SelectProps<T extends string> {
   className?: string;
   /** 标签固定宽度，默认 58px（Figma home 画板） */
   labelWidth?: number;
+  /** 标签上的解读浮层 */
+  help?: HelpContent | null;
+  /** 选项行上的解读浮层：选项太多时逐条解释就靠它 */
+  optionHelp?: (option: SelectOption<T>) => HelpContent | null;
   'data-param'?: string;
 }
 
@@ -22,7 +28,7 @@ interface SelectProps<T extends string> {
  * 下拉：标签和值在同一行、同一个框里（"预设模板  通用 ⌄"），标签淡、值深。
  * 弹层用 fixed 定位，避免被滚动容器裁剪。
  */
-export function Select<T extends string>({ label, value, options, onChange, disabled, className, labelWidth, ...rest }: SelectProps<T>) {
+export function Select<T extends string>({ label, value, options, onChange, disabled, className, labelWidth, help, optionHelp, ...rest }: SelectProps<T>) {
   const [open, setOpen] = useState(false);
   const [highlight, setHighlight] = useState(0);
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -69,6 +75,12 @@ export function Select<T extends string>({ label, value, options, onChange, disa
       window.removeEventListener('resize', close);
     };
   }, [open, close]);
+
+  // 下拉展开时不再弹属性解读，只留选项解读
+  useEffect(() => {
+    useHelpStore.getState().setSuppressed(open);
+    return () => useHelpStore.getState().setSuppressed(false);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -126,9 +138,9 @@ export function Select<T extends string>({ label, value, options, onChange, disa
         {...rest}
       >
         {label && (
-          <span className="tda-select__label" style={labelWidth ? { width: labelWidth } : undefined}>
+          <HelpLabel content={help ?? null} className="tda-select__label" style={labelWidth ? { width: labelWidth } : undefined}>
             {label}
-          </span>
+          </HelpLabel>
         )}
         <span className="tda-select__value">{current?.label ?? value}</span>
         <Icon name="chevron" size={12} className="tda-select__chevron" />
@@ -140,6 +152,7 @@ export function Select<T extends string>({ label, value, options, onChange, disa
           role="listbox"
           className="tda-popover"
           style={{ top: rect.top, left: rect.left, minWidth: rect.width }}
+          onPointerLeave={() => dismissHelp()}
         >
           {options.map((o, i) => (
             <div
@@ -147,7 +160,12 @@ export function Select<T extends string>({ label, value, options, onChange, disa
               role="option"
               aria-selected={o.value === value}
               className={['tda-popover__item', i === highlight ? 'is-highlight' : '', o.value === value ? 'is-selected' : ''].filter(Boolean).join(' ')}
-              onPointerEnter={() => setHighlight(i)}
+              onPointerEnter={(e) => {
+                setHighlight(i);
+                const content = optionHelp?.(o);
+                if (content) requestHelp(e.currentTarget, content);
+                else dismissHelp();
+              }}
               onClick={() => pick(o.value)}
             >
               <span className="tda-popover__text">{o.label}</span>

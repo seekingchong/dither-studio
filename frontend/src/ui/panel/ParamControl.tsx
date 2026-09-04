@@ -2,6 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { ParamDef } from '@/params';
 import { useStudioStore } from '@/state';
 import { ColorField, Select, SliderField, TextField, ToggleField } from '@/ui/primitives';
+import { helpForOption, helpForParam } from '@/ui/state/helpStore';
 
 interface ParamControlProps {
   def: ParamDef;
@@ -13,9 +14,20 @@ interface ParamControlProps {
 export function ParamControl({ def, label }: ParamControlProps) {
   const { value, setParam } = useStudioStore(useShallow((s) => ({ value: s.params[def.id], setParam: s.setParam })));
   const text = label ?? def.label;
+  const help = helpForParam(def, label);
   switch (def.type) {
     case 'select':
-      return <Select label={text} value={String(value)} options={def.options} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
+      return (
+        <Select
+          label={text}
+          value={String(value)}
+          options={def.options}
+          onChange={(v) => setParam(def.id, v)}
+          help={help}
+          optionHelp={(o) => helpForOption(def.id, o.value, o.label)}
+          data-param={def.id}
+        />
+      );
     case 'number':
       return (
         <SliderField
@@ -26,13 +38,14 @@ export function ParamControl({ def, label }: ParamControlProps) {
           step={def.step}
           unit={def.unit}
           onChange={(v) => setParam(def.id, v)}
+          help={help}
           data-param={def.id}
         />
       );
     case 'boolean':
-      return <ToggleField label={text} value={Boolean(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
+      return <ToggleField label={text} value={Boolean(value)} onChange={(v) => setParam(def.id, v)} help={help} data-param={def.id} />;
     case 'color':
-      return <ColorField label={text} value={String(value)} onChange={(v) => setParam(def.id, v)} data-param={def.id} />;
+      return <ColorField label={text} value={String(value)} onChange={(v) => setParam(def.id, v)} help={help} data-param={def.id} />;
     case 'effects':
       return null;
     case 'text':
@@ -44,6 +57,7 @@ export function ParamControl({ def, label }: ParamControlProps) {
             multiline={def.multiline}
             placeholder={def.placeholder}
             onChange={(v) => setParam(def.id, v)}
+            help={help}
             data-param={def.id}
           />
         </div>

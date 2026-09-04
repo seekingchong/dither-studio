@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 const GIF_B64 = readFileSync(fileURLToPath(new URL('./fixtures/anim.gif', import.meta.url))).toString('base64');
 
@@ -146,7 +147,7 @@ test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({
   });
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
   await pick(page, 'dither.family', '有序');
-  await page.getByRole('tab', { name: '网格' }).click();
+  await openSection(page, 'grid');
   await pick(page, 'grid.dot', '欧几里得网点');
   await expect.poll(() => page.getByTestId('preview-meta').textContent()).toContain('GPU');
   const gpuPixels = await canvasPixels(page);

@@ -1268,3 +1268,171 @@ button {
   font-family: var(--tda-font-family-latin);
   white-space: nowrap;
 }
+
+/* ---------- 可折叠分节（左栏参数不再分 tab） ---------- */
+
+.sections {
+  gap: var(--tda-spacing-xs);
+}
+
+.section--fold {
+  gap: 0;
+  border-top: 1px solid var(--tda-color-border);
+  padding-top: var(--tda-spacing-xs);
+}
+
+.section--fold:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.section__head {
+  margin: 0;
+}
+
+.section__toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+  width: calc(100% + var(--tda-spacing-md));
+  margin: 0 calc(-1 * var(--tda-spacing-sm));
+  padding: 0 var(--tda-spacing-sm);
+  height: 44px;
+  background: none;
+  border: 0;
+  border-radius: var(--tda-radius-md);
+  color: var(--tda-color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section__toggle:hover {
+  background: var(--tda-color-control-subtle);
+}
+
+.section__toggle:active {
+  background: var(--tda-color-control-muted);
+}
+
+.section__caret {
+  flex: none;
+  color: var(--tda-color-text-tertiary);
+  transform: rotate(-90deg);
+  transition: transform 0.15s;
+}
+
+.section--fold[data-open='true'] .section__caret {
+  transform: rotate(0deg);
+}
+
+.section__label {
+  flex: none;
+  font-size: var(--tda-typography-heading-sm-size);
+  line-height: var(--tda-typography-heading-sm-line);
+  font-weight: 600;
+}
+
+/* 收起时右侧显示当前值，展开后参数就在眼前，摘要没必要再占位 */
+.section__summary {
+  flex: 1;
+  min-width: 0;
+  color: var(--tda-color-text-tertiary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section--fold[data-open='true'] .section__summary {
+  display: none;
+}
+
+.section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-md);
+  padding: var(--tda-spacing-2xs) 0 var(--tda-spacing-lg);
+}
+
+/* ---------- 参数解读浮层 ---------- */
+
+/* 热区只有标签文字本身：整个控件都做热区的话，调滑块时浮层会一直跟着弹 */
+.has-help {
+  cursor: help;
+}
+
+.has-help:hover {
+  color: var(--tda-color-text-secondary);
+}
+
+.tda-help {
+  position: fixed;
+  z-index: 120;
+  box-sizing: border-box;
+  width: 300px;
+  padding: var(--tda-spacing-sm) var(--tda-spacing-md);
+  background: var(--tda-color-white);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-lg);
+  box-shadow: var(--tda-shadow-tile), 0 8px 24px rgba(17, 25, 45, 0.08);
+  opacity: 0;
+  transition: opacity 0.08s;
+}
+
+.tda-help[data-show='true'] {
+  opacity: 1;
+}
+
+.tda-help--option {
+  width: 260px;
+}
+
+.tda-help__title {
+  font-weight: 500;
+  color: var(--tda-color-text-primary);
+}
+
+.tda-help__summary {
+  margin: var(--tda-spacing-2xs) 0 0;
+  color: var(--tda-color-text-secondary);
+}
+
+.tda-help__values {
+  margin: var(--tda-spacing-sm) 0 0;
+  display: grid;
+  gap: var(--tda-spacing-xs);
+}
+
+.tda-help__value {
+  display: block;
+}
+
+.tda-help__value-name {
+  display: inline;
+  font-weight: 500;
+  color: var(--tda-color-text-primary);
+}
+
+.tda-help__value-desc {
+  display: inline;
+  margin: 0 0 0 var(--tda-spacing-2xs);
+  color: var(--tda-color-text-tertiary);
+}
+
+.tda-help__tip {
+  margin: var(--tda-spacing-sm) 0 0;
+  padding-top: var(--tda-spacing-sm);
+  border-top: 1px solid var(--tda-color-border);
+  color: var(--tda-color-text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tda-help {
+    transition: none;
+  }
+
+  .section__caret {
+    transition: none;
+  }
+}

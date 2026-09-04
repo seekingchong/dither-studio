@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 async function dropSyntheticImage(page: Page) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -48,7 +49,7 @@ const FAMILIES: Array<[string, string, string[]]> = [
 test('八个算法族逐一切换都能渲染且无错误提示', async ({ page }) => {
   await page.goto('/');
   await dropSyntheticImage(page);
-  await page.getByRole('tab', { name: '抖动算法' }).click();
+  await openSection(page, 'basic');
   for (const [family, paramId, algorithms] of FAMILIES) {
     await pick(page, 'dither.family', family);
     for (const algo of algorithms) {
@@ -66,7 +67,7 @@ test('八个算法族逐一切换都能渲染且无错误提示', async ({ page 
 test('自定义核文本域出现并可编辑', async ({ page }) => {
   await page.goto('/');
   await dropSyntheticImage(page);
-  await page.getByRole('tab', { name: '抖动算法' }).click();
+  await openSection(page, 'basic');
   await pick(page, 'dither.family', '误差扩散');
   await pick(page, 'dither.ed.kernel', '自定义核');
   const area = page.locator('[data-param="dither.ed.custom"] textarea');

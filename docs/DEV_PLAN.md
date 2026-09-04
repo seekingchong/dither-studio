@@ -1,6 +1,6 @@
 # Dither Studio 开发计划
 
-> 依据：`docs/PRD.md`、`docs/DESIGN.md`、`design-system/tokens.css`。
+> 依据：`docs/PRD.md`、`docs/DESIGN.md`、`docs/PARAM_HELP.md`、`design-system/tokens.css`。
 > 本文档是开发的唯一计划来源，每个里程碑完成后更新状态。
 
 ## 1. 目标与原则
@@ -42,10 +42,10 @@ dither-studio/
 │  │  │  ├─ effects/       后处理特效栈
 │  │  │  ├─ gpu/           WebGL 路径
 │  │  │  └─ worker.ts
-│  │  ├─ params/           参数 schema，PRD 每个参数一条记录
+│  │  ├─ params/           参数 schema + 解读文案，PRD 每个参数一条记录
 │  │  ├─ state/            zustand store、撤销重做、预设
 │  │  ├─ ui/               React 组件，根组件 <DitherStudio>
-│  │  │  ├─ panel/         参数面板，按 schema 生成控件
+│  │  │  ├─ panel/         参数面板：预设模块、可折叠分节、按 schema 生成控件
 │  │  │  ├─ canvas/        预览画布与坑位网格
 │  │  │  ├─ export/        导出与复制
 │  │  │  └─ primitives/    按钮、下拉、滑块、Tab 等设计系统组件
@@ -101,7 +101,11 @@ Electron 实现走 preload 的 `contextBridge`，web 实现走 File System Acces
 
 ### 4.3 参数 schema
 
-PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, step, default, options, visibleWhen }`。参数面板、预设序列化、撤销重做、自动调整全部从这张表推导。新增参数只加一条记录。
+PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, step, default, options, visibleWhen, advanced, hint }`。参数面板、预设序列化、撤销重做、自动调整全部从这张表推导。新增参数只加一条记录。
+
+每条记录另有一条解读文案，放在 `params/help.ts`，按 `id` 对齐：`{ summary, options?, tip? }`。参数标签的解读浮层、下拉选项行的逐值解读都从它生成；没有文案就退回 `hint`，两者都没有则不弹。新增参数要同时加 schema 记录和解读文案，`tests/engine/help.test.ts` 会拦下漏写、多写和对不上的选项。写作规范见 `docs/PARAM_HELP.md`。
+
+界面分节与 schema 分组是两回事：`group` 是数据归属（预设的 `exposes` 按它生效），左栏的分节在 `ui/panel/sections.ts` 里定义，一节可以收多个分组（「基础」= `dither` + `pixel`），个别参数还能按名单跨节提前（`color.mode` 归到「基础」）。改界面分组不动 schema，也不影响已存的用户预设。
 
 ### 4.4 状态与渲染
 
@@ -140,6 +144,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M7 视频与 GPU | 视频与 GIF 动图输入；逐帧预览；MP4 H.264 导出三档质量；WebGL 路径与 GPU 开关；HEIC 转码 | 导出文件可在 QuickTime 播放 |
 | M8 预设与体验 | 内置预设 7 个起；用户预设保存、重命名、删除；撤销重做与快捷键；浅深主题；全局设置：坑位 1 或 4、GPU 开关；4 坑位预览 | 截图 + 预设持久化测试 |
 | M9 发布 | electron-builder 打 dmg；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
+| M10 参数解读与左栏重构 | 每个参数、每个选项、每种特效都有解读浮层；左栏去掉分组 tab，改成预设模块 + 可折叠分节，算法族那一排并入「基础」 | 文案与 schema 一致性单测；解读浮层与分节的 Playwright 用例；刷新截图基线 |
 
 每个里程碑单独提交并推送到分支，M1 完成后你就能在本机跑起来看效果。
 
@@ -193,3 +198,4 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M7 | 已完成：视频（`<video>` + requestVideoFrameCallback，Worker 忙时丢帧）与 GIF 动图（WebCodecs ImageDecoder 逐帧）输入；播放 / 暂停 / 进度条；慢算法按上一帧耗时自动降到 50% / 25% 预览分辨率（格子数不变）；导出按 60 fps 时间线逐帧渲染 + WebCodecs 编码，优先 H.264 进 MP4（mp4-muxer），平台没有 H.264 编码器时降级 VP9 / VP8 进 WebM（webm-muxer），中 / 高 / 超高三档码率，可保存或复制为文件；WebGL2 路径覆盖有序抖动与网格渲染，设置里可关，失败自动回退 CPU；HEIC 经主进程 sips 转码（M0 已实现，需在 macOS 验证） |
 | M8 | 已完成：内置预设 10 个（Game Boy、Mac Classic、Newspaper、CRT、Blueprint、Risograph、Obra Dinn、Pixel Art、Zine、Dot Matrix）+「默认」；预设模块置于参数模块上方（不再拆成两个 tab）：先选一套方案，参数面板只露出这套方案具备的参数（每个内置预设声明 `exposes`），在它基础上微调后可起名存为我的预设（记住来源预设与结果缩略图），新预设出现在预设卡片和「历史」页；「历史」页列出保存过的所有方案（缩略图、时间、来源、算法 / 颜色摘要），可应用、更新、重命名、删除；经 `platform.storage` 持久化（Electron JSON 文件 / web localStorage）；撤销重做（同一参数 800ms 内合并、上限 100 步）与快捷键 Cmd+Z / Shift+Cmd+Z / Cmd+O / Cmd+S / Cmd+C / 空格；浅 / 深 / 跟随系统主题（`theme.css` 覆盖令牌）；设置弹层（坑位 1 或 4、GPU、主题）并持久化；4 坑位 2×2 预览各自拖拽与播放 |
 | M9 | 已完成（沙盒可做的部分）：应用图标与应用名 Dither Studio —— `build/icon.svg` 是设计导出的矢量源（圆角外形、四角透明），`npm run gen:icon` 渲染 1024 PNG 供 electron-builder 转 icns，应用内标志与 favicon 同步，productName / 窗口标题 / `app.setName` / 原生菜单 / 平台 manifest 一致；electron-builder 配置（dmg、`build/icon.png`、`frontend/dist` asarUnpack），Linux 上以 `--dir` 打包并冒烟通过；独立 web 目标；平台目标 + `scripts/check-platform-build.mjs`（构建后按平台 base 路径静态托管并无头渲染一次）已进 CI；`platform/manifest.yaml` 模板与 `scripts/package-platform.mjs` 打包骨架；README。待你本机：`npm run dist` 出 dmg 并打开 |
+| M10 | 已完成：参数解读浮层——停在参数标签上 400ms 弹出「一句话 + 各值解读 + 提示」，贴控件外侧不遮控件，键盘 `?` / `F1` 触发、`Esc` 收起，触屏点按展开；选项 >8 的下拉（算法、调色板、Bayer 矩阵）改由下拉选项行逐条解读，展开下拉时属性浮层让位；文案 95 条参数 + 9 种特效全覆盖，放在 `params/help.ts`，一致性检查进单测。左栏重构：删掉分组 tab，改成整栏一列的可折叠分节（默认只展开「基础」，收起时标题右侧显示当前值摘要），原本浮在 tab 之上的快捷参数整排并入「基础」，`color.mode` 也跟着过去，「颜色」节只留该模式的细节 |

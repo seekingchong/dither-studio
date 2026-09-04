@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { openSection } from './helpers';
 
 async function dropImage(page: Page) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -52,7 +53,7 @@ test('网点、间距、反向与背景都改变渲染', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await setSlider(page, 'pixel.size', 12);
-  await page.getByRole('tab', { name: '网格' }).click();
+  await openSection(page, 'grid');
   await expect.poll(() => paperInInkArea(page)).toBeLessThan(0.05);
 
   await pick(page, 'grid.dot', '欧几里得网点');
