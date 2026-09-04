@@ -4,21 +4,13 @@
  * 数值都是设计稿上的像素，界面按原尺寸画好之后整体缩放到窗口里。
  */
 
-/** 画板尺寸 */
+/**
+ * 画板尺寸。只有这一组要给 JS 用（算缩放比例、开窗大小），
+ * 其余分块尺寸（导航条 120、侧栏 234、卡片 360 等）都写在 interface-preview.css 里，
+ * 不在这儿留一份对不上的副本。
+ */
 export const FRAME_WIDTH = 1728;
 export const FRAME_HEIGHT = 1080;
-
-/** 左侧导航条（45:3224） */
-export const RAIL_WIDTH = 120;
-
-/** 技能库侧栏（45:3225）；浮层卡片挂在它上面、盖到右边内容区去 */
-export const SIDEBAR_WIDTH = 234;
-
-/** 应用详情卡片（45:3243）在侧栏里的位置与宽度 */
-export const CARD = { left: 210, top: 138, width: 360 };
-
-/** 卡片里的封面图容器「市场图1_封面」（45:3246） */
-export const COVER = { width: 342, height: 192.375 };
 
 /**
  * 封面图里的「video cover」容器（45:3247）——用户的视频 / 图片就放这儿。
