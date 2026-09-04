@@ -126,6 +126,54 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
   'tone.outlineThreshold': {
     summary: '多强的边缘才算数。调高只留主要轮廓，调低连细纹理也描。',
   },
+  'tone.bg.enabled': {
+    summary: '把干净的背景换成一片规则的点，前景和高光原样保留，深底浅底都行。',
+    tip: '背景要和画面边缘相连、颜色单一，淡渐变和轻微光影没关系。',
+  },
+  'tone.bg.density': {
+    summary: '背景里带点的格子比例。0–100%，默认 25。',
+    tip: 'Bayer 2×2 只有 0 / 25 / 50 / 75 / 100 五档，矩阵越大档位越细。',
+  },
+  'tone.bg.polarity': {
+    summary: '背景上的点是暗点还是亮点。',
+    options: {
+      auto: '按背景亮度自动：亮底放暗点，暗底放亮点',
+      light: '亮底暗点：背景当作纸色，点用墨色',
+      dark: '暗底亮点：背景当作墨色，点用纸色',
+    },
+    tip: '中灰背景自动判断可能摇摆，锁定一个就稳了。',
+  },
+  'tone.bg.strength': {
+    summary: '背景被铺平的程度。100 完全平坦、点最规则，低一些保留原有渐变和影子。0–100%。',
+  },
+  'tone.bg.margin': {
+    summary: '前景四周留几格不放点，主体边缘更干净。0–8 格，默认 0。',
+  },
+  'tone.bg.reference': {
+    summary: '背景是什么颜色，用来判断哪些格子算背景。',
+    options: {
+      auto: '每帧取画面边缘的中位色，干净背景下够稳',
+      manual: '手动指定，视频里背景闪动时更稳',
+    },
+  },
+  'tone.bg.color': {
+    summary: '手动指定的背景颜色，按原片里的颜色选。',
+  },
+  'tone.bg.tolerance': {
+    summary: '与背景色差多少以内还算背景。0–100%，默认 30。',
+    tip: '主体和背景颜色接近时调小，背景渐变大时调大。',
+  },
+  'tone.bg.smooth': {
+    summary: '相邻格子之间允许的颜色跳变，决定蒙版能否顺着渐变生长。默认 6。',
+    tip: '主体边缘柔和、被误算成背景时调小。',
+  },
+  'tone.bg.scope': {
+    summary: '哪些格子算背景。',
+    options: {
+      connected: '与画面边缘相连的同色区域，主体上的同色高光不算',
+      all: '全图同色都算，能盖到主体镂空处，但高光也会中招',
+    },
+  },
   'tone.linear': {
     summary: '在线性光里量化，抖动后的平均亮度与原图一致；关掉则在 gamma 空间量化，中间调更亮。',
     tip: '想还原老软件那种偏亮的味道就关掉它。',
