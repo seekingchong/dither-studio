@@ -1,6 +1,6 @@
 # Dither Studio 开发计划
 
-> 依据：`docs/PRD.md`、`docs/DESIGN.md`、`docs/PARAM_HELP.md`、`design-system/tokens.css`。
+> 依据：`docs/PRD.md`、`docs/DESIGN.md`、`docs/PARAM_HELP.md`、`docs/PREVIEW_SCALING.md`、`design-system/tokens.css`。
 > 本文档是开发的唯一计划来源，每个里程碑完成后更新状态。
 
 ## 1. 目标与原则
@@ -101,6 +101,10 @@ Electron 实现走 preload 的 `contextBridge`，web 实现走 File System Acces
 
 每个阶段是 `(buffer, params) => buffer` 的纯函数。Worker 收到参数后按阶段执行，参数没变的阶段复用缓存。
 
+抖动只在最终输出分辨率上计算，禁止"大图渲染再缩小"。预览缩放是引擎入参而不是 canvas/CSS 变换：
+预览要算 `dither(W×z, H×z)`，不是 `resize(dither(W,H), z)`；预览路径只允许整数最近邻放大，任何情况下不得降采样。
+导出尺寸若不是画布尺寸的整数倍，同样在导出尺寸上重算整条流水线。约束的推导与判定规则见 `docs/PREVIEW_SCALING.md`。
+
 ### 4.3 参数 schema
 
 PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, step, default, options, visibleWhen, advanced, hint }`。参数面板、预设序列化、撤销重做、自动调整全部从这张表推导。新增参数只加一条记录。
@@ -114,6 +118,8 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 - 单一 `params` 对象，不可变更新，订阅者是画布渲染器。
 - 撤销栈存参数快照，滑块拖动过程合并成一次记录。快捷键 Cmd+Z / Shift+Cmd+Z。
 - 渲染调度：参数变化后 16ms 内合并，取消上一次未完成的 Worker 任务。
+- 预览 canvas 按 devicePixelRatio 开 backing store（`canvas.width = cssW * dpr`），`image-rendering: pixelated` 仅在整数倍放大时启用。
+- 有效颗粒尺寸 `E = 像素尺寸 × 预览缩放 × dpr` 必须是 ≥1 的整数，UI 层负责保证，见 `docs/PREVIEW_SCALING.md`。
 - 多媒体坑位：`slots[]` 各自持有源媒体，共用同一套 `params`。1 个坑位单画布，4 个坑位 2×2 网格。
 
 ### 4.5 视频
@@ -137,7 +143,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 阶段 | 内容 | 验收 |
 |---|---|---|
 | M0 脚手架 | Electron + Vite + React + TS 工程，Vite 应用置于 `frontend/`；`VITE_BASE` 三个构建目标；tokens.css 接入；platform 接口与两套实现；zustand store 骨架；vitest 与 Playwright 配置；CI 脚本 | `npm run dev` 能起窗口，`npm test` 通过 |
-| M1 端到端 MVP | 打开图片、拖拽；像素化；固定阈值、Bayer 4×4、Floyd–Steinberg 三个算法；1-bit 黑白；画布缩放档位；导出 PNG、复制 PNG；UI 骨架按 home 画板：顶栏、左参数面板、右预览 | Playwright 截图与设计稿比对；三个算法单测快照 |
+| M1 端到端 MVP | 打开图片、拖拽；像素化；固定阈值、Bayer 4×4、Floyd–Steinberg 三个算法；1-bit 黑白；画布缩放档位（按每颗粒屏幕像素数，见 `docs/PREVIEW_SCALING.md`）；导出 PNG、复制 PNG；UI 骨架按 home 画板：顶栏、左参数面板、右预览 | Playwright 截图与设计稿比对；三个算法单测快照；各缩放档位下预览无摩尔纹 |
 | M2 算法全量 | 阈值 3、噪声 4、有序 13、半调 10、误差扩散 14 + 自定义核、曲线 4、点扩散与 DBS、图案 9，各族参数齐全 | 每个算法一个确定性输出快照测试 |
 | M3 影调与像素化 | 预处理全部 12 项；降采样 4 种方法；网格偏移；像素尺寸按输入分辨率自适应默认 | 单测 + 截图 |
 | M4 颜色系统 | 5 种颜色模式；灰阶级数；深度错配开关；13 组预设调色板；Tint 双色与色带；Accent 层全部参数 | 单测 + 截图 |
@@ -162,7 +168,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | # | 事项 | 我的建议 |
 |---|---|---|
 | 1 | 壳层用 Electron 还是 Tauri | Electron，理由见第 2 节 |
-| 2 | 画布默认缩放。PRD 写 10%，1000×600 的 10% 只有 100×60 像素 | 保留 10/25/50/100 四档，另加"适应窗口"档作为默认 |
+| 2 | 画布默认缩放。PRD 写 10%，1000×600 的 10% 只有 100×60 像素，且非整数倍缩放会产生摩尔纹格子（分析见 `docs/PREVIEW_SCALING.md`） | 缩放档位由百分比改为"每颗粒 N 个屏幕像素"（1×/2×/4×/8×）加"适应窗口"，从交互上排除非整数组合；若坚持保留百分比档位，则在有效颗粒尺寸非整数时自动吸附像素尺寸并提示 |
 | 3 | 字体。设计规范说 Inter 和 Roboto Mono 是 macOS 自带，实际 macOS 只自带 PingFang SC 和 SF Pro | 把 Inter 与 Roboto Mono 字体文件随应用打包，都是 OFL 协议，不产生外部请求；web 端同样打包 |
 | 4 | 深色主题。PRD 要浅深两套，设计规范只有浅色 | M8 通过覆盖 token 实现深色，色值我按墨色反转推导，你后续在 Figma 里校正 |
 | 5 | HEIC 输入。Chromium 不原生解码 | macOS 上主进程调用系统 `sips` 转 PNG，零依赖；web 端后续补 wasm 解码库 |
