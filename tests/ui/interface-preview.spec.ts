@@ -140,6 +140,43 @@ test('界面预览里的 video cover 跟着主窗口循环播放动图', async (
   expect((await coverSample(popup)).sum).toBe(paused);
 });
 
+test('界面整体等比缩放：任何窗口大小下都完整可见、居中、不出滚动条', async ({ page }) => {
+  await page.goto('/');
+  await dropSyntheticImage(page);
+  const popup = await openPreview(page);
+
+  for (const size of [
+    { width: 960, height: 600 },
+    { width: 1280, height: 800 },
+    { width: 760, height: 900 },
+    { width: 1728, height: 1080 },
+  ]) {
+    await popup.setViewportSize(size);
+    await popup.waitForTimeout(120);
+    const r = await popup.evaluate(() => {
+      const el = document.querySelector('.tdc-frame')!;
+      const b = el.getBoundingClientRect();
+      return {
+        left: b.left, top: b.top, width: b.width, height: b.height,
+        scrollW: document.documentElement.scrollWidth, scrollH: document.documentElement.scrollHeight,
+      };
+    });
+    const label = `${size.width}x${size.height}`;
+    // 完整可见：缩放后的画板落在窗口里，不被裁掉
+    expect(r.left, label).toBeGreaterThanOrEqual(-1);
+    expect(r.top, label).toBeGreaterThanOrEqual(-1);
+    expect(r.left + r.width, label).toBeLessThanOrEqual(size.width + 1);
+    expect(r.top + r.height, label).toBeLessThanOrEqual(size.height + 1);
+    // 等比：宽高比就是设计稿的 1728:1080
+    expect(r.width / r.height, label).toBeCloseTo(1728 / 1080, 2);
+    // 居中，且没撑出滚动条
+    expect(r.left, label).toBeCloseTo((size.width - r.width) / 2, 0);
+    expect(r.top, label).toBeCloseTo((size.height - r.height) / 2, 0);
+    expect(r.scrollW, label).toBeLessThanOrEqual(size.width + 1);
+    expect(r.scrollH, label).toBeLessThanOrEqual(size.height + 1);
+  }
+});
+
 test('再次双击同一个坑位复用同一扇预览窗口，不会越开越多', async ({ page, context }) => {
   await page.goto('/');
   await dropSyntheticImage(page);

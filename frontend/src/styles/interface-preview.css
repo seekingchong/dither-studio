@@ -5,17 +5,23 @@
    ============================================================ */
 
 .tdc-shell {
+  position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  display: grid;
-  place-items: center;
   background: var(--tda-color-background-page);
 }
 
-/* 画板本体：布局按 1728×1080 排，transform 只负责缩放 */
+/*
+ * 画板本体：布局按 1728×1080 排，transform 只负责缩放。
+ * 居中不能交给 grid / flex 的 place-items —— 元素的布局尺寸是缩放前的 1728×1080，
+ * 比窗口大，对齐就会退回 start（CSS 的溢出对齐保护），画板被顶到右下角还裁掉一截。
+ * 改成把布局盒的中心钉在窗口中心，再从中心缩放。
+ */
 .tdc-frame {
-  flex: none;
+  position: absolute;
+  left: 50%;
+  top: 50%;
   transform-origin: center center;
 }
 

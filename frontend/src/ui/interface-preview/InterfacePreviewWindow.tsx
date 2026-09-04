@@ -109,7 +109,7 @@ export function InterfacePreviewWindow({ slot }: { slot: number }) {
     <div className="tdc-shell">
       {/* scale 还没量出来（首帧）时先不画，免得闪一下 1:1 的大界面 */}
       {scale > 0 && (
-        <div className="tdc-frame" style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `scale(${scale})` }}>
+        <div className="tdc-frame" style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `translate(-50%, -50%) scale(${scale})` }}>
           <TdcHome cover={<canvas ref={canvasRef} className="tdc-cover__canvas" width={pixelWidth} height={pixelHeight} />} />
         </div>
       )}
