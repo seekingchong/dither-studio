@@ -201,6 +201,26 @@ test('视频裁剪：「原图」页上一条固定 3 秒的窗口，左右拖�
   await page.getByRole('button', { name: '关闭' }).click();
 });
 
+test('视频：暂停后拖动进度条，画面跟着走', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  const webm = await recordWebm(page);
+  await dropBytes(page, webm, 'clip.webm', 'video/webm');
+  await expect(page.getByTestId('transport')).toBeVisible();
+  await page.getByRole('button', { name: '暂停' }).click();
+  await expect(page.getByRole('button', { name: '播放' })).toBeVisible();
+  const range = page.locator('.transport__range');
+  // 录的片子 0.6 秒处由黑转白：按画面明暗断言，不受一帧早晚的影响
+  const luma = async () => {
+    const px = await canvasPixels(page);
+    return px.reduce((s, v) => s + v, 0) / px.length;
+  };
+  await range.fill('0.1');
+  await expect.poll(luma, { timeout: 5000 }).toBeLessThan(96);
+  await range.fill('0.9');
+  await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
+});
+
 test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-slot="0"]').waitFor();

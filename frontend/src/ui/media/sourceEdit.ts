@@ -85,7 +85,7 @@ export function editedSize(sourceWidth: number, sourceHeight: number, edit: Sour
   return { width: Math.max(1, Math.round(g.cropWidth)), height: Math.max(1, Math.round(g.cropHeight)) };
 }
 
-function intrinsicSize(source: CanvasImageSource): { width: number; height: number } {
+export function intrinsicSize(source: CanvasImageSource): { width: number; height: number } {
   if (typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement) return { width: source.videoWidth, height: source.videoHeight };
   const s = source as { width: number; height: number };
   return { width: s.width, height: s.height };
@@ -119,11 +119,25 @@ export function drawEditedInto(
   ctx.restore();
 }
 
-/** 变换后的源帧位图；没做过任何编辑时直接原样取帧，不多绕一次画布 */
-export async function editedBitmap(source: CanvasImageSource, edit: SourceEdit): Promise<ImageBitmap> {
-  if (isIdentityEdit(edit)) return createImageBitmap(source as ImageBitmapSource);
+/** 源帧变换后的画面尺寸，直接从源取内在尺寸 */
+export function editedSizeOf(source: CanvasImageSource, edit: SourceEdit): { width: number; height: number } {
+  const { width, height } = intrinsicSize(source);
+  return editedSize(width, height, edit);
+}
+
+/**
+ * 变换后的源帧位图；没做过任何编辑时直接原样取帧，不多绕一次画布。
+ * 给了 target 就一步缩到那个尺寸——流水线的 fitFrame 会因尺寸相同跳过整帧重采样，
+ * 浏览器的原生缩放比引擎里的 JS 重采样快一个数量级。
+ */
+export async function editedBitmap(source: CanvasImageSource, edit: SourceEdit, target?: { width: number; height: number } | null): Promise<ImageBitmap> {
+  if (isIdentityEdit(edit)) {
+    return target
+      ? createImageBitmap(source as ImageBitmapSource, { resizeWidth: target.width, resizeHeight: target.height, resizeQuality: 'high' })
+      : createImageBitmap(source as ImageBitmapSource);
+  }
   const { width: sw, height: sh } = intrinsicSize(source);
-  const size = editedSize(sw, sh, edit);
+  const size = target ?? editedSize(sw, sh, edit);
   const canvas = new OffscreenCanvas(size.width, size.height);
   const ctx = canvas.getContext('2d');
   if (!ctx) return createImageBitmap(source as ImageBitmapSource);

@@ -3,7 +3,7 @@ import { isAnimated, useStudioStore, type PreviewTab } from '@/state';
 import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
 import { trimRange, usePlaybackStore } from '@/ui/media/playback';
-import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { usePlaybackControls } from '@/ui/media/usePlaybackController';
 import { Button, IconButton, Tabs, Toast } from '@/ui/primitives';
 import { useUiStore } from '@/ui/state/uiStore';
 import { useRenderClient } from '@/ui/renderer/RendererContext';
@@ -15,7 +15,8 @@ function Transport({ slot }: { slot: number }) {
   const media = useStudioStore((s) => s.slots[slot]?.media ?? null);
   const entry = usePlaybackStore((s) => s.slots[slot]);
   const client = useRenderClient();
-  const { seek, toggle } = usePlaybackController(slot, isAnimated(media) ? media : null, null);
+  // 逐帧驱动挂在 SlotView 上，这里只要控制；两份驱动会重复抓帧，client 传 null 则暂停后拖进度不重渲染
+  const { seek, toggle } = usePlaybackControls(slot, isAnimated(media) ? media : null, client);
   if (!media || !isAnimated(media) || !entry || !client) return null;
   const duration = entry.duration || media.duration || 0;
   // 视频裁剪过之后，进度条就是那一段：min / max 跟着窗口走，拖不到裁掉的部分

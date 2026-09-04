@@ -43,4 +43,4 @@ export * from './effects';
 export { GpuContext, orderedDitherGpu, renderGridGpu } from './gpu';
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse, RenderOptions } from './protocol';
-export { scaleParamsForPreview, nextPreviewScale } from './preview';
+export { scaleParamsForPreview, captureSizeFor, pacePreview, PREVIEW_SCALES, PREVIEW_BUDGET_MS, INITIAL_PACER, type PreviewPacer } from './preview';
