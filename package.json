@@ -1,7 +1,7 @@
 {
   "name": "dither-studio",
   "private": true,
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Dither Studio — 抖动艺术工具（macOS 客户端，前端可发布 web / SkillForge）",
   "author": "seekingchong",
   "main": "electron/dist/main.cjs",
@@ -69,8 +69,7 @@
           "type": "link",
           "path": "/Applications"
         }
-      ],
-      "artifactName": "Dither-Studio-${version}-${arch}.dmg"
+      ]
     },
     "asarUnpack": [
       "frontend/dist/**/*"
