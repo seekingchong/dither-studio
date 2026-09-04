@@ -965,6 +965,41 @@ body.is-resizing * {
   border-color: var(--tda-color-text-secondary);
 }
 
+/*
+ * 坑位右上角的清空按钮：平时不显形，鼠标进坑位（或键盘 Tab 到它）才淡出来。
+ * 隐着的时候连指点事件一起关掉，免得留一个看不见却能点的按钮。
+ */
+.slot__remove {
+  position: absolute;
+  top: var(--tda-spacing-sm);
+  right: var(--tda-spacing-sm);
+  z-index: 2;
+  background: var(--tda-color-white);
+  border: 1px solid var(--tda-color-border);
+  color: var(--tda-color-text-secondary);
+  box-shadow: var(--tda-shadow-tile);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.slot:hover .slot__remove,
+.slot__remove:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.slot__remove:hover {
+  color: var(--tda-color-danger);
+  background: var(--tda-color-control-subtle);
+}
+
+/* 正在往窗口里拖文件时让位：这会儿要看的是"放哪个坑位" */
+.app[data-file-drag='true'] .slot__remove {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* 视口是滚动容器；用单格 grid 让舞台至少撑满视口、内容更大时随内容撑开，
    舞台再把画布居中：画布小于视口时居中留白，大于视口时滚动且初始滚到正中（见 SlotView） */
 .slot__viewport {

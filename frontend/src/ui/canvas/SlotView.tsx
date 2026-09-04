@@ -1,14 +1,14 @@
 import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { FitMode } from '@/engine';
-import { useStudioStore } from '@/state';
+import { releaseMedia, useStudioStore } from '@/state';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
 import { SourceEditBar } from '@/ui/media/SourceEditBar';
 import { useSourceEditStore } from '@/ui/media/sourceEdit';
 import { VideoTrim } from '@/ui/media/VideoTrim';
 import { openInterfacePreview } from '@/ui/interface-preview/openPreview';
-import { useToast } from '@/ui/primitives';
+import { IconButton, useToast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { DropZone } from './DropZone';
 import { SlotCanvas } from './SlotCanvas';
@@ -100,6 +100,16 @@ export function SlotView({ index }: SlotViewProps) {
     }
   };
 
+  /** 清空这个坑位：位图 / 视频元素一并释放，Worker 那边的源帧由 RendererProvider 跟着撤 */
+  const removeMedia = () => {
+    const store = useStudioStore.getState();
+    const previous = store.slots[index]?.media ?? null;
+    if (!previous) return;
+    store.setSlotMedia(index, null);
+    store.setActiveSlot(index);
+    releaseMedia(previous);
+  };
+
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
@@ -127,6 +137,19 @@ export function SlotView({ index }: SlotViewProps) {
       onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
+      {/* 鼠标进坑位才淡出来的清空按钮；空坑位不给，那儿本来就是拖拽区 */}
+      {media && (
+        <IconButton
+          icon="trash"
+          label="清空这个坑位"
+          className="tda-iconbtn--sm slot__remove"
+          data-testid={`slot-remove-${index}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            removeMedia();
+          }}
+        />
+      )}
       {/* 双击只认画面这块：底下的素材编辑条与裁剪条上双击不该弹预览窗 */}
       <div className="slot__viewport" ref={viewportRef} onDoubleClick={onDoubleClick}>
         <div className="slot__stage">

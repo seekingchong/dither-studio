@@ -18,6 +18,7 @@ export const SHORTCUTS: Array<{ keys: string[]; label: string }> = [
   { keys: [MOD_KEY, 'O'], label: '打开媒体' },
   { keys: [MOD_KEY, 'S'], label: '导出 PNG' },
   { keys: [MOD_KEY, 'C'], label: '复制当前帧 PNG（选中的坑位）' },
+  { keys: [MOD_KEY, 'V'], label: '粘贴图片 / 视频到选中的坑位' },
   { keys: [MOD_KEY, '⇧', 'E'], label: '导出视频' },
   { keys: [MOD_KEY, 'Z'], label: '撤销' },
   { keys: [MOD_KEY, '⇧', 'Z'], label: '重做' },

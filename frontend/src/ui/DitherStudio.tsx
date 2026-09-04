@@ -3,6 +3,7 @@ import { usePlatform } from '@/platform';
 import { useStudioStore } from '@/state';
 import { PreviewPane } from './canvas/PreviewPane';
 import { useOpenMedia } from './media/useOpenMedia';
+import { usePasteMedia } from './media/usePasteMedia';
 import { PaneSplitter } from './PaneSplitter';
 import { ParamPane } from './panel/ParamPane';
 import { HelpPopover } from './primitives/Help';
@@ -82,6 +83,7 @@ function Shell() {
   const actions = useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]);
   useShortcuts(actions);
   useMenuActions(actions);
+  usePasteMedia();
 
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;

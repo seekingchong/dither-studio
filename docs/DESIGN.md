@@ -124,6 +124,17 @@
 Home / End 到两端）。预览在这个窗口里循环，顶部进度条的 min / max 也跟着窗口走，导出视频只出这一段。
 视频短于 4 秒时窗口就是整段，滑不动。
 
+### 素材进出坑位
+
+三条路进：拖拽、⌘/Ctrl + O 打开、⌘/Ctrl + V 粘贴。粘贴走 `paste` 事件而不是 `navigator.clipboard.read()`——
+后者要权限、在 Electron 里还得额外配；前者是用户按下 ⌘V 时浏览器直接给的，不用要权限。
+访达里复制的文件落在 `clipboardData.files`，网页上「复制图片」只有 `clipboardData.items`（而且是没名字的 blob，
+按 MIME 补一个文件名再往下走），两条都认。焦点在输入框里时不接管，那儿要粘的是文字。
+
+出：鼠标移到坑位上，右上角淡出一个清空按钮（`.slot__remove`，藏着的时候连指点事件一起关掉，
+不留看不见却能点的按钮），点一下把 `setSlotMedia(i, null)`，位图与 `<video>` 由 `releaseMedia` 释放，
+Worker 那边的源帧和最后一帧由 `RendererProvider` 跟着撤。
+
 ### 界面预览
 
 双击任一坑位弹出一扇新窗口，里面是 Figma「书庆」文件画板 `tdc home`（node 45:3223）的静态复刻：
