@@ -63,6 +63,11 @@ export class RenderClient {
     return this.inflight.has(slot);
   }
 
+  /** 该坑位既没有排队也没有在途的渲染，最近一帧就是当前参数的结果 */
+  isSettled(slot: number): boolean {
+    return !this.pending.has(slot) && !this.inflight.has(slot);
+  }
+
   render(slot: number, params: Params, options?: RenderOptions) {
     this.pending.set(slot, { params, options });
     if (!this.scheduled) {

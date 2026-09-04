@@ -1,21 +1,30 @@
 import { create } from 'zustand';
 import { coerceParam, defaultParams, getParamDef, sanitizeParams, type ParamValue, type Params } from '@/params';
-import { sanitizeUserPresets, type UserPreset } from './presets';
+import { DEFAULT_PRESET_ID, sanitizeUserPresets, type UserPreset } from './presets';
 import { DEFAULT_SETTINGS, type LoadedMedia, type PreviewTab, type Settings, type Slot, type SlotCount, type ZoomLevel } from './types';
 
 /** 同一参数连续变化在此间隔内合并成一条撤销记录（滑块拖动） */
 export const HISTORY_COALESCE_MS = 800;
 export const HISTORY_LIMIT = 100;
 
+/** 撤销栈里的一条记录：参数 + 当时所基于的预设 */
+export interface Snapshot {
+  params: Params;
+  presetId: string;
+}
+
 export interface StudioState {
   /** 单一参数对象，不可变更新 */
   params: Params;
+  /** 当前方案所基于的预设（内置或用户预设 id）；微调参数不改变它，重新选预设才改变 */
+  presetId: string;
   setParam(id: string, value: ParamValue): void;
   setParams(patch: Partial<Params>): void;
-  replaceParams(next: unknown): void;
+  /** 整体替换参数；传 presetId 表示这是在应用某个预设 */
+  replaceParams(next: unknown, presetId?: string): void;
   resetParams(): void;
 
-  history: { past: Params[]; future: Params[]; lastEditId: string | null; lastEditAt: number };
+  history: { past: Snapshot[]; future: Snapshot[]; lastEditId: string | null; lastEditAt: number };
   undo(): void;
   redo(): void;
 
@@ -43,7 +52,7 @@ function makeSlots(count: SlotCount, previous: Slot[] = []): Slot[] {
 type HistoryState = StudioState['history'];
 
 /** 把当前参数压入撤销栈；同一参数短时间内连续变化只记一次 */
-function pushHistory(history: HistoryState, current: Params, editId: string | null, now: number): HistoryState {
+function pushHistory(history: HistoryState, current: Snapshot, editId: string | null, now: number): HistoryState {
   const coalesce = editId !== null && history.lastEditId === editId && now - history.lastEditAt < HISTORY_COALESCE_MS && history.past.length > 0;
   if (coalesce) return { ...history, lastEditAt: now, future: [] };
   const past = history.past.length >= HISTORY_LIMIT ? history.past.slice(1) : history.past.slice();
@@ -51,17 +60,20 @@ function pushHistory(history: HistoryState, current: Params, editId: string | nu
   return { past, future: [], lastEditId: editId, lastEditAt: now };
 }
 
+const snapshot = (state: Pick<StudioState, 'params' | 'presetId'>): Snapshot => ({ params: state.params, presetId: state.presetId });
+
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 export const useStudioStore = create<StudioState>((set) => ({
   params: defaultParams(),
+  presetId: DEFAULT_PRESET_ID,
   setParam: (id, value) =>
     set((state) => {
       const def = getParamDef(id);
       const next = coerceParam(def, value);
       if (state.params[id] === next) return state;
       const view = id === 'pixel.size' && state.view.autoPixelSize ? { ...state.view, autoPixelSize: false } : state.view;
-      return { params: { ...state.params, [id]: next }, view, history: pushHistory(state.history, state.params, id, now()) };
+      return { params: { ...state.params, [id]: next }, view, history: pushHistory(state.history, snapshot(state), id, now()) };
     }),
   setParams: (patch) =>
     set((state) => {
@@ -76,16 +88,21 @@ export const useStudioStore = create<StudioState>((set) => ({
         }
       }
       if (!changed) return state;
-      return { params, history: pushHistory(state.history, state.params, null, now()) };
+      return { params, history: pushHistory(state.history, snapshot(state), null, now()) };
     }),
-  replaceParams: (next) =>
+  replaceParams: (next, presetId) =>
     set((state) => {
       const params = sanitizeParams(next);
       const view = 'pixel.size' in ((next ?? {}) as object) ? { ...state.view, autoPixelSize: false } : state.view;
-      return { params, view, history: pushHistory(state.history, state.params, null, now()) };
+      return { params, presetId: presetId ?? state.presetId, view, history: pushHistory(state.history, snapshot(state), null, now()) };
     }),
   resetParams: () =>
-    set((state) => ({ params: defaultParams(), view: { ...state.view, autoPixelSize: true }, history: pushHistory(state.history, state.params, null, now()) })),
+    set((state) => ({
+      params: defaultParams(),
+      presetId: DEFAULT_PRESET_ID,
+      view: { ...state.view, autoPixelSize: true },
+      history: pushHistory(state.history, snapshot(state), null, now()),
+    })),
 
   history: { past: [], future: [], lastEditId: null, lastEditAt: 0 },
   undo: () =>
@@ -93,13 +110,13 @@ export const useStudioStore = create<StudioState>((set) => ({
       const past = state.history.past.slice();
       const previous = past.pop();
       if (!previous) return state;
-      return { params: previous, history: { past, future: [state.params, ...state.history.future], lastEditId: null, lastEditAt: 0 } };
+      return { ...previous, history: { past, future: [snapshot(state), ...state.history.future], lastEditId: null, lastEditAt: 0 } };
     }),
   redo: () =>
     set((state) => {
       const [next, ...future] = state.history.future;
       if (!next) return state;
-      return { params: next, history: { past: [...state.history.past, state.params], future, lastEditId: null, lastEditAt: 0 } };
+      return { ...next, history: { past: [...state.history.past, snapshot(state)], future, lastEditId: null, lastEditAt: 0 } };
     }),
 
   slots: makeSlots(DEFAULT_SETTINGS.slotCount),

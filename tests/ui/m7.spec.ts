@@ -116,7 +116,7 @@ test('视频：播放预览与导出 WebM', async ({ page }) => {
   await page.getByRole('button', { name: '开始导出' }).click();
   await expect(page.getByTestId('export-video-status')).toContainText(/VP9|VP8|H\.264/, { timeout: 90_000 });
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: '保存' }).click();
+  await page.getByRole('button', { name: '保存', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^clip-dither\.(webm|mp4)$/);
   const file = readFileSync((await download.path())!);

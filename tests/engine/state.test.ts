@@ -1,10 +1,24 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { PARAM_SCHEMA, defaultParams, sanitizeParams } from '@/params';
-import { BUILTIN_PRESETS, HISTORY_COALESCE_MS, HISTORY_LIMIT, sanitizeSettings, sanitizeUserPresets, useStudioStore } from '@/state';
+import { PARAM_SCHEMA, defaultParams, getParamDef, sanitizeParams } from '@/params';
+import {
+  BUILTIN_PRESETS,
+  DEFAULT_PRESET_ID,
+  HISTORY_COALESCE_MS,
+  HISTORY_LIMIT,
+  builtinPresetParams,
+  findBuiltinPreset,
+  isParamExposed,
+  resolveBase,
+  sanitizeSettings,
+  sanitizeUserPresets,
+  summarizeParams,
+  useStudioStore,
+} from '@/state';
 
 function reset() {
   useStudioStore.setState({
     params: defaultParams(),
+    presetId: DEFAULT_PRESET_ID,
     history: { past: [], future: [], lastEditId: null, lastEditAt: 0 },
     view: { zoom: 'fit', tab: 'result', activeSlot: 0, autoPixelSize: true },
     presets: [],
@@ -77,6 +91,25 @@ describe('撤销 / 重做', () => {
     useStudioStore.getState().undo();
     expect(useStudioStore.getState().params['dither.family']).toBe('ordered');
   });
+
+  it('应用预设记录来源，微调不改变来源，撤销 / 重做连同来源一起回退', () => {
+    const s = useStudioStore.getState();
+    const gameboy = findBuiltinPreset('gameboy')!;
+    s.replaceParams(builtinPresetParams(gameboy), 'gameboy');
+    expect(useStudioStore.getState().presetId).toBe('gameboy');
+    s.setParam('tone.brightness', 12);
+    expect(useStudioStore.getState().presetId).toBe('gameboy');
+    useStudioStore.getState().undo();
+    expect(useStudioStore.getState().presetId).toBe('gameboy');
+    useStudioStore.getState().undo();
+    expect(useStudioStore.getState().presetId).toBe(DEFAULT_PRESET_ID);
+    expect(useStudioStore.getState().params['dither.family']).toBe('error-diffusion');
+    useStudioStore.getState().redo();
+    expect(useStudioStore.getState().presetId).toBe('gameboy');
+    expect(useStudioStore.getState().params['dither.ordered.matrix']).toBe('bayer4');
+    s.resetParams();
+    expect(useStudioStore.getState().presetId).toBe(DEFAULT_PRESET_ID);
+  });
 });
 
 describe('预设与设置', () => {
@@ -93,10 +126,51 @@ describe('预设与设置', () => {
     expect(new Set(BUILTIN_PRESETS.map((p) => p.id)).size).toBe(BUILTIN_PRESETS.length);
   });
 
+  it('每个内置预设覆盖的参数都在它自己露出的范围内；「默认」露出全部分组', () => {
+    expect(BUILTIN_PRESETS[0].id).toBe(DEFAULT_PRESET_ID);
+    for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
+    for (const preset of BUILTIN_PRESETS) {
+      expect(preset.exposes.length).toBeGreaterThan(0);
+      for (const id of Object.keys(preset.params)) {
+        expect(isParamExposed(getParamDef(id), preset.exposes), `${preset.id} 设置了 ${id} 却没有露出它`).toBe(true);
+      }
+      // 每套方案都能改算法、颜色模式、像素尺寸与画布尺寸
+      for (const id of ['dither.family', 'color.mode', 'pixel.size', 'canvas.width']) {
+        expect(isParamExposed(getParamDef(id), preset.exposes), `${preset.id} 应露出 ${id}`).toBe(true);
+      }
+    }
+    // 风格预设不露出与它无关的分组
+    expect(isParamExposed(getParamDef('effects.stack'), findBuiltinPreset('gameboy')!.exposes)).toBe(false);
+    expect(isParamExposed(getParamDef('grid.dot'), findBuiltinPreset('gameboy')!.exposes)).toBe(false);
+    expect(isParamExposed(getParamDef('grid.dot'), findBuiltinPreset('dot-matrix')!.exposes)).toBe(true);
+    expect(isParamExposed(getParamDef('effects.stack'), findBuiltinPreset('crt')!.exposes)).toBe(true);
+  });
+
+  it('用户预设按来源解析参数范围，来源缺失或非法时退回「默认」', () => {
+    const users = [
+      { id: 'u1', name: 'A', params: defaultParams(), createdAt: 1, base: 'gameboy' },
+      { id: 'u2', name: 'B', params: defaultParams(), createdAt: 1 },
+    ];
+    expect(resolveBase('u1', users).id).toBe('gameboy');
+    expect(resolveBase('u2', users).id).toBe(DEFAULT_PRESET_ID);
+    expect(resolveBase('nope', users).id).toBe(DEFAULT_PRESET_ID);
+    expect(resolveBase('crt', users).id).toBe('crt');
+    expect(summarizeParams(builtinPresetParams(findBuiltinPreset('gameboy')!))).toBe('有序 · Bayer 4×4 · Palette · 像素 4');
+  });
+
   it('用户预设与设置的存储校验', () => {
-    const list = sanitizeUserPresets([{ id: 'a', name: 'x'.repeat(100), params: { 'pixel.size': 3 }, createdAt: 5 }, { bad: true }, null, { id: 1 }]);
-    expect(list.length).toBe(1);
+    const list = sanitizeUserPresets([
+      { id: 'a', name: 'x'.repeat(100), params: { 'pixel.size': 3 }, createdAt: 5, base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9 },
+      { id: 'b', name: 'y', params: {}, createdAt: 1, base: 'not-a-preset', thumbnail: 'javascript:alert(1)' },
+      { bad: true },
+      null,
+      { id: 1 },
+    ]);
+    expect(list.length).toBe(2);
     expect(list[0].name.length).toBe(60);
+    expect(list[0]).toMatchObject({ base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9 });
+    expect(list[1].base).toBeUndefined();
+    expect(list[1].thumbnail).toBeUndefined();
     expect(sanitizeUserPresets('nope')).toEqual([]);
     expect(sanitizeSettings({ slotCount: 4, gpu: false, theme: 'dark' })).toEqual({ slotCount: 4, gpu: false, theme: 'dark' });
     expect(sanitizeSettings({ slotCount: 3, theme: 'purple' })).toEqual({ slotCount: 1, gpu: true, theme: 'light' });

@@ -1071,6 +1071,132 @@ button {
   background: var(--tda-color-control-muted);
 }
 
+/* 选中的方案：橙色描边 + 名称（规范：brand-primary 只留给"当前选中"） */
+.preset-card.is-active {
+  border-color: var(--tda-color-brand-primary);
+  box-shadow: inset 0 0 0 1px var(--tda-color-brand-primary);
+}
+
+.preset-card.is-active .preset-card__name {
+  color: var(--tda-color-brand-primary);
+}
+
+.preset-card--user .preset-card__hint {
+  color: var(--tda-color-text-secondary);
+}
+
+.preset-status {
+  margin: 0;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+}
+
+/* ---------- 历史 ---------- */
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-sm);
+}
+
+.history-item {
+  display: flex;
+  gap: var(--tda-spacing-md);
+  padding: var(--tda-spacing-sm);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-lg);
+  background: var(--tda-color-white);
+}
+
+.history-item.is-active {
+  border-color: var(--tda-color-brand-primary);
+}
+
+.history-item__thumb {
+  flex: none;
+  width: 160px;
+  height: 96px;
+  padding: 0;
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-md);
+  background: var(--tda-color-background-page);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: var(--tda-color-text-disabled);
+  cursor: pointer;
+}
+
+.history-item__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+  display: block;
+}
+
+.history-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-xs);
+}
+
+.history-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tda-spacing-sm);
+}
+
+.history-item__name {
+  margin: 0;
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+}
+
+.history-item__tag {
+  flex: none;
+  padding: 0 var(--tda-spacing-2xs);
+  border-radius: var(--tda-radius-sm);
+  background: var(--tda-color-brand-secondary);
+  color: var(--tda-color-brand-primary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  font-weight: 500;
+}
+
+.history-item__meta {
+  margin: 0;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-2xs);
+  margin-top: auto;
+}
+
+.tda-btn--sm {
+  height: 32px;
+  padding: 0 var(--tda-spacing-sm);
+}
+
 .preset-card__name {
   font-family: var(--tda-font-family-latin);
   font-weight: 500;

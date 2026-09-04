@@ -55,9 +55,15 @@ export function Select<T extends string>({ label, value, options, onChange, disa
       close();
     };
     window.addEventListener('pointerdown', onPointer, true);
-    window.addEventListener('scroll', onScroll, true);
     window.addEventListener('resize', close);
+    // 点击触发器前浏览器可能刚把它滚进视口，那个 scroll 事件要到下一帧才派发；
+    // 这时就监听会把刚打开的弹层关掉，所以等一帧再开始监听滚动
+    let raf: number | 0 = requestAnimationFrame(() => {
+      raf = 0;
+      window.addEventListener('scroll', onScroll, true);
+    });
     return () => {
+      if (raf) cancelAnimationFrame(raf);
       window.removeEventListener('pointerdown', onPointer, true);
       window.removeEventListener('scroll', onScroll, true);
       window.removeEventListener('resize', close);
