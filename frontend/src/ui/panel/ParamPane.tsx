@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
 import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
-import { isAnimated, isParamExposed, resolveBase, useStudioStore } from '@/state';
-import { useExport } from '@/ui/export/useExport';
-import { Button, Icon, Tabs } from '@/ui/primitives';
+import { isParamExposed, resolveBase, useStudioStore } from '@/state';
+import { Icon, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
@@ -28,7 +27,8 @@ interface SectionContent {
  * 参数不再分 tab：整栏一列，每节可折叠、收起时显示当前值摘要。
  * 默认只展开「基础」，其余按需打开，几节之间的关系一眼可见，也不用来回切 tab 找参数。
  * 画布尺寸 / 适配在预览区右上角的「画布」菜单里，不在这儿。
- * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留导出与设置。
+ * 导出也不在这儿：唯一的导出按钮在预览头里，跟着媒体类型在「导出图片」/「导出视频」之间切。
+ * 打开 / 复制 PNG / 撤销 / 重做只走快捷键与系统菜单（「设置」里有一览），操作行只留页签与设置。
  */
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
@@ -36,8 +36,6 @@ export function ParamPane() {
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
   const [paneTab, setPaneTab] = useState<PaneTab>('params');
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({ basic: true });
-  const { canExport, exportPng } = useExport();
-  const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
 
   const family = String(params['dither.family']) as DitherFamily;
   const algorithmId = FAMILY_PARAM[family];
@@ -85,12 +83,7 @@ export function ParamPane() {
           value={paneTab}
           onChange={setPaneTab}
         />
-        <div className="btn-group">
-          <Button variant={animated ? 'secondary' : 'primary'} icon="download" disabled={!canExport} onClick={() => void exportPng()}>
-            导出 PNG
-          </Button>
-          <SettingsMenu />
-        </div>
+        <SettingsMenu />
       </div>
 
       <div className="pane-content">

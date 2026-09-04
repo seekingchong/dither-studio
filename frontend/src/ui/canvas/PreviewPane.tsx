@@ -69,7 +69,7 @@ export function PreviewPane() {
       setTab: s.setTab,
     })),
   );
-  const { canExport } = useExport();
+  const { canExport, exportPng } = useExport();
   const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
   const { videoDialog, setVideoDialog } = useUiStore(useShallow((s) => ({ videoDialog: s.exportVideoOpen, setVideoDialog: s.setExportVideoOpen })));
   const multi = slots.length > 1;
@@ -80,13 +80,20 @@ export function PreviewPane() {
         <Tabs items={PREVIEW_TABS} value={tab} onChange={setTab} />
         {multi ? <GroupTransport /> : <Transport slot={activeSlot} />}
         <div className="preview-tools">
-          {/* 缩放、画布尺寸与适配都在这个菜单里；「导出视频」紧挨着放在它右侧 */}
+          {/* 缩放、画布尺寸与适配都在这个菜单里；导出按钮紧挨着放在它右侧 */}
           <CanvasMenu />
-          {animated && (
-            <Button variant="primary" icon="film" disabled={!canExport} onClick={() => setVideoDialog(true)}>
-              导出视频
-            </Button>
-          )}
+          {/*
+           * 唯一的导出入口：跟着当前坑位的媒体类型换文案与去处——
+           * 视频 / GIF 走导出视频对话框，图片直接存 PNG。左栏不再另放一个导出按钮。
+           */}
+          <Button
+            variant="primary"
+            icon={animated ? 'film' : 'download'}
+            disabled={!canExport}
+            onClick={() => (animated ? setVideoDialog(true) : void exportPng())}
+          >
+            {animated ? '导出视频' : '导出图片'}
+          </Button>
         </div>
       </div>
       <div className={['preview-body', multi ? 'preview-body--grid' : ''].filter(Boolean).join(' ')}>

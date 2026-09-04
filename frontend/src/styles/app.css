@@ -65,9 +65,15 @@ button {
   height: 0;
 }
 
+/*
+ * 标题条底部的分隔线：把可拖动区与下面的内容分开。
+ * 只在标题条真有高度时画——高度为 0 的平台（web / 非 macOS）没有可分隔的东西，
+ * 而且那条线会落在整窗大圆角的裁剪区里，两头缺一截。
+ */
 .app[data-platform='electron'][data-os='darwin'] .app__titlebar {
   height: var(--tda-titlebar-height);
   -webkit-app-region: drag;
+  border-bottom: 1px solid var(--tda-color-border);
 }
 
 .panes {
@@ -109,8 +115,13 @@ button {
 
 .pane-splitter {
   flex: none;
-  width: 1px;
-  /* 命中区比可见的那条线宽，好抓；用外扩的 margin 抵消掉多占的宽度 */
+  /*
+   * 可见的只有中间 1px（背景裁到 content-box），两侧 4px padding 是命中区，好抓；
+   * 外扩的 margin 把多占的宽度抵消掉，布局上仍只占 1px。
+   * box-sizing 是 border-box，所以宽度要写「线宽 + 两侧 padding」，
+   * 直接写 1px 会把 content-box 压成 0，那条线就画不出来了。
+   */
+  width: 9px;
   margin: 0 -4px;
   padding: 0 4px;
   background-clip: content-box;
@@ -233,13 +244,6 @@ body.is-resizing * {
   flex-wrap: wrap;
   gap: var(--tda-spacing-md);
   padding: 20px var(--tda-pane-padding-x);
-}
-
-.btn-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--tda-spacing-sm);
 }
 
 .pane-content {

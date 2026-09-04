@@ -59,7 +59,9 @@ test('空态：无顶栏，设置在左栏操作行，参数面板与拖拽区',
   await expect(page.locator('.topbar')).toHaveCount(0);
   await expect(page.locator('.pane--params .pane-actions').getByTestId('settings-button')).toBeVisible();
   await expect(page.getByTestId('preview-meta')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: '导出 PNG' })).toBeDisabled();
+  // 导出只有预览头里那一个按钮，图片时叫「导出图片」；左栏一个导出按钮都没有
+  await expect(page.locator('.pane--preview').getByRole('button', { name: '导出图片' })).toBeDisabled();
+  await expect(page.locator('.pane--params').getByRole('button', { name: /导出/ })).toHaveCount(0);
   await expect(page).toHaveScreenshot('m1-empty.png', screenshotOptions(page));
 });
 
@@ -128,13 +130,13 @@ test('原图 / 结果切换与像素尺寸滑块', async ({ page }) => {
   await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('16');
 });
 
-test('导出 PNG 触发下载，Ctrl+C 复制当前帧 PNG 到剪贴板', async ({ page, context }) => {
+test('导出图片触发 PNG 下载，Ctrl+C 复制当前帧 PNG 到剪贴板', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-write', 'clipboard-read']);
   await page.goto('/');
   await dropSyntheticImage(page);
 
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: '导出 PNG' }).click();
+  await page.getByRole('button', { name: '导出图片' }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('sample-dither.png');
   const path = await download.path();
