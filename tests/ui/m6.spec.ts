@@ -40,15 +40,20 @@ test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) 
   await dropImage(page);
   await page.getByRole('tab', { name: '特效' }).click();
   await expect(page.getByTestId('effects-editor')).toContainText('还没有特效');
+  // 特效选项全部露出为芯片，不是下拉
+  const chips = page.getByTestId('effects-add').getByRole('button');
+  await expect(chips).toHaveCount(9);
+  await expect(page.locator('[data-param="effects.add"]')).toHaveCount(0);
   const base = await canvasHash(page);
 
-  await pick(page, 'effects.add', '扫描线 / CRT');
+  await page.getByTestId('effects-add').getByRole('button', { name: '扫描线 / CRT' }).click();
+  await expect(page.locator('[data-effect-add="scanlines"]')).toHaveClass(/is-used/);
   await expect(page.locator('.effect-card')).toHaveCount(1);
   await expect(page.locator('.effect-card').first()).toContainText('扫描线 / CRT');
   await expect.poll(() => canvasHash(page)).not.toBe(base);
   const withScan = await canvasHash(page);
 
-  await pick(page, 'effects.add', '波形');
+  await page.getByTestId('effects-add').getByRole('button', { name: '波形' }).click();
   await expect(page.locator('.effect-card')).toHaveCount(2);
   await expect.poll(() => canvasHash(page)).not.toBe(withScan);
   const scanThenWave = await canvasHash(page);

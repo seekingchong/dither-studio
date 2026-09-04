@@ -11,7 +11,6 @@ import {
   buildToneCurve,
   gaussianBlur,
   sobelMagnitude,
-  suggestPixelSize,
   type RGBFrame,
 } from '@/engine';
 import { makeFrame } from './helpers';
@@ -184,14 +183,6 @@ describe('applyTone', () => {
   it('DEFAULT_TONE 与 schema 默认值一致（恒等）', () => {
     expect(DEFAULT_TONE.brightness).toBe(0);
     expect(DEFAULT_TONE.outlineThreshold).toBeCloseTo(0.2, 5);
-  });
-});
-
-describe('像素尺寸自适应', () => {
-  it('小图 2、中图 3、大图 4', () => {
-    expect(suggestPixelSize(640, 480)).toBe(2);
-    expect(suggestPixelSize(1200, 800)).toBe(3);
-    expect(suggestPixelSize(1000, 2400)).toBe(4);
   });
 });
 

@@ -39,7 +39,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
 
   // ---------- 像素化 ----------
-  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 64, step: 1, default: 4 },
+  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4 },
   {
     id: 'pixel.method',
     group: 'pixel',
@@ -105,7 +105,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
 
   // ---------- 抖动算法 ----------
-  { id: 'dither.family', group: 'dither', label: '算法族', type: 'select', default: 'error-diffusion', options: DITHER_FAMILIES },
+  { id: 'dither.family', group: 'dither', label: '算法族', type: 'select', default: 'ordered', options: DITHER_FAMILIES },
 
   // 阈值
   {
@@ -140,7 +140,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     group: 'dither',
     label: '矩阵',
     type: 'select',
-    default: 'bayer4',
+    default: 'bayer2',
     visibleWhen: fam('ordered'),
     options: [
       opt('bayer2', 'Bayer 2×2'),
@@ -346,12 +346,13 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     group: 'color',
     label: '颜色模式',
     type: 'select',
-    default: 'tint',
+    default: 'mono',
     options: [opt('mono', '单色'), opt('gray', '灰阶'), opt('tint', 'Tint'), opt('palette', 'Palette'), opt('channels', 'Channels')],
   },
   { id: 'color.levels', group: 'color', label: '灰阶级数', type: 'number', min: 2, max: 16, step: 1, default: 2, visibleWhen: { id: 'color.mode', in: ['gray', 'tint', 'channels'] } },
-  { id: 'color.tint.dark', group: 'color', label: '暗色', type: 'color', default: '#000000', visibleWhen: { id: 'color.mode', equals: 'tint' } },
-  { id: 'color.tint.light', group: 'color', label: '亮色', type: 'color', default: '#FFFFFF', visibleWhen: { id: 'color.mode', equals: 'tint' } },
+  // 单色 / 灰阶 / Tint 共用两端颜色：单色就是这两色，灰阶在两色之间等分，Tint 再在中间加站点
+  { id: 'color.tint.dark', group: 'color', label: '暗色', type: 'color', default: '#000000', visibleWhen: { id: 'color.mode', in: ['mono', 'gray', 'tint'] } },
+  { id: 'color.tint.light', group: 'color', label: '亮色', type: 'color', default: '#FFFFFF', visibleWhen: { id: 'color.mode', in: ['mono', 'gray', 'tint'] } },
   {
     id: 'color.tint.stops',
     group: 'color',
@@ -360,6 +361,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     default: '',
     placeholder: '可选的中间色，如 #FF6200 #004AB8',
     visibleWhen: { id: 'color.mode', equals: 'tint' },
+    advanced: true,
   },
   {
     id: 'color.palette.preset',
@@ -397,6 +399,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     default: '#11192D #7C889C #FF6200 #F9F9F9',
     placeholder: '#RRGGBB 列表，空格分隔',
     visibleWhen: [{ id: 'color.mode', equals: 'palette' }, { id: 'color.palette.preset', equals: 'custom' }],
+    advanced: true,
   },
   {
     id: 'color.mismatch',

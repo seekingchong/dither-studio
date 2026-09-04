@@ -112,6 +112,13 @@ describe('颜色映射', () => {
     expect(lin[3]).toBeGreaterThan(170);
   });
 
+  it('单色 / 灰阶的两端颜色可调，灰阶在两端之间等分', () => {
+    const mono = buildLevelPalette({ ...base, mode: 'mono', levels: 7, tintDark: '#102030', tintLight: '#F0E0D0' });
+    expect(Array.from(mono)).toEqual([16, 32, 48, 240, 224, 208]);
+    const gray = buildLevelPalette({ ...base, mode: 'gray', levels: 3, tintDark: '#000000', tintLight: '#FF0000' });
+    expect(Array.from(gray)).toEqual([0, 0, 0, 128, 0, 0, 255, 0, 0]);
+  });
+
   it('Tint 色带经过中间站点', () => {
     expect(sampleRamp([[0, 0, 0], [255, 0, 0], [255, 255, 255]], 0.5)).toEqual([255, 0, 0]);
     const lut = buildLevelPalette({ ...base, mode: 'tint', levels: 3, tintStops: ['#FF0000'] });

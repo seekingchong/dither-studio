@@ -2,6 +2,12 @@ import type { SVGProps } from 'react';
 
 export type IconName = 'chevron' | 'check' | 'image' | 'folder' | 'copy' | 'download' | 'plus' | 'logo' | 'close' | 'up' | 'down' | 'trash' | 'play' | 'pause' | 'settings' | 'film' | 'undo' | 'redo' | 'save' | 'edit' | 'star';
 
+/**
+ * 齿轮：6 齿外轮廓 + 中心孔，几何由半径与角度算出（外径 7、齿根 5、孔 2.1），线条在 16–18px 下不糊成一团。
+ * 生成方式见 scripts/gen-gear-icon.mjs。
+ */
+const GEAR_PATH = 'M6.66 1.13L9.34 1.13L9.63 3.27L11.28 4.23L13.28 3.41L14.62 5.72L12.91 7.05L12.91 8.95L14.62 10.28L13.28 12.59L11.28 11.77L9.63 12.73L9.34 14.87L6.66 14.87L6.37 12.73L4.72 11.77L2.72 12.59L1.38 10.28L3.09 8.95L3.09 7.05L1.38 5.72L2.72 3.41L4.72 4.23L6.37 3.27ZM8 5.9a2.1 2.1 0 1 0 0 4.2a2.1 2.1 0 1 0 0 -4.2z';
+
 const PATHS: Record<IconName, string> = {
   chevron: 'M3 4.5l3 3 3-3',
   check: 'M2.5 6.5l2.5 2.5 4.5-5',
@@ -17,7 +23,7 @@ const PATHS: Record<IconName, string> = {
   trash: 'M3 4.5h10M6.5 4.5v-1h3v1M4.5 4.5l.7 8.5h5.6l.7-8.5M6.8 7v4M9.2 7v4',
   play: 'M5 3.5v9l7-4.5z',
   pause: 'M5 3.5v9M11 3.5v9',
-  settings: 'M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM13.2 9.6l1.1.7-1.2 2.1-1.3-.4a4.8 4.8 0 0 1-1.4.8L10.1 14H5.9l-.3-1.2a4.8 4.8 0 0 1-1.4-.8l-1.3.4-1.2-2.1 1.1-.7a5 5 0 0 1 0-1.6l-1.1-.7 1.2-2.1 1.3.4a4.8 4.8 0 0 1 1.4-.8L5.9 2h4.2l.3 1.2c.5.2 1 .5 1.4.8l1.3-.4 1.2 2.1-1.1.7a5 5 0 0 1 0 1.6z',
+  settings: GEAR_PATH,
   film: 'M2.5 3.5h11v9h-11zM2.5 6h11M2.5 10h11M5.5 3.5v9M10.5 3.5v9',
   undo: 'M6 4L2.5 7.5 6 11M2.5 7.5h7a4 4 0 0 1 0 8H8',
   redo: 'M10 4l3.5 3.5L10 11M13.5 7.5h-7a4 4 0 0 0 0 8H8',

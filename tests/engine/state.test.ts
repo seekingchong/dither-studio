@@ -20,7 +20,7 @@ function reset() {
     params: defaultParams(),
     presetId: DEFAULT_PRESET_ID,
     history: { past: [], future: [], lastEditId: null, lastEditAt: 0 },
-    view: { zoom: 'fit', tab: 'result', activeSlot: 0, autoPixelSize: true },
+    view: { zoom: 'fit', tab: 'result', activeSlot: 0 },
     presets: [],
   });
 }
@@ -77,19 +77,17 @@ describe('撤销 / 重做', () => {
     expect(useStudioStore.getState().history.past.length).toBeLessThanOrEqual(HISTORY_LIMIT);
   });
 
-  it('replaceParams / resetParams 进历史，自动像素尺寸不进', () => {
+  it('replaceParams / resetParams 进历史', () => {
     const s = useStudioStore.getState();
-    s.applySuggestedPixelSize(3);
-    expect(useStudioStore.getState().params['pixel.size']).toBe(3);
-    expect(useStudioStore.getState().history.past.length).toBe(0);
-    s.replaceParams({ 'pixel.size': 6, 'dither.family': 'ordered' });
+    expect(useStudioStore.getState().params['pixel.size']).toBe(4);
+    s.replaceParams({ 'pixel.size': 6, 'dither.family': 'error-diffusion' });
     expect(useStudioStore.getState().history.past.length).toBe(1);
-    expect(useStudioStore.getState().view.autoPixelSize).toBe(false);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(6);
     s.resetParams();
     expect(useStudioStore.getState().history.past.length).toBe(2);
-    expect(useStudioStore.getState().view.autoPixelSize).toBe(true);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(4);
     useStudioStore.getState().undo();
-    expect(useStudioStore.getState().params['dither.family']).toBe('ordered');
+    expect(useStudioStore.getState().params['dither.family']).toBe('error-diffusion');
   });
 
   it('应用预设记录来源，微调不改变来源，撤销 / 重做连同来源一起回退', () => {
@@ -103,7 +101,8 @@ describe('撤销 / 重做', () => {
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     useStudioStore.getState().undo();
     expect(useStudioStore.getState().presetId).toBe(DEFAULT_PRESET_ID);
-    expect(useStudioStore.getState().params['dither.family']).toBe('error-diffusion');
+    expect(useStudioStore.getState().params['dither.ordered.matrix']).toBe('bayer2');
+    expect(useStudioStore.getState().params['color.mode']).toBe('mono');
     useStudioStore.getState().redo();
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     expect(useStudioStore.getState().params['dither.ordered.matrix']).toBe('bayer4');

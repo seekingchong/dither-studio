@@ -126,6 +126,22 @@ test('视频：播放预览与导出 WebM', async ({ page }) => {
   expect(head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3 ? 'webm' : head.toString('latin1').includes('ftyp') ? 'mp4' : 'unknown').not.toBe('unknown');
 });
 
+async function setSlider(page: Page, id: string, value: number) {
+  const input = page.locator(`[data-param="${id}"] .tda-slider__input`);
+  await input.fill(String(value));
+  await input.press('Enter');
+}
+
+/** 切 GPU 开关不会让流水线缓存失效：把阈值改一下再改回来，逼它按当前开关把同一套参数重算一遍 */
+async function recompute(page: Page) {
+  const before = await canvasHash(page);
+  await setSlider(page, 'tone.threshold', 129);
+  await expect.poll(() => canvasHash(page)).not.toBe(before);
+  const nudged = await canvasHash(page);
+  await setSlider(page, 'tone.threshold', 128);
+  await expect.poll(() => canvasHash(page)).not.toBe(nudged);
+}
+
 test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({ page }) => {
   await page.goto('/');
   await page.locator('[data-slot="0"]').waitFor();
@@ -145,14 +161,20 @@ test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({
     document.querySelector('[data-slot="0"]')!.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
-  await pick(page, 'dither.family', '有序');
+  // 默认就是有序 Bayer 2×2（抖动阶段走 GPU）；换成欧几里得网点让渲染阶段也走 GPU
+  await expect(page.locator('[data-param="dither.ordered.matrix"]')).toContainText('Bayer 2×2');
   await page.getByRole('tab', { name: '网格' }).click();
+  const squares = await canvasHash(page);
   await pick(page, 'grid.dot', '欧几里得网点');
+  await expect.poll(() => canvasHash(page)).not.toBe(squares);
+  await recompute(page);
   await expect.poll(() => page.getByTestId('preview-meta').textContent()).toContain('GPU');
   const gpuPixels = await canvasPixels(page);
 
   await page.getByTestId('settings-button').click();
   await page.locator('[data-param="settings.gpu"]').click();
+  await page.keyboard.press('Escape');
+  await recompute(page);
   await expect.poll(() => page.getByTestId('preview-meta').textContent()).not.toContain('GPU');
   const cpuPixels = await canvasPixels(page);
 

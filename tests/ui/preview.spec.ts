@@ -54,7 +54,9 @@ async function pick(page: Page, paramId: string, optionLabel: string) {
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
 }
 
+/** 缩放在「画布」菜单里：没开就先打开 */
 async function setZoom(page: Page, label: string) {
+  if ((await page.getByTestId('canvas-menu').count()) === 0) await page.getByTestId('canvas-menu-button').click();
   await page.locator('.preview-zoom').click();
   await page.getByRole('option', { name: label, exact: true }).click();
 }

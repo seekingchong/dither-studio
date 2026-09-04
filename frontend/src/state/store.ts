@@ -31,12 +31,10 @@ export interface StudioState {
   slots: Slot[];
   setSlotMedia(index: number, media: LoadedMedia | null): void;
 
-  view: { zoom: ZoomLevel; tab: PreviewTab; activeSlot: number; autoPixelSize: boolean };
+  view: { zoom: ZoomLevel; tab: PreviewTab; activeSlot: number };
   setZoom(zoom: ZoomLevel): void;
   setTab(tab: PreviewTab): void;
   setActiveSlot(index: number): void;
-  /** 载入媒体时按输入分辨率建议像素尺寸；用户手动改过就不再覆盖 */
-  applySuggestedPixelSize(size: number): void;
 
   settings: Settings;
   setSettings(patch: Partial<Settings>): void;
@@ -72,8 +70,7 @@ export const useStudioStore = create<StudioState>((set) => ({
       const def = getParamDef(id);
       const next = coerceParam(def, value);
       if (state.params[id] === next) return state;
-      const view = id === 'pixel.size' && state.view.autoPixelSize ? { ...state.view, autoPixelSize: false } : state.view;
-      return { params: { ...state.params, [id]: next }, view, history: pushHistory(state.history, snapshot(state), id, now()) };
+      return { params: { ...state.params, [id]: next }, history: pushHistory(state.history, snapshot(state), id, now()) };
     }),
   setParams: (patch) =>
     set((state) => {
@@ -93,14 +90,12 @@ export const useStudioStore = create<StudioState>((set) => ({
   replaceParams: (next, presetId) =>
     set((state) => {
       const params = sanitizeParams(next);
-      const view = 'pixel.size' in ((next ?? {}) as object) ? { ...state.view, autoPixelSize: false } : state.view;
-      return { params, presetId: presetId ?? state.presetId, view, history: pushHistory(state.history, snapshot(state), null, now()) };
+      return { params, presetId: presetId ?? state.presetId, history: pushHistory(state.history, snapshot(state), null, now()) };
     }),
   resetParams: () =>
     set((state) => ({
       params: defaultParams(),
       presetId: DEFAULT_PRESET_ID,
-      view: { ...state.view, autoPixelSize: true },
       history: pushHistory(state.history, snapshot(state), null, now()),
     })),
 
@@ -128,18 +123,10 @@ export const useStudioStore = create<StudioState>((set) => ({
       return { slots };
     }),
 
-  view: { zoom: 'fit', tab: 'result', activeSlot: 0, autoPixelSize: true },
+  view: { zoom: 'fit', tab: 'result', activeSlot: 0 },
   setZoom: (zoom) => set((state) => ({ view: { ...state.view, zoom } })),
   setTab: (tab) => set((state) => ({ view: { ...state.view, tab } })),
   setActiveSlot: (activeSlot) => set((state) => (state.view.activeSlot === activeSlot ? state : { view: { ...state.view, activeSlot } })),
-  applySuggestedPixelSize: (size) =>
-    set((state) => {
-      if (!state.view.autoPixelSize) return state;
-      const next = coerceParam(getParamDef('pixel.size'), size);
-      if (state.params['pixel.size'] === next) return state;
-      // 自动建议不进撤销栈
-      return { params: { ...state.params, 'pixel.size': next } };
-    }),
 
   settings: DEFAULT_SETTINGS,
   setSettings: (patch) =>

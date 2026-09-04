@@ -1,9 +1,10 @@
 import { useShallow } from 'zustand/react/shallow';
-import { isAnimated, useStudioStore, ZOOM_LEVELS, type PreviewTab, type ZoomLevel } from '@/state';
+import { isAnimated, useStudioStore, type PreviewTab } from '@/state';
 import { formatTime, usePlaybackStore } from '@/ui/media/playback';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
-import { IconButton, Select, Tabs, Toast } from '@/ui/primitives';
+import { IconButton, Tabs, Toast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
+import { CanvasMenu } from './CanvasMenu';
 import { SlotView } from './SlotView';
 
 /** 播放 / 暂停 + 进度条，只在当前坑位是视频或 GIF 时出现 */
@@ -54,23 +55,19 @@ function GroupTransport() {
   );
 }
 
-const ZOOM_OPTIONS = ZOOM_LEVELS.map((z) => ({ value: String(z), label: z === 'fit' ? '适应窗口' : `${Math.round(z * 100)}%` }));
-
 const PREVIEW_TABS: Array<{ id: PreviewTab; label: string }> = [
   { id: 'result', label: '结果' },
   { id: 'source', label: '原图' },
 ];
 
 export function PreviewPane() {
-  const { slots, zoom, tab, activeSlot, width, height, setZoom, setTab } = useStudioStore(
+  const { slots, tab, activeSlot, width, height, setTab } = useStudioStore(
     useShallow((s) => ({
       slots: s.slots,
-      zoom: s.view.zoom,
       tab: s.view.tab,
       activeSlot: s.view.activeSlot,
       width: Number(s.params['canvas.width']),
       height: Number(s.params['canvas.height']),
-      setZoom: s.setZoom,
       setTab: s.setTab,
     })),
   );
@@ -93,14 +90,8 @@ export function PreviewPane() {
               {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms${previewNote}${gpuNote}` : ''}
             </span>
           )}
-          <Select
-            label="缩放"
-            value={String(zoom)}
-            options={ZOOM_OPTIONS}
-            onChange={(v) => setZoom(v === 'fit' ? 'fit' : (Number(v) as ZoomLevel))}
-            labelWidth={36}
-            className="preview-zoom"
-          />
+          {/* 缩放、画布尺寸与适配都在这个菜单里 */}
+          <CanvasMenu />
         </div>
       </div>
       <div className={['preview-body', multi ? 'preview-body--grid' : ''].filter(Boolean).join(' ')}>

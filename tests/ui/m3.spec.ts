@@ -43,17 +43,20 @@ async function lightRatio(page: Page): Promise<number> {
   });
 }
 
-test('像素尺寸按输入分辨率自适应，手动改过后不再覆盖', async ({ page }) => {
+test('像素尺寸默认 4、范围 1–16，载入媒体不改它', async ({ page }) => {
   await page.goto('/');
   const range = page.locator('[data-param="pixel.size"] .tda-slider__range');
+  await expect(range).toHaveValue('4');
+  await expect(range).toHaveAttribute('min', '1');
+  await expect(range).toHaveAttribute('max', '16');
   await dropImage(page, 400, 250);
-  await expect(range).toHaveValue('2');
+  await expect(range).toHaveValue('4');
   await dropImage(page, 2400, 1500);
   await expect(range).toHaveValue('4');
-  await setSlider(page, 'pixel.size', 6);
-  await expect(range).toHaveValue('6');
-  await dropImage(page, 400, 250);
-  await expect(range).toHaveValue('6');
+  await setSlider(page, 'pixel.size', 99);
+  await expect(range).toHaveValue('16');
+  await setSlider(page, 'pixel.size', 0);
+  await expect(range).toHaveValue('1');
 });
 
 test('影调滑块改变渲染结果', async ({ page }) => {

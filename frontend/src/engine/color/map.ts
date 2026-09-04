@@ -12,6 +12,7 @@ export interface ColorMapOptions {
   levels: number;
   /** 抖动在线性光里进行时，等级的显示值要转回 sRGB */
   linear: boolean;
+  /** 单色 / 灰阶 / Tint 的两端颜色（#RRGGBB）：单色就是这两色，灰阶在两色间按级数等分 */
   tintDark: string;
   tintLight: string;
   /** Tint 色带的中间站点（#RRGGBB） */
@@ -67,11 +68,14 @@ export function buildLevelPalette(opts: ColorMapOptions): Uint8ClampedArray {
     }
     case 'mono':
     case 'gray':
-    default:
+    default: {
+      // 两端默认黑白时与纯灰阶一致；等级位置仍按显示空间取值，线性模式下平均亮度与原图一致
+      const ramp: Array<[number, number, number]> = [hexToRgb(opts.tintDark), hexToRgb(opts.tintLight)];
       for (let i = 0; i < levels; i++) {
-        const v = levelDisplayValue(i, levels, opts.linear) * 255;
-        put(i, v, v, v);
+        const [r, g, b] = sampleRamp(ramp, levelDisplayValue(i, levels, opts.linear));
+        put(i, r, g, b);
       }
+    }
   }
   return lut;
 }

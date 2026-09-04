@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EFFECT_DEFS, defaultEffectInstance, parseStack, serializeStack, type EffectInstance, type EffectParamDef } from '@/engine';
 import { useStudioStore } from '@/state';
-import { IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
+import { Icon, IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
 
 const STACK_ID = 'effects.stack';
 
@@ -28,7 +28,7 @@ function EffectParamControl({ def, value, onChange }: { def: EffectParamDef; val
   }
 }
 
-/** 特效栈编辑器：可添加、启用、上下移动、删除；每个实例按定义生成控件 */
+/** 特效栈编辑器：全部特效以选项芯片露出，点一下即添加；已添加的实例可启用、上下移动、删除，按定义生成控件 */
 export function EffectsEditor() {
   const { json, setParam } = useStudioStore(useShallow((s) => ({ json: s.params[STACK_ID], setParam: s.setParam })));
   const stack = useMemo(() => parseStack(json), [json]);
@@ -43,16 +43,33 @@ export function EffectsEditor() {
   };
   const remove = (index: number) => write(stack.filter((_, i) => i !== index));
   const add = (type: string) => {
-    if (type === '') return;
     const inst = defaultEffectInstance(type);
     if (inst) write([...stack, inst]);
   };
-
-  const addOptions = [{ value: '', label: '选择特效…' }, ...EFFECT_DEFS.map((d) => ({ value: d.id, label: d.label }))];
+  const countOf = (type: string) => stack.filter((e) => e.type === type).length;
 
   return (
     <div className="effects" data-testid="effects-editor">
-      {stack.length === 0 && <p className="effects__empty">还没有特效。从下面添加，特效按列表顺序依次应用。</p>}
+      <div className="effects__add" data-testid="effects-add" role="group" aria-label="添加特效">
+        {EFFECT_DEFS.map((def) => {
+          const n = countOf(def.id);
+          return (
+            <button
+              key={def.id}
+              type="button"
+              className={['effect-chip', n > 0 ? 'is-used' : ''].filter(Boolean).join(' ')}
+              data-effect-add={def.id}
+              title={def.hint ? `${def.hint}（点击添加）` : '点击添加'}
+              onClick={() => add(def.id)}
+            >
+              <Icon name="plus" size={12} />
+              {def.label}
+              {n > 0 && <span className="effect-chip__count">{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {stack.length === 0 && <p className="effects__empty">还没有特效。点上面的选项添加，特效按列表顺序依次应用。</p>}
       {stack.map((inst, index) => {
         const def = EFFECT_DEFS.find((d) => d.id === inst.type);
         if (!def) return null;
@@ -80,9 +97,6 @@ export function EffectsEditor() {
           </section>
         );
       })}
-      <div className="effects__add">
-        <Select label="添加" value="" options={addOptions} onChange={add} data-param="effects.add" className="effects__add-select" />
-      </div>
     </div>
   );
 }

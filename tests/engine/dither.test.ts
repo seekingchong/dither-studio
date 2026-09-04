@@ -72,8 +72,9 @@ describe('Floyd–Steinberg', () => {
 });
 
 describe('registry', () => {
-  it('默认参数解析到 Floyd–Steinberg', () => {
-    expect(resolveAlgorithm(defaultParams()).id).toBe('floyd-steinberg');
+  it('默认参数解析到 Bayer 2×2', () => {
+    expect(resolveAlgorithm(defaultParams()).id).toBe('bayer2');
+    expect(resolveAlgorithm({ ...defaultParams(), 'dither.family': 'error-diffusion' }).id).toBe('floyd-steinberg');
   });
   it('未知组合回退到固定阈值', () => {
     const params = { ...defaultParams(), 'dither.family': 'ordered', 'dither.ordered.matrix': 'nope' };
