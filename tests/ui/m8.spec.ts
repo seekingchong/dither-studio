@@ -71,6 +71,24 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await page.getByRole('button', { name: '还原' }).click();
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
   await expect(page.getByRole('button', { name: '还原' })).toBeDisabled();
+
+  // 分节标题右端的「重置」只退这一节：影调与基础各改一处，重置影调后基础的改动还在
+  await brightness.fill('20');
+  const pixel = page.locator('[data-param="pixel.size"] .tda-slider__input');
+  await pixel.fill('8');
+  await pixel.press('Enter');
+  await expect(page.getByTestId('reset-tone')).toBeEnabled();
+  await expect(page.getByTestId('reset-color')).toBeDisabled();
+  await page.getByTestId('reset-tone').click();
+  await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('0');
+  await expect(page.getByTestId('reset-tone')).toBeDisabled();
+  // 影调退回的是 Game Boy 自己的值（对比 +15），不是 schema 默认值
+  await expect(page.locator('[data-param="tone.contrast"] input[type="range"]')).toHaveValue('15');
+  await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('8');
+  await page.getByTestId('reset-basic').click();
+  await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('4');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+
   await brightness.fill('20');
 
   // 保存预设在左栏操作行：点开浮层，名字已经预填成「当前方案 副本」，改个名再存
@@ -135,6 +153,15 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toHaveCount(0);
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.locator('.history-item')).toHaveCount(0);
+
+  // 预设模块自己的「重置」= 退回「默认」；已经在默认且没微调时置灰
+  await page.getByRole('tab', { name: '参数' }).click();
+  await page.locator('[data-preset="gameboy"]').click();
+  await expect(page.getByTestId('reset-preset')).toBeEnabled();
+  await page.getByTestId('reset-preset').click();
+  await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('reset-preset')).toBeDisabled();
 });
 
 test('撤销 / 重做只走快捷键，滑块拖动合并', async ({ page }) => {

@@ -203,6 +203,16 @@ export function resolveBase(id: string, userPresets: readonly UserPreset[]): Bui
   return (user?.base && builtinById.get(user.base)) || builtinById.get(DEFAULT_PRESET_ID)!;
 }
 
+/**
+ * 当前方案"没微调过"时该有的那套参数：用户预设取它自己存下的，内置预设取展开值。
+ * 「还原」「重置某一节」和"是否已微调"都以它为准。
+ */
+export function presetReferenceParams(id: string, userPresets: readonly UserPreset[]): Params {
+  const user = userPresets.find((p) => p.id === id);
+  if (user) return sanitizeParams(user.params);
+  return builtinPresetParams(findBuiltinPreset(id) ?? resolveBase(id, userPresets));
+}
+
 /** 这个参数是否在预设的参数范围内（整组露出，或单独点名） */
 export function isParamExposed(def: ParamDef, exposes: readonly string[]): boolean {
   return exposes.includes(def.group) || exposes.includes(def.id);

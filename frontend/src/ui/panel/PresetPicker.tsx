@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BUILTIN_PRESETS, findBuiltinPreset } from '@/state';
-import { Icon } from '@/ui/primitives';
+import { BUILTIN_PRESETS, DEFAULT_PRESET_ID, findBuiltinPreset } from '@/state';
+import { Icon, IconButton } from '@/ui/primitives';
 import { usePresets } from '@/ui/state/usePresets';
 
 /** 折起来时最多露几行卡片 */
@@ -62,7 +62,18 @@ export function PresetPicker() {
 
   return (
     <section className="section preset-picker" data-testid="preset-picker">
-      <h3 className="section__title">预设</h3>
+      <h3 className="section__title">
+        预设
+        {/* 这一节的"值"就是选了哪套方案，重置即退回「默认」 */}
+        <IconButton
+          icon="undo"
+          label="重置预设"
+          className="tda-iconbtn--sm section__reset"
+          disabled={activeId === DEFAULT_PRESET_ID && !dirty}
+          onClick={() => applyBuiltin(findBuiltinPreset(DEFAULT_PRESET_ID)!)}
+          data-testid="reset-preset"
+        />
+      </h3>
       <p className="section__hint">选一套方案作为起点，下面只列出这套方案用到的参数，可在它基础上微调；调好后点上方「保存预设」，会出现在这里和「历史」里。</p>
 
       <div className="param-grid" role="listbox" aria-label="预设" ref={gridRef}>

@@ -224,6 +224,12 @@ body.is-resizing * {
   background: var(--tda-color-control-muted);
 }
 
+.tda-iconbtn:disabled {
+  color: var(--tda-color-text-disabled);
+  background: none;
+  cursor: default;
+}
+
 .tda-iconbtn svg {
   width: 18px;
   height: 18px;
@@ -645,6 +651,87 @@ body.is-resizing * {
   outline: none;
 }
 
+/* ---------- 视频裁剪条（「原图」页的视频卡片） ---------- */
+
+.trim {
+  flex: none;
+  padding: var(--tda-spacing-sm) var(--tda-spacing-lg) var(--tda-spacing-md);
+  border-top: 1px solid var(--tda-color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-xs);
+}
+
+.trim__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--tda-spacing-sm);
+}
+
+.trim__title {
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  color: var(--tda-color-text-secondary);
+}
+
+.trim__range {
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  color: var(--tda-color-text-tertiary);
+}
+
+.trim__track {
+  position: relative;
+  height: 28px;
+  border-radius: var(--tda-radius-sm);
+  background: var(--tda-color-control-subtle);
+  cursor: grab;
+  touch-action: none;
+  outline: none;
+}
+
+.trim__track[data-disabled='true'] {
+  cursor: default;
+}
+
+.trim__track:focus-visible {
+  box-shadow: 0 0 0 2px var(--tda-color-text-primary);
+}
+
+/* 留下的那一段：墨色描边 + 浅底，被裁掉的部分保持灰底 */
+.trim__window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 8px;
+  border: 1px solid var(--tda-color-text-primary);
+  border-radius: var(--tda-radius-sm);
+  background: var(--tda-color-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+
+.trim__grip {
+  width: 1px;
+  height: 10px;
+  background: var(--tda-color-text-tertiary);
+}
+
+.trim__playhead {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--tda-color-text-primary);
+  pointer-events: none;
+}
+
 /* ---------- 右栏：预览 ---------- */
 
 .pane--preview {
@@ -790,6 +877,8 @@ body.is-resizing * {
   border-radius: var(--tda-radius-xl);
   overflow: hidden;
   display: flex;
+  /* 视口在上，视频的裁剪条在下 */
+  flex-direction: column;
   position: relative;
 }
 
@@ -1778,14 +1867,30 @@ body.is-resizing * {
 
 .section__head {
   margin: 0;
+  display: flex;
+  align-items: center;
+}
+
+/*
+ * 分节标题行右端的「重置」：把这一节退回当前方案本身的值。
+ * 收起时也在，所以不用先展开才能重置；没改过就置灰。
+ */
+.section__reset {
+  flex: none;
+  margin-left: var(--tda-spacing-2xs);
+}
+
+.section__title .section__reset {
+  margin-left: auto;
 }
 
 .section__toggle {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--tda-spacing-xs);
-  width: calc(100% + var(--tda-spacing-md));
-  margin: 0 calc(-1 * var(--tda-spacing-sm));
+  margin: 0 0 0 calc(-1 * var(--tda-spacing-sm));
   padding: 0 var(--tda-spacing-sm);
   height: 44px;
   background: none;

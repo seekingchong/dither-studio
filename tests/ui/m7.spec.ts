@@ -19,9 +19,9 @@ async function dropBytes(page: Page, b64: string, name: string, mime: string) {
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 }
 
-/** 在页面里用 MediaRecorder 录一段 1.2 秒的 WebM（画面随时间变化） */
-async function recordWebm(page: Page): Promise<string> {
-  return page.evaluate(async () => {
+/** 在页面里用 MediaRecorder 录一段 WebM（画面随时间变化），默认 1.2 秒 */
+async function recordWebm(page: Page, seconds = 1.2): Promise<string> {
+  return page.evaluate(async (seconds) => {
     const c = document.createElement('canvas');
     c.width = 320;
     c.height = 200;
@@ -36,11 +36,11 @@ async function recordWebm(page: Page): Promise<string> {
     await new Promise<void>((resolve) => {
       const draw = () => {
         const t = (performance.now() - start) / 1000;
-        ctx.fillStyle = t < 0.6 ? '#000000' : '#ffffff';
+        ctx.fillStyle = t < seconds / 2 ? '#000000' : '#ffffff';
         ctx.fillRect(0, 0, 320, 200);
         ctx.fillStyle = '#808080';
         ctx.fillRect((t * 200) % 320, 60, 60, 80);
-        if (t < 1.2) requestAnimationFrame(draw);
+        if (t < seconds) requestAnimationFrame(draw);
         else resolve();
       };
       draw();
@@ -52,7 +52,7 @@ async function recordWebm(page: Page): Promise<string> {
     let s = '';
     for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
     return btoa(s);
-  });
+  }, seconds);
 }
 
 async function canvasHash(page: Page): Promise<number> {
@@ -145,6 +145,61 @@ async function recompute(page: Page) {
   await setSlider(page, 'tone.threshold', 128);
   await expect.poll(() => canvasHash(page)).not.toBe(nudged);
 }
+
+test('视频裁剪：「原图」页上一条固定 3 秒的窗口，左右拖挑哪三秒，导出只出这一段', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  const webm = await recordWebm(page, 4.5);
+  await dropBytes(page, webm, 'clip.webm', 'video/webm');
+  await expect(page.getByTestId('transport')).toBeVisible();
+
+  // 「结果」页没有裁剪条，切到「原图」才出现
+  await expect(page.getByTestId('trim-0')).toHaveCount(0);
+  await page.getByRole('tab', { name: '原图' }).click();
+  const trim = page.getByTestId('trim-0');
+  await expect(trim).toBeVisible();
+  await expect(trim).toContainText('裁剪 3.0 秒');
+  await expect(trim).toHaveAttribute('data-trim-start', '0.00');
+  const track = trim.locator('.trim__track');
+  const duration = Number(await trim.getAttribute('data-duration'));
+  expect(duration).toBeGreaterThan(3);
+
+  // 窗口宽度就是 3 秒占整段的比例
+  const trackBox = (await track.boundingBox())!;
+  const windowBox = (await trim.locator('.trim__window').boundingBox())!;
+  expect(windowBox.width / trackBox.width).toBeCloseTo(3 / duration, 1);
+
+  // 拖到最右：起点贴到 时长 - 3，再往右也不动
+  await page.mouse.move(trackBox.x + trackBox.width - 2, trackBox.y + trackBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(trackBox.x + trackBox.width + 200, trackBox.y + trackBox.height / 2);
+  await page.mouse.up();
+  const maxStart = Number(await trim.getAttribute('data-trim-start'));
+  expect(maxStart).toBeCloseTo(duration - 3, 1);
+  await expect(trim.getByTestId('trim-range-0')).toContainText('–');
+
+  // 方向键微调；Home 回到开头
+  await track.focus();
+  await track.press('ArrowLeft');
+  expect(Number(await trim.getAttribute('data-trim-start'))).toBeCloseTo(maxStart - 0.1, 2);
+  await track.press('Home');
+  await expect(trim).toHaveAttribute('data-trim-start', '0.00');
+
+  // 进度条就是裁出来的这一段：min / max 跟着窗口走，拖不到被裁掉的部分
+  await track.press('End');
+  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('min'))).toBeCloseTo(duration - 3, 1);
+  expect(Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(duration, 1);
+  await track.press('Home');
+  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(3, 1);
+  await track.press('End');
+
+  // 导出只出这 3 秒：60 fps × 3 秒 = 180 帧
+  await page.getByRole('button', { name: '导出视频' }).click();
+  await page.getByRole('button', { name: '开始导出' }).click();
+  await expect(page.getByTestId('export-video-dialog')).toContainText('/ 180 帧', { timeout: 30_000 });
+  await page.getByRole('button', { name: '取消' }).click();
+  await page.getByRole('button', { name: '关闭' }).click();
+});
 
 test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({ page }) => {
   await page.goto('/');

@@ -129,6 +129,18 @@ test('原图 / 结果切换与像素尺寸滑块', async ({ page }) => {
   await page.getByRole('tab', { name: '结果' }).click();
   await expect(page.locator('.slot__canvas')).toHaveAttribute('data-tab', 'result');
 
+  // 预览画布圆角是宽度的 7.2%（100px → 7.2，500px → 36），两个页签都有；
+  // 它只是 DOM 上的 border-radius，导出的 PNG / 视频不带圆角
+  const radiusRatio = () =>
+    page.locator('.slot__canvas').evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return Number.parseFloat(cs.borderTopLeftRadius) / Number.parseFloat(cs.width);
+    });
+  expect(await radiusRatio()).toBeCloseTo(0.072, 3);
+  await page.getByRole('tab', { name: '原图' }).click();
+  expect(await radiusRatio()).toBeCloseTo(0.072, 3);
+  await page.getByRole('tab', { name: '结果' }).click();
+
   const input = page.locator('[data-param="pixel.size"] .tda-slider__input');
   await input.fill('16');
   await input.press('Enter');

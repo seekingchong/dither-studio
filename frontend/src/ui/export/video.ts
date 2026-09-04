@@ -68,6 +68,8 @@ export interface ExportVideoOptions {
   params: Params;
   quality: VideoQuality;
   gpu: boolean;
+  /** 只导出这一段（视频的裁剪窗口）；不给就是整段 */
+  trim?: { start: number; length: number };
   onProgress?: (done: number, total: number) => void;
   signal?: AbortSignal;
 }
@@ -112,7 +114,10 @@ export async function exportVideo(opts: ExportVideoOptions): Promise<ExportVideo
 
   const duration = media.duration ?? 0;
   if (duration <= 0) throw new Error('媒体没有时长信息');
-  const total = frameCountFor(duration);
+  // 裁剪窗口：起点钳进素材里，长度不超过剩下的时长
+  const offset = Math.min(Math.max(0, opts.trim?.start ?? 0), duration);
+  const span = Math.max(1 / EXPORT_FPS, Math.min(opts.trim?.length ?? duration, duration - offset));
+  const total = frameCountFor(span);
   const renderParams: Params = { ...params, 'canvas.width': canvasW, 'canvas.height': canvasH };
 
   let muxer: Mp4Muxer<Mp4Target> | WebmMuxer<WebmTarget>;
@@ -143,7 +148,7 @@ export async function exportVideo(opts: ExportVideoOptions): Promise<ExportVideo
     for (let i = 0; i < total; i++) {
       if (signal?.aborted) throw new Error('已取消');
       if (encodeError) throw encodeError;
-      const t = i / EXPORT_FPS;
+      const t = offset + i / EXPORT_FPS;
       let bitmap: ImageBitmap;
       if (video) {
         await seekVideo(video, Math.min(t, Math.max(0, duration - 1 / EXPORT_FPS)));

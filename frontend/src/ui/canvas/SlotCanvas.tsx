@@ -14,6 +14,12 @@ interface SlotCanvasProps {
   scale: number;
 }
 
+/**
+ * 预览画布的圆角比例：宽 100px 时 7.2px、宽 500px 时 36px，即宽度的 7.2%。
+ * 只是 DOM 元素的 border-radius，不动像素，所以导出的 PNG / 视频不带圆角。
+ */
+export const PREVIEW_RADIUS_RATIO = 0.072;
+
 /** 预览画布：结果视图贴 Worker 返回的帧（降分辨率帧按最近邻放大），原图视图按适配矩形绘制当前源帧 */
 export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, scale }: SlotCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -59,6 +65,12 @@ export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, sca
     ctx.drawImage(tmp, 0, 0, frame.width, frame.height, 0, 0, width, height);
   }, [tab, rendered, media, width, height, fit, frameIndex]);
 
-  const style: CSSProperties = { width: Math.round(width * scale), height: Math.round(height * scale) };
+  // 圆角按屏幕上的实际宽度算，缩放档位变了也保持同一个比例
+  const shownWidth = Math.round(width * scale);
+  const style: CSSProperties = {
+    width: shownWidth,
+    height: Math.round(height * scale),
+    borderRadius: `${(shownWidth * PREVIEW_RADIUS_RATIO).toFixed(2)}px`,
+  };
   return <canvas ref={ref} className="slot__canvas" width={width} height={height} style={style} data-tab={tab} data-scale={rendered?.scale ?? 1} />;
 }

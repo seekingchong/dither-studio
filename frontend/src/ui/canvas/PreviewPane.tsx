@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { isAnimated, useStudioStore, type PreviewTab } from '@/state';
 import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
-import { usePlaybackStore } from '@/ui/media/playback';
+import { trimRange, usePlaybackStore } from '@/ui/media/playback';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
 import { Button, IconButton, Tabs, Toast } from '@/ui/primitives';
 import { useUiStore } from '@/ui/state/uiStore';
@@ -18,17 +18,21 @@ function Transport({ slot }: { slot: number }) {
   const { seek, toggle } = usePlaybackController(slot, isAnimated(media) ? media : null, null);
   if (!media || !isAnimated(media) || !entry || !client) return null;
   const duration = entry.duration || media.duration || 0;
+  // 视频裁剪过之后，进度条就是那一段：min / max 跟着窗口走，拖不到裁掉的部分
+  const { start, end, length } = media.kind === 'video' ? trimRange(duration, entry.trimStart) : { start: 0, end: duration, length: duration };
+  const span = Math.max(0.01, length);
+  const value = Math.min(end, Math.max(start, entry.time));
   return (
     <div className="transport" data-testid="transport">
       <IconButton icon={entry.playing ? 'pause' : 'play'} label={entry.playing ? '暂停' : '播放'} className="tda-iconbtn--sm" onClick={toggle} />
       <input
         type="range"
         className="tda-slider__range transport__range"
-        min={0}
-        max={Math.max(0.01, duration)}
+        min={start}
+        max={Math.max(start + 0.01, end)}
         step={0.01}
-        value={Math.min(entry.time, duration)}
-        style={{ '--tda-slider-fill': `${duration > 0 ? (entry.time / duration) * 100 : 0}%` } as React.CSSProperties}
+        value={value}
+        style={{ '--tda-slider-fill': `${((value - start) / span) * 100}%` } as React.CSSProperties}
         onChange={(e) => seek(Number(e.target.value))}
         aria-label="进度"
       />

@@ -4,6 +4,7 @@ import type { FitMode } from '@/engine';
 import { useStudioStore } from '@/state';
 import { useOpenMedia } from '@/ui/media/useOpenMedia';
 import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { VideoTrim } from '@/ui/media/VideoTrim';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { DropZone } from './DropZone';
 import { SlotCanvas } from './SlotCanvas';
@@ -113,6 +114,8 @@ export function SlotView({ index }: SlotViewProps) {
           )}
         </div>
       </div>
+      {/* 「原图」页看的是素材本身，视频就在这儿挑要用的那三秒 */}
+      {tab === 'source' && media?.kind === 'video' && <VideoTrim slot={index} media={media} />}
     </div>
   );
 }

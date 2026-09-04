@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup } from '@/params';
-import { isParamExposed, resolveBase, useStudioStore } from '@/state';
-import { Icon, Tabs } from '@/ui/primitives';
+import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup, type Params } from '@/params';
+import { isParamExposed, presetReferenceParams, resolveBase, useStudioStore } from '@/state';
+import { Icon, IconButton, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
@@ -33,8 +33,11 @@ interface SectionContent {
  */
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
+  const setParams = useStudioStore((s) => s.setParams);
   // 当前方案的来源预设决定参数面板露出哪些分组 / 参数
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
+  // 「重置」把这一节退回当前方案本身的值（不是 schema 默认值），跟操作行的「还原」同一把尺子
+  const reference = useStudioStore(useShallow((s) => presetReferenceParams(s.presetId, s.presets)));
   const [paneTab, setPaneTab] = useState<PaneTab>('params');
   // 分节默认全展开；点标题仍可单独收起，收起后标题右侧显示当前值摘要
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -42,6 +45,32 @@ export function ParamPane() {
   const family = String(params['dither.family']) as DitherFamily;
   const algorithmId = FAMILY_PARAM[family];
   const leads = useMemo(() => leadParamIds(family), [family]);
+
+  /**
+   * 每一节管着哪些参数——重置要把没露出来、当前条件下不可见的一并退回去，
+   * 所以按整份 schema 算，不用面板上正在显示的那份。
+   */
+  const sectionParamIds = useMemo(() => {
+    const sectionOfGroup = new Map<ParamGroup, string>();
+    for (const meta of SECTIONS) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
+    const leadSet = new Set(leads);
+    const bySection = new Map<string, string[]>();
+    for (const def of PARAM_SCHEMA) {
+      const id = leadSet.has(def.id) ? 'basic' : sectionOfGroup.get(def.group);
+      if (!id) continue;
+      const list = bySection.get(id);
+      if (list) list.push(def.id);
+      else bySection.set(id, [def.id]);
+    }
+    return bySection;
+  }, [leads]);
+
+  const sectionDirty = (id: string) => (sectionParamIds.get(id) ?? []).some((pid) => params[pid] !== reference[pid]);
+  const resetSection = (id: string) => {
+    const patch: Partial<Params> = {};
+    for (const pid of sectionParamIds.get(id) ?? []) patch[pid] = reference[pid];
+    setParams(patch);
+  };
 
   const sections = useMemo<SectionContent[]>(() => {
     const sectionOfGroup = new Map<ParamGroup, string>();
@@ -113,6 +142,15 @@ export function ParamPane() {
                         <span className="section__label">{meta.label}</span>
                         <span className="section__summary">{meta.summary(params)}</span>
                       </button>
+                      {/* 只退回这一节，其余分节的微调留着；没改过就置灰 */}
+                      <IconButton
+                        icon="undo"
+                        label={`重置${meta.label}`}
+                        className="tda-iconbtn--sm section__reset"
+                        disabled={!sectionDirty(meta.id)}
+                        onClick={() => resetSection(meta.id)}
+                        data-testid={`reset-${meta.id}`}
+                      />
                     </h3>
                     {open && (
                       <div className="section__body">

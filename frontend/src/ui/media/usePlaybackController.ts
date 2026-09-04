@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { nextPreviewScale, type RenderClient } from '@/engine';
 import { isAnimated, useStudioStore, type LoadedMedia } from '@/state';
 import { useFrameStore } from '@/ui/renderer/RendererContext';
-import { gifFrameAt, playbackOf, usePlaybackStore } from './playback';
+import { gifFrameAt, playbackOf, trimOf, usePlaybackStore } from './playback';
 
 /**
  * 动态媒体的逐帧驱动：视频用 requestVideoFrameCallback，GIF 用各帧时长计时；
@@ -20,7 +20,7 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
       usePlaybackStore.getState().remove(slot);
       return;
     }
-    usePlaybackStore.getState().update(slot, { playing: true, time: 0, duration: media!.duration ?? 0, previewScale: 1, frameIndex: 0 });
+    usePlaybackStore.getState().update(slot, { playing: true, time: 0, duration: media!.duration ?? 0, previewScale: 1, frameIndex: 0, trimStart: 0 });
     return () => usePlaybackStore.getState().remove(slot);
   }, [slot, media]);
 
@@ -65,18 +65,30 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
       const hasRvfc = typeof (video as unknown as Record<string, unknown>).requestVideoFrameCallback === 'function';
       let handle = 0;
       let fallbackTimer = 0;
+      /**
+       * 播放只在裁剪窗口里循环：越过窗口末尾（或被拖到窗口外）就跳回起点。
+       * 起点变化不用重启这个 effect——每帧现取窗口即可。
+       */
+      const wrap = (time: number): number => {
+        const { start, end } = trimOf(slot);
+        if (time >= end - 1e-3 || time < start - 1e-3) {
+          video.currentTime = start;
+          return start;
+        }
+        return time;
+      };
       const loop = () => {
         if (disposed) return;
         if (hasRvfc) {
           handle = video.requestVideoFrameCallback((_now, meta) => {
-            usePlaybackStore.getState().update(slot, { time: meta.mediaTime });
+            usePlaybackStore.getState().update(slot, { time: wrap(meta.mediaTime) });
             void push(video, false);
             loop();
           });
         } else {
           // 没有 rVFC 的环境按 30 fps 轮询
           fallbackTimer = window.setTimeout(() => {
-            usePlaybackStore.getState().update(slot, { time: video.currentTime });
+            usePlaybackStore.getState().update(slot, { time: wrap(video.currentTime) });
             void push(video, false);
             loop();
           }, 33);
