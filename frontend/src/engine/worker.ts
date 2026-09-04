@@ -17,12 +17,20 @@ function post(msg: WorkerResponse, transfer: Transferable[] = []) {
   ctx.postMessage(msg, transfer);
 }
 
+/** 取像素用的暂存画布：视频逐帧时每帧都要用，按尺寸复用，不每帧新建 */
+let scratch: OffscreenCanvas | null = null;
+let scratchCtx: OffscreenCanvasRenderingContext2D | null = null;
+
 function bitmapToFrame(bitmap: ImageBitmap): RGBAFrame {
-  const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-  const c2d = canvas.getContext('2d', { willReadFrequently: true });
-  if (!c2d) throw new Error('OffscreenCanvas 2D 上下文不可用');
-  c2d.drawImage(bitmap, 0, 0);
-  const image = c2d.getImageData(0, 0, bitmap.width, bitmap.height);
+  if (!scratch || !scratchCtx || scratch.width !== bitmap.width || scratch.height !== bitmap.height) {
+    scratch = new OffscreenCanvas(bitmap.width, bitmap.height);
+    scratchCtx = scratch.getContext('2d', { willReadFrequently: true });
+  }
+  if (!scratchCtx) throw new Error('OffscreenCanvas 2D 上下文不可用');
+  // 复用画布要先清干净，否则带透明通道的源会和上一帧混在一起
+  scratchCtx.clearRect(0, 0, bitmap.width, bitmap.height);
+  scratchCtx.drawImage(bitmap, 0, 0);
+  const image = scratchCtx.getImageData(0, 0, bitmap.width, bitmap.height);
   bitmap.close();
   return { width: image.width, height: image.height, data: image.data };
 }

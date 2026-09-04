@@ -1,7 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { isAnimated, useStudioStore, ZOOM_LEVELS, type PreviewTab, type ZoomLevel } from '@/state';
 import { formatTime, usePlaybackStore } from '@/ui/media/playback';
-import { usePlaybackController } from '@/ui/media/usePlaybackController';
+import { usePlaybackControls } from '@/ui/media/usePlaybackController';
 import { IconButton, Select, Tabs, Toast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { SlotView } from './SlotView';
@@ -11,7 +11,8 @@ function Transport({ slot }: { slot: number }) {
   const media = useStudioStore((s) => s.slots[slot]?.media ?? null);
   const entry = usePlaybackStore((s) => s.slots[slot]);
   const client = useRenderClient();
-  const { seek, toggle } = usePlaybackController(slot, isAnimated(media) ? media : null, null);
+  // 逐帧驱动挂在 SlotView 上，这里只要控制；两份驱动会重复抓帧
+  const { seek, toggle } = usePlaybackControls(slot, isAnimated(media) ? media : null, client);
   if (!media || !isAnimated(media) || !entry || !client) return null;
   const duration = entry.duration || media.duration || 0;
   return (
