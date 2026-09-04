@@ -61,6 +61,7 @@ test('空态：无顶栏，设置在左栏操作行，参数面板与拖拽区',
   await expect(page.getByTestId('preview-meta')).toHaveCount(0);
   // 导出只有预览头里那一个按钮，图片时叫「导出图片」；左栏一个导出按钮都没有
   await expect(page.locator('.pane--preview').getByRole('button', { name: '导出图片' })).toBeDisabled();
+  await expect(page.getByTestId('export-svg')).toBeDisabled();
   await expect(page.locator('.pane--params').getByRole('button', { name: /导出/ })).toHaveCount(0);
   await expect(page).toHaveScreenshot('m1-empty.png', screenshotOptions(page));
 });
@@ -147,7 +148,7 @@ test('原图 / 结果切换与像素尺寸滑块', async ({ page }) => {
   await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('16');
 });
 
-test('导出图片触发 PNG 下载，Ctrl+C 复制当前帧 PNG 到剪贴板', async ({ page, context }) => {
+test('导出图片出 PNG、导出帧出 SVG，Ctrl+C 复制当前帧 PNG 到剪贴板', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-write', 'clipboard-read']);
   await page.goto('/');
   await dropSyntheticImage(page);
@@ -164,6 +165,35 @@ test('导出图片触发 PNG 下载，Ctrl+C 复制当前帧 PNG 到剪贴板', 
   // IHDR 宽高 = 1000 × 600
   expect(bytes.readUInt32BE(16)).toBe(1000);
   expect(bytes.readUInt32BE(20)).toBe(600);
+
+  // 导出帧：当前帧的 SVG 矢量版，画布尺寸一致，且栅格化回来跟画布上看到的一样
+  const svgDownload = page.waitForEvent('download');
+  await page.getByTestId('export-svg').click();
+  const svgFile = await svgDownload;
+  expect(svgFile.suggestedFilename()).toBe('sample-dither.svg');
+  const svg = readFileSync((await svgFile.path())!, 'utf8');
+  expect(svg.startsWith('<svg xmlns=')).toBe(true);
+  expect(svg).toContain('viewBox="0 0 1000 600"');
+  expect(svg).toContain('<path fill=');
+  const mismatch = await page.evaluate(async (text) => {
+    const canvas = document.querySelector('.slot__canvas') as HTMLCanvasElement;
+    const { width: w, height: h } = canvas;
+    const img = new Image();
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+    await img.decode();
+    const shot = document.createElement('canvas');
+    shot.width = w;
+    shot.height = h;
+    shot.getContext('2d')!.drawImage(img, 0, 0, w, h);
+    const a = canvas.getContext('2d')!.getImageData(0, 0, w, h).data;
+    const b = shot.getContext('2d')!.getImageData(0, 0, w, h).data;
+    let diff = 0;
+    for (let i = 0; i < a.length; i += 4) {
+      if (Math.abs(a[i] - b[i]) > 8 || Math.abs(a[i + 1] - b[i + 1]) > 8 || Math.abs(a[i + 2] - b[i + 2]) > 8) diff++;
+    }
+    return diff / (w * h);
+  }, svg);
+  expect(mismatch).toBeLessThan(0.01);
 
   // 面板上没有复制按钮：焦点不在输入框时按复制快捷键即复制当前帧
   await expect(page.getByRole('button', { name: '复制 PNG' })).toHaveCount(0);

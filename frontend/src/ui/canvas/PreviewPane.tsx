@@ -73,7 +73,7 @@ export function PreviewPane() {
       setTab: s.setTab,
     })),
   );
-  const { canExport, exportPng } = useExport();
+  const { canExport, exportPng, exportSvg } = useExport();
   const animated = useStudioStore((s) => isAnimated(s.slots[s.view.activeSlot]?.media));
   const { videoDialog, setVideoDialog } = useUiStore(useShallow((s) => ({ videoDialog: s.exportVideoOpen, setVideoDialog: s.setExportVideoOpen })));
   const multi = slots.length > 1;
@@ -86,8 +86,12 @@ export function PreviewPane() {
         <div className="preview-tools">
           {/* 缩放、画布尺寸与适配都在这个菜单里；导出按钮紧挨着放在它右侧 */}
           <CanvasMenu />
+          {/* 当前帧的矢量版：抖动结果本来就是一格一格的实色块，合并成矩形就是天然的 SVG */}
+          <Button variant="secondary" icon="crop" disabled={!canExport} onClick={() => void exportSvg()} title="把当前帧导出为 SVG 矢量图" data-testid="export-svg">
+            导出帧
+          </Button>
           {/*
-           * 唯一的导出入口：跟着当前坑位的媒体类型换文案与去处——
+           * 主导出入口：跟着当前坑位的媒体类型换文案与去处——
            * 视频 / GIF 走导出视频对话框，图片直接存 PNG。左栏不再另放一个导出按钮。
            */}
           <Button
