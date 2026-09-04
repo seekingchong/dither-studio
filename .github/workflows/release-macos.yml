@@ -3,7 +3,7 @@
 # 触发方式：
 #   1. 打 tag：git tag v0.1.0 && git push origin v0.1.0  → 出包并发布到 GitHub Release
 #   2. Actions 页面手动 Run workflow（本文件进默认分支后才会出现在 UI 里）
-#   3. 推到 release/** 分支，或推到下面列出的开发分支 → 只产出 Actions artifact
+#   3. 推到 main 或 release/** 分支 → 只产出 Actions artifact（每次合进 main 都有一份对应安装包）
 #
 # 包是未签名、未公证的：下载后首次打开要在「系统设置 → 隐私与安全性」里放行。
 name: Release macOS
@@ -19,9 +19,8 @@ on:
     tags:
       - 'v*'
     branches:
-      - 'release/**'
       - 'main'
-      - 'claude/app-layout-adjustments-xxqhq2'
+      - 'release/**'
 
 permissions:
   contents: write
