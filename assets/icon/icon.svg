@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="Dither Studio">
+  <title>Dither Studio</title>
+  <rect width="1024" height="1024" fill="#DBD9D5"/>
+  <rect x="160" y="160" width="352" height="352" rx="103.84" ry="103.84" fill="#1D1A16"/>
+  <rect x="512" y="512" width="352" height="352" rx="103.84" ry="103.84" fill="#1D1A16"/>
+</svg>

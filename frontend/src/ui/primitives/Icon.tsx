@@ -40,7 +40,7 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 /** 线性图标：stroke currentColor、1.5px，尺寸 12 / 16 / 18 */
 export function Icon({ name, size = 16, ...rest }: IconProps) {
   if (name === 'logo') {
-    // 应用标志：与 build/icon.svg 同一几何与色值的圆角版本——#D7D6D4 圆角底（rx 约 22%）上两个对角相接的 #1D1711 圆角方块。
+    // 应用标志：与 assets/icon/icon.svg 同一几何的圆角版本——#D7D6D4 圆角底（rx 约 22%）上两个对角相接的 #1D1711 圆角方块。
     // 品牌色固定，不随主题 / 文字色变化
     return (
       <svg className="tda-icon tda-icon--logo" width={size} height={size} viewBox="0 0 512 512" fill="none" aria-hidden="true" {...rest}>

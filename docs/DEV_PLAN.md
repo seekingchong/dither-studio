@@ -6,6 +6,7 @@
 ## 1. 目标与原则
 
 - 产品形态：macOS 客户端。壳层只负责窗口和本地能力，界面与引擎全部是常规 web 前端代码。
+- 应用身份：名称 `Dither Studio`，应用标识 `dither-studio`，bundle id `com.tda.dither-studio`。图标母版与各平台产物在 `assets/icon/`，接线方式见该目录 README。
 - 未来同一份前端代码发布 web 端，因此壳层与前端之间只通过一个 `platform` 接口通信。
 - 本地能力清单：打开文件、保存文件、读取文件、预设持久化、剪贴板写入、HEIC 转码、在 Finder 中显示。
 - 样式只引用 `tokens.css` 的 `--tda-*` 变量，禁止裸色值、裸字号、裸圆角，零外部请求。
@@ -55,6 +56,7 @@ dither-studio/
 │  ├─ package.json
 │  └─ vite.config.ts       base 由 VITE_BASE 注入
 ├─ electron/               主进程、preload（本地能力实现）
+├─ assets/icon/            应用图标：svg 母版、icns、ico、各尺寸 png，生成脚本同目录
 ├─ design-system/          设计系统原件
 ├─ docs/                   PRD、DESIGN、DEV_PLAN、PLATFORM_NOTES
 ├─ tests/                  引擎单测、UI 截图
@@ -143,7 +145,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M6 特效栈 | 扫描线 CRT、胶片颗粒、JPEG glitch、块位移、行位移、像素排序、波形、桶形、散射；可堆叠、可排序 | 截图 |
 | M7 视频与 GPU | 视频与 GIF 动图输入；逐帧预览；MP4 H.264 导出三档质量；WebGL 路径与 GPU 开关；HEIC 转码 | 导出文件可在 QuickTime 播放 |
 | M8 预设与体验 | 内置预设 7 个起；用户预设保存、重命名、删除；撤销重做与快捷键；浅深主题；全局设置：坑位 1 或 4、GPU 开关；4 坑位预览 | 截图 + 预设持久化测试 |
-| M9 发布 | electron-builder 打 dmg；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
+| M9 发布 | electron-builder 打 dmg，图标用 `assets/icon/icon.icns`；独立 web 构建目标；平台构建目标（base 为平台路径）与打包脚本骨架，不实际发布；README | 你本机 `npm run dist` 出包并能打开；平台构建产物在本地静态服务器下能打开 |
 | M10 参数解读与左栏重构 | 每个参数、每个选项、每种特效都有解读浮层；左栏去掉分组 tab，改成预设模块 + 可折叠分节，算法族那一排并入「基础」 | 文案与 schema 一致性单测；解读浮层与分节的 Playwright 用例；刷新截图基线 |
 
 每个里程碑单独提交并推送到分支，M1 完成后你就能在本机跑起来看效果。
@@ -175,6 +177,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 14 | 线性空间抖动。PRD 默认 BT.709 线性空间，物理上正确（抖动后平均亮度与原图一致），但比常见工具的 gamma 空间结果整体偏暗 | 默认线性，影调分区加"线性空间"开关可关掉；M3 的亮度 / 中间调再补偿。你看效果后决定默认值 |
 | 15 | Ostromoukhov 系数表只重建了前 44 级，其后按论文趋势插值到中灰；Zhou–Fang 的阈值调制曲线为近似；libdither 的非矩形 / 中心白点 / 对角矩阵与 ImageMagick 圆点按描述重建 | 视觉上可用；若你有原始表格可直接替换 `errorDiffusion.ts` 里的 `OSTRO_KEY` |
 | 16 | 沙盒 Chromium 没有 H.264 编码器，导出验证走的是 VP9 / WebM 路径；macOS Electron 上 WebCodecs 用 VideoToolbox，预期能出 MP4，需你本机确认 QuickTime 可播放 | 若 H.264 不可用会自动降级 WebM 并在对话框里标出编码器 |
+| 17 | 应用图标配色：图标沿用原图的暖黑 `#1D1A16` / 暖灰 `#DBD9D5`，与设计系统的墨色 `#11192D`、页面底色 `#F9F9F9` 不是一套 | 独立应用图标保留暖色，界面内的图形走 `currentColor` 自动落到墨色；想统一改 `assets/icon/build-icons.py` 顶部两个常量重跑 |
 
 ## 7. 风险
 
@@ -197,6 +200,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | M6 | 已完成：特效栈以 `effects.stack` JSON 参数承载（可随预设序列化、可撤销），面板专用编辑器支持添加 / 启用 / 上下移 / 删除；9 种特效：扫描线 CRT（线间距、暗线、荧光点、屏幕曲率）、胶片颗粒、JPEG 损坏、块位移、扫描行位移（含 RGB 分离）、像素排序（横 / 纵、亮度区间、降序）、波形、桶形 / 枕形、像素散射；全部确定性（种子）并有独立缓存 |
 | M7 | 已完成：视频（`<video>` + requestVideoFrameCallback，Worker 忙时丢帧）与 GIF 动图（WebCodecs ImageDecoder 逐帧）输入；播放 / 暂停 / 进度条；慢算法按上一帧耗时自动降到 50% / 25% 预览分辨率（格子数不变）；导出按 60 fps 时间线逐帧渲染 + WebCodecs 编码，优先 H.264 进 MP4（mp4-muxer），平台没有 H.264 编码器时降级 VP9 / VP8 进 WebM（webm-muxer），中 / 高 / 超高三档码率，可保存或复制为文件；WebGL2 路径覆盖有序抖动与网格渲染，设置里可关，失败自动回退 CPU；HEIC 经主进程 sips 转码（M0 已实现，需在 macOS 验证） |
 | M8 | 已完成：内置预设 10 个（Game Boy、Mac Classic、Newspaper、CRT、Blueprint、Risograph、Obra Dinn、Pixel Art、Zine、Dot Matrix）+「默认」；预设模块置于参数模块上方（不再拆成两个 tab）：先选一套方案，参数面板只露出这套方案具备的参数（每个内置预设声明 `exposes`），在它基础上微调后可起名存为我的预设（记住来源预设与结果缩略图），新预设出现在预设卡片和「历史」页；「历史」页列出保存过的所有方案（缩略图、时间、来源、算法 / 颜色摘要），可应用、更新、重命名、删除；经 `platform.storage` 持久化（Electron JSON 文件 / web localStorage）；撤销重做（同一参数 800ms 内合并、上限 100 步）与快捷键 Cmd+Z / Shift+Cmd+Z / Cmd+O / Cmd+S / Cmd+C / 空格；浅 / 深 / 跟随系统主题（`theme.css` 覆盖令牌）；设置弹层（坑位 1 或 4、GPU、主题）并持久化；4 坑位 2×2 预览各自拖拽与播放 |
-| UI 调整（2026-09） | 已完成：像素尺寸范围 1–16、默认 4，去掉按输入分辨率自动建议；默认算法族「有序」、算法 Bayer 2×2、颜色模式「单色」；单色 / 灰阶 / Tint 共用「暗色 / 亮色」两端（引擎 `buildLevelPalette` 的 mono / gray 走两端插值），颜色分区的色板改为可编辑色块——点开有系统取色器与可直接输入的十六进制色值，Tint 中间级逐级可调（灰阶改中间级自动转 Tint），Palette 每一色可改、可增删（改内置调色板转「自定义」）；「画布」分区移出左栏，与缩放合并进预览区右上角的「画布」菜单（尺寸输入、常用尺寸、原图尺寸、适配）；特效的 9 个选项以芯片全部露出、点一下添加；左栏分区 tab 改为锚点式（分区全部排成一列，tab 吸顶、滚动联动、点哪个定位到哪个）；删掉「打开 / 复制 PNG / 撤销 / 重做」按钮，只保留快捷键（⌘C 复制当前坑位的当前帧，设置菜单列出全部快捷键，新增 ⌘⇧E 导出视频）；顶栏设置图标换成几何生成的 6 齿齿轮（`scripts/gen-gear-icon.mjs`） |
-| M9 | 已完成（沙盒可做的部分）：应用图标与应用名 Dither Studio —— `build/icon.svg` 是设计导出的矢量源（圆角外形、四角透明），`npm run gen:icon` 渲染 1024 PNG 供 electron-builder 转 icns，应用内标志与 favicon 同步，productName / 窗口标题 / `app.setName` / 原生菜单 / 平台 manifest 一致；electron-builder 配置（dmg、`build/icon.png`、`frontend/dist` asarUnpack），Linux 上以 `--dir` 打包并冒烟通过；独立 web 目标；平台目标 + `scripts/check-platform-build.mjs`（构建后按平台 base 路径静态托管并无头渲染一次）已进 CI；`platform/manifest.yaml` 模板与 `scripts/package-platform.mjs` 打包骨架；README。待你本机：`npm run dist` 出 dmg 并打开 |
+| UI 调整（2026-09） | 已完成：像素尺寸范围 1–16、默认 4，去掉按输入分辨率自动建议；默认算法族「有序」、算法 Bayer 2×2、颜色模式「单色」；单色 / 灰阶 / Tint 共用「暗色 / 亮色」两端（引擎 `buildLevelPalette` 的 mono / gray 走两端插值），颜色分节的色板改为可编辑色块——点开有系统取色器与可直接输入的十六进制色值，Tint 中间级逐级可调（灰阶改中间级自动转 Tint），Palette 每一色可改、可增删（改内置调色板转「自定义」）；「画布」分节移出左栏，与缩放合并进预览区右上角的「画布」菜单（尺寸输入、常用尺寸、原图尺寸、适配）；特效的 9 个选项以芯片全部露出、点一下添加；删掉「打开 / 复制 PNG / 撤销 / 重做」按钮，只保留快捷键（⌘C 复制当前坑位的当前帧，设置菜单列出全部快捷键，新增 ⌘⇧E 导出视频）；设置图标换成几何生成的 6 齿齿轮（`scripts/gen-gear-icon.mjs`）。这一版原本还把左栏分区 tab 改成锚点式，与 M10 的可折叠分节是同一问题的两种答案，合并时保留了可折叠分节 |
+| M9 | 已完成（沙盒可做的部分）：应用图标与应用名 Dither Studio —— 图标母版与全套产物在 `assets/icon/`（SVG 母版 + `build-icons.py`，出 icns / ico / 各尺寸 png，macOS 本体按 Apple 图标网格留白），electron-builder 用 `assets/icon/icon.icns`，前端 favicon 走 `frontend/public/icon/`，应用内标志同一几何，productName / 窗口标题 / `app.setName` / 原生菜单 / 平台 manifest 一致；electron-builder 配置（dmg、`frontend/dist` asarUnpack），Linux 上以 `--dir` 打包并冒烟通过；独立 web 目标；平台目标 + `scripts/check-platform-build.mjs`（构建后按平台 base 路径静态托管并无头渲染一次）已进 CI；`platform/manifest.yaml` 模板与 `scripts/package-platform.mjs` 打包骨架；README；`.github/workflows/release-macos.yml` 在 GitHub 的 macOS runner 上打 arm64 / x64 两个未签名 dmg（推 main / 打 `v*` tag 触发，产物见 Actions artifact 或 Release）。待你本机：`npm run dist` 出 dmg 并打开 |
 | M10 | 已完成：参数解读浮层——停在参数标签上 400ms 弹出「一句话 + 各值解读 + 提示」，贴控件外侧不遮控件，键盘 `?` / `F1` 触发、`Esc` 收起，触屏点按展开；选项 >8 的下拉（算法、调色板、Bayer 矩阵）改由下拉选项行逐条解读，展开下拉时属性浮层让位；文案 95 条参数 + 9 种特效全覆盖，放在 `params/help.ts`，一致性检查进单测。左栏重构：删掉分组 tab，改成整栏一列的可折叠分节（默认只展开「基础」，收起时标题右侧显示当前值摘要），原本浮在 tab 之上的快捷参数整排并入「基础」，`color.mode` 也跟着过去，「颜色」节只留该模式的细节 |
+| 布局调整（2026-09） | 已完成：macOS 隐藏系统标题栏（标题文字与分隔线一并去掉），三个圆点浮在一条透明可拖动区上；删掉应用内顶栏，「设置」挪到左栏操作行、「导出视频」挪到预览区「画布」菜单右侧；整窗 26px 大圆角（`--tda-radius-window`）；左右分栏可拖拽（宽度随设置持久化，双击复位），左栏为容器查询容器，参数栅格按栏宽在一排三 / 二 / 一间自适应；预览头去掉进度条右侧的时间与分辨率 / 耗时 / GPU 小字（渲染细节改挂在坑位 `data-*` 上）；全部滚动条隐藏；拖文件不再盖全窗遮罩，改为坑位自己标成可放置、悬停坑位高亮；修掉每次拖入素材先弹「渲染失败：坑位没有源媒体」的竞态（`RenderClient` 在源帧送到 Worker 之前压住渲染请求） |

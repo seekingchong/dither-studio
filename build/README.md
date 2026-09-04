@@ -1,5 +1,10 @@
 # 打包资源
 
-- `icon.svg`：应用图标源文件，几何与色值来自设计导出的「APP icon-3.svg」：512 画布、底色 #D7D6D4 且圆角 114（约 22%，四角透明，符合 macOS 图标惯例）、两个 176×176 圆角 48 的 #1D1711 方块位于 (80,80) 与 (256,256)，在画布中心对角相接。文件里的 `viewBox` 未改动，只把 `width`/`height` 设为 1024 以便直接渲染 1024×1024 的 PNG。
-- `icon.png`：由 `npm run gen:icon` 从 `icon.svg` 渲染，1024×1024 带透明通道。electron-builder 在 macOS 上会自动转成 `.icns`。
-- 换图标只替换 `icon.svg`，再运行 `npm run gen:icon`。图稿若带圆角，渲染脚本的 `omitBackground` 会保留四角透明，不要去掉。
+`assets/icon/` 是图标母版目录（SVG 母版 + 生成脚本 + 全套产物），改图标去那里改，不要改这里。
+
+- `icon.png`：1024×1024，从 `assets/icon/mac/icon-1024.png` 复制而来，是 electron-builder 在
+  `buildResources` 目录下的兜底图标。
+- macOS 打包实际用的是 `package.json` 里 `build.mac.icon` 指向的 `assets/icon/icon.icns`
+  （含 16→1024 共 10 档，本体按 Apple 图标网格留白）。
+
+重新生成全套：`python3 assets/icon/build-icons.py`，然后 `cp assets/icon/mac/icon-1024.png build/icon.png`。
