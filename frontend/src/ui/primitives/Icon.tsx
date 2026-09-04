@@ -34,11 +34,13 @@ interface IconProps extends SVGProps<SVGSVGElement> {
 /** 线性图标：stroke currentColor、1.5px，尺寸 12 / 16 / 18 */
 export function Icon({ name, size = 16, ...rest }: IconProps) {
   if (name === 'logo') {
-    // 应用标志：两个对角相接的圆角方块，与 build/icon.svg 一致
+    // 应用标志：与 build/icon.svg 同一几何与色值的圆角版本——#D7D6D4 圆角底（rx 约 22%）上两个对角相接的 #1D1711 圆角方块。
+    // 品牌色固定，不随主题 / 文字色变化
     return (
-      <svg className="tda-icon" width={size} height={size} viewBox="0 0 18 18" fill="currentColor" aria-hidden="true" {...rest}>
-        <rect x="0.5" y="0.5" width="8.5" height="8.5" rx="2.3" />
-        <rect x="9" y="9" width="8.5" height="8.5" rx="2.3" />
+      <svg className="tda-icon tda-icon--logo" width={size} height={size} viewBox="0 0 512 512" fill="none" aria-hidden="true" {...rest}>
+        <rect width="512" height="512" rx="114" fill="#D7D6D4" />
+        <rect x="80" y="80" width="176" height="176" rx="48" fill="#1D1711" />
+        <rect x="256" y="256" width="176" height="176" rx="48" fill="#1D1711" />
       </svg>
     );
   }

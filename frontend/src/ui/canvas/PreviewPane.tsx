@@ -35,6 +35,25 @@ function Transport({ slot }: { slot: number }) {
   );
 }
 
+/**
+ * 多坑位：顶部只留一个播放 / 暂停按钮，统一控制所有视频 / GIF；不显示进度条。
+ * 只要有任一坑位在播就显示"暂停"，按下后全部暂停，否则全部播放。
+ */
+function GroupTransport() {
+  const animatedSlots = useStudioStore(useShallow((s) => s.slots.filter((slot) => isAnimated(slot.media)).map((slot) => slot.id)));
+  const anyPlaying = usePlaybackStore((s) => animatedSlots.some((id) => s.slots[id]?.playing ?? true));
+  if (animatedSlots.length === 0) return null;
+  const toggleAll = () => {
+    const { update } = usePlaybackStore.getState();
+    for (const id of animatedSlots) update(id, { playing: !anyPlaying });
+  };
+  return (
+    <div className="transport transport--group" data-testid="transport-group">
+      <IconButton icon={anyPlaying ? 'pause' : 'play'} label={anyPlaying ? '全部暂停' : '全部播放'} className="tda-iconbtn--sm" onClick={toggleAll} />
+    </div>
+  );
+}
+
 const ZOOM_OPTIONS = ZOOM_LEVELS.map((z) => ({ value: String(z), label: z === 'fit' ? '适应窗口' : `${Math.round(z * 100)}%` }));
 
 const PREVIEW_TABS: Array<{ id: PreviewTab; label: string }> = [
@@ -57,6 +76,7 @@ export function PreviewPane() {
   );
   const rendered = useFrameStore((s) => s.frames[activeSlot]);
   const media = slots[activeSlot]?.media;
+  const multi = slots.length > 1;
   const previewNote = rendered && rendered.scale < 1 ? ` · 预览 ${Math.round(rendered.scale * 100)}%` : '';
   const gpuNote = rendered?.gpu ? ' · GPU' : '';
 
@@ -64,12 +84,15 @@ export function PreviewPane() {
     <section className="pane pane--preview" aria-label="预览">
       <div className="preview-head">
         <Tabs items={PREVIEW_TABS} value={tab} onChange={setTab} />
-        <Transport slot={activeSlot} />
+        {multi ? <GroupTransport /> : <Transport slot={activeSlot} />}
         <div className="preview-tools">
-          <span className="preview-meta" data-testid="preview-meta">
-            {media ? `${media.width} × ${media.height} → ${width} × ${height}` : `${width} × ${height}`}
-            {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms${previewNote}${gpuNote}` : ''}
-          </span>
+          {/* 多坑位下顶部只留播放按钮与缩放，不显示分辨率 / 耗时 */}
+          {!multi && (
+            <span className="preview-meta" data-testid="preview-meta">
+              {media ? `${media.width} × ${media.height} → ${width} × ${height}` : `${width} × ${height}`}
+              {rendered ? ` · ${rendered.elapsedMs.toFixed(0)} ms${previewNote}${gpuNote}` : ''}
+            </span>
+          )}
           <Select
             label="缩放"
             value={String(zoom)}
@@ -80,7 +103,7 @@ export function PreviewPane() {
           />
         </div>
       </div>
-      <div className={['preview-body', slots.length > 1 ? 'preview-body--grid' : ''].filter(Boolean).join(' ')}>
+      <div className={['preview-body', multi ? 'preview-body--grid' : ''].filter(Boolean).join(' ')}>
         {slots.map((slot) => (
           <SlotView key={slot.id} index={slot.id} />
         ))}

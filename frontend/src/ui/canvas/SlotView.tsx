@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { FitMode } from '@/engine';
 import { useStudioStore } from '@/state';
@@ -14,7 +14,13 @@ interface SlotViewProps {
   index: number;
 }
 
-/** 单个坑位：白底圆角容器，内含可滚动视口；空时显示拖拽区 */
+/** 把视口滚到正中：画布比视口大时初始就露出中心，而不是左上角 */
+function centerScroll(el: HTMLElement) {
+  el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
+  el.scrollTop = Math.max(0, (el.scrollHeight - el.clientHeight) / 2);
+}
+
+/** 单个坑位：白底圆角容器，内含可滚动视口；画布始终上下左右居中；空时显示拖拽区 */
 export function SlotView({ index }: SlotViewProps) {
   const { media, zoom, tab, active, width, height, fit, setActiveSlot } = useStudioStore(
     useShallow((s) => ({
@@ -43,6 +49,7 @@ export function SlotView({ index }: SlotViewProps) {
       const cw = el.clientWidth - VIEWPORT_PADDING * 2;
       const ch = el.clientHeight - VIEWPORT_PADDING * 2;
       setFitScale(Math.max(0.05, Math.min(cw / width, ch / height, 1)));
+      centerScroll(el);
     };
     update();
     const ro = new ResizeObserver(update);
@@ -52,12 +59,22 @@ export function SlotView({ index }: SlotViewProps) {
 
   const scale = zoom === 'fit' ? fitScale : zoom;
 
+  // 缩放档位或画布尺寸变化后（布局提交前）重新居中，避免先看到左上角再跳到中间
+  useLayoutEffect(() => {
+    if (viewportRef.current) centerScroll(viewportRef.current);
+  }, [scale, width, height, media]);
+
   const onDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
     setDragging(true);
+  };
+  const onDragLeave = (e: DragEvent) => {
+    // 在坑位内部的子元素之间移动也会触发 dragleave，只有真正离开坑位才取消高亮
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    setDragging(false);
   };
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
@@ -75,15 +92,17 @@ export function SlotView({ index }: SlotViewProps) {
       data-rendered={rendered ? 'true' : 'false'}
       onClick={() => setActiveSlot(index)}
       onDragOver={onDragOver}
-      onDragLeave={() => setDragging(false)}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
       <div className="slot__viewport" ref={viewportRef}>
-        {media ? (
-          <SlotCanvas slot={index} media={media} rendered={rendered} tab={tab} width={width} height={height} fit={fit} scale={scale} />
-        ) : (
-          <DropZone onOpen={() => void openDialog(index)} />
-        )}
+        <div className="slot__stage">
+          {media ? (
+            <SlotCanvas slot={index} media={media} rendered={rendered} tab={tab} width={width} height={height} fit={fit} scale={scale} />
+          ) : (
+            <DropZone onOpen={() => void openDialog(index)} />
+          )}
+        </div>
       </div>
     </div>
   );

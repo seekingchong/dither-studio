@@ -1,4 +1,4 @@
-import { useMemo, useState, type DragEvent } from 'react';
+import { useEffect, useMemo, useState, type DragEvent } from 'react';
 import { usePlatform } from '@/platform';
 import { PreviewPane } from './canvas/PreviewPane';
 import { useOpenMedia } from './media/useOpenMedia';
@@ -19,11 +19,61 @@ export function DitherStudio() {
   );
 }
 
+const hasFiles = (e: globalThis.DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
+
+/** 浏览器在指针不动时也会每 350ms 左右重发 dragover，超过这个间隔没收到就当拖拽已结束 */
+const DRAG_IDLE_MS = 800;
+/** 离开窗口后的宽限：在元素之间移动时 dragover 会紧跟着到来并续命，真正离开窗口才会熄灭 */
+const DRAG_LEAVE_MS = 150;
+
+/**
+ * 全窗拖拽遮罩的显隐。用 window 捕获阶段监听，不依赖 React 事件冒泡：
+ * 坑位自己处理 drop 时会 stopPropagation，根节点收不到 drop，遮罩就永远留在屏幕上。
+ * 遮罩由 dragover 点亮，由 drop / dragend / 离开窗口的 dragleave 熄灭，再加一个空闲看门狗兜底
+ * （按 Esc 取消系统拖拽时有的平台不发任何结束事件）。
+ */
+function useFileDragOverlay(): boolean {
+  const [dragging, setDragging] = useState(false);
+  useEffect(() => {
+    let timer = 0;
+    const hide = () => {
+      window.clearTimeout(timer);
+      timer = 0;
+      setDragging(false);
+    };
+    const hideAfter = (ms: number) => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(hide, ms);
+    };
+    const onDragOver = (e: globalThis.DragEvent) => {
+      if (!hasFiles(e)) return;
+      setDragging(true);
+      hideAfter(DRAG_IDLE_MS);
+    };
+    const onDragLeave = (e: globalThis.DragEvent) => {
+      // Chromium 离开窗口时 relatedTarget 为空；WebKit 一律为空，所以只缩短看门狗而不立即熄灭
+      if (e.relatedTarget === null) hideAfter(DRAG_LEAVE_MS);
+    };
+    window.addEventListener('dragover', onDragOver, true);
+    window.addEventListener('dragleave', onDragLeave, true);
+    window.addEventListener('drop', hide, true);
+    window.addEventListener('dragend', hide, true);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('dragover', onDragOver, true);
+      window.removeEventListener('dragleave', onDragLeave, true);
+      window.removeEventListener('drop', hide, true);
+      window.removeEventListener('dragend', hide, true);
+    };
+  }, []);
+  return dragging;
+}
+
 function Shell() {
   const platform = usePlatform();
   const { acceptDrop, openDialog } = useOpenMedia();
   const { exportPng, copyPng } = useExport();
-  const [dragging, setDragging] = useState(false);
+  const dragging = useFileDragOverlay();
   usePersistence();
   const actions = useMemo(() => ({ open: () => void openDialog(), exportPng: () => void exportPng(), copyPng: () => void copyPng() }), [openDialog, exportPng, copyPng]);
   useShortcuts(actions);
@@ -33,27 +83,16 @@ function Shell() {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
-    setDragging(true);
   };
-  const onDragLeave = (e: DragEvent) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
-    setDragging(false);
-  };
+  // 落在坑位之外（顶栏、参数面板）的文件：填入当前坑位；坑位内的 drop 由 SlotView 自己接住
   const onDrop = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes('Files')) return;
     e.preventDefault();
-    setDragging(false);
     void acceptDrop(e.dataTransfer.files);
   };
 
   return (
-    <div
-      className={['app', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')}
-      data-platform={platform.kind}
-      onDragOver={onDragOver}
-      onDragLeave={onDragLeave}
-      onDrop={onDrop}
-    >
+    <div className={['app', dragging ? 'is-dragging' : ''].filter(Boolean).join(' ')} data-platform={platform.kind} onDragOver={onDragOver} onDrop={onDrop}>
       <TopBar />
       <main className="panes">
         <ParamPane />

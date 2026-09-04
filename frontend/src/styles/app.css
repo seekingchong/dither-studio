@@ -65,6 +65,7 @@ button {
 .topbar__brand svg {
   width: 18px;
   height: 18px;
+  flex: none;
 }
 
 .topbar__actions {
@@ -637,24 +638,30 @@ button {
   border-color: var(--tda-color-text-secondary);
 }
 
+/* 视口是滚动容器；用单格 grid 让舞台至少撑满视口、内容更大时随内容撑开，
+   舞台再把画布居中：画布小于视口时居中留白，大于视口时滚动且初始滚到正中（见 SlotView） */
 .slot__viewport {
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  display: grid;
+}
+
+.slot__stage {
   display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--tda-spacing-lg);
 }
 
 .slot__canvas {
-  margin: auto;
   display: block;
   flex: none;
   image-rendering: pixelated;
 }
 
 .dropzone {
-  margin: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -925,6 +932,10 @@ button {
   align-items: center;
   gap: var(--tda-spacing-xs);
   padding: 0 var(--tda-spacing-md);
+}
+
+.transport--group {
+  justify-content: center;
 }
 
 .transport__range {
