@@ -90,7 +90,8 @@ test('GIF 动图：逐帧预览、暂停、进度条', async ({ page }) => {
   await page.goto('/');
   await dropBytes(page, GIF_B64, 'anim.gif', 'image/gif');
   await expect(page.getByTestId('transport')).toBeVisible();
-  await expect(page.getByTestId('transport')).toContainText('0:00.6');
+  // 进度条右侧不再显示时间文字，时长体现在滑杆的 max 上（这张 GIF 共 0.6 秒）
+  await expect(page.locator('.transport__range')).toHaveAttribute('max', /^0\.6/);
   const first = await canvasHash(page);
   await expect.poll(() => canvasHash(page), { timeout: 3000 }).not.toBe(first);
   await page.getByRole('button', { name: '暂停' }).click();
@@ -136,6 +137,8 @@ async function setSlider(page: Page, id: string, value: number) {
 /** 切 GPU 开关不会让流水线缓存失效：把阈值改一下再改回来，逼它按当前开关把同一套参数重算一遍 */
 async function recompute(page: Page) {
   const before = await canvasHash(page);
+  // 阈值在「影调」分节里，默认收起
+  await openSection(page, 'tone');
   await setSlider(page, 'tone.threshold', 129);
   await expect.poll(() => canvasHash(page)).not.toBe(before);
   const nudged = await canvasHash(page);

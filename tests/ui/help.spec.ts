@@ -32,6 +32,11 @@ test('停在参数标签上弹出解读：一句话 + 各个值 + 提示，且�
 });
 
 test('选项多的下拉：属性浮层只讲怎么挑，逐个值的解读挂在选项行上', async ({ page }) => {
+  // 默认算法族是「有序」，先切到误差扩散让「算法」下拉露出 14 个核
+  await page.locator('[data-param="dither.family"]').click();
+  await page.getByRole('option', { name: '误差扩散', exact: true }).click();
+  await page.mouse.move(1400, 500);
+  await expect(help(page)).toHaveCount(0);
   await page.locator('[data-param="dither.ed.kernel"] .tda-select__label').hover();
   await expect(help(page).locator('.tda-help__title')).toHaveText('算法');
   await expect(help(page).locator('.tda-help__value')).toHaveCount(0);
@@ -65,7 +70,7 @@ test('左栏不再有参数 tab：分节可折叠，收起时显示当前值摘�
   await expect(page.locator('[data-section="basic"]')).toHaveAttribute('data-open', 'true');
   const basic = page.locator('[data-section="basic"] .param-grid').first().locator('.tda-select, .tda-field');
   await expect(basic.nth(0)).toHaveAttribute('data-param', 'dither.family');
-  await expect(basic.nth(1)).toHaveAttribute('data-param', 'dither.ed.kernel');
+  await expect(basic.nth(1)).toHaveAttribute('data-param', 'dither.ordered.matrix');
   await expect(basic.nth(2)).toHaveAttribute('data-param', 'color.mode');
   await expect(basic.nth(3)).toHaveAttribute('data-param', 'pixel.size');
   await expect(basic.nth(4)).toHaveAttribute('data-param', 'pixel.method');
