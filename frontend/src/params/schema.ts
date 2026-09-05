@@ -18,15 +18,37 @@ export const DITHER_FAMILIES: ParamOption[] = [
   opt('pattern', '图案'),
 ];
 
-export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线')];
+export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线'), opt('halftone', '网点')];
+
+/** 网点风格的形状（`halftone.shape`），与 `engine/halftone/shapes.ts` 的距离场一一对应 */
+export const HALFTONE_SHAPES: ParamOption[] = [
+  opt('circle', '圆形'),
+  opt('square', '方形'),
+  opt('roundsquare', '圆角方'),
+  opt('diamond', '菱形'),
+  opt('triangle', '三角'),
+  opt('hexagon', '六边形'),
+  opt('line', '线条'),
+  opt('cross', '十字'),
+];
 
 /**
  * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
- * 不用在每条记录上重复写条件。没列出的分组（画布、像素化、影调、特效）两种风格共用。
+ * 不用在每条记录上重复写条件。没列出的分组（画布、像素化、影调、特效）几种风格共用。
  */
-export const GROUP_STYLE: Partial<Record<ParamGroup, StyleKind>> = { dither: 'dither', color: 'dither', grid: 'dither', hatch: 'hatch' };
+export const GROUP_STYLE: Partial<Record<ParamGroup, StyleKind>> = {
+  dither: 'dither',
+  color: 'dither',
+  grid: 'dither',
+  hatch: 'hatch',
+  halftone: 'halftone',
+  screen: 'halftone',
+  ink: 'halftone',
+};
 
 const onDither = { id: 'style.type', equals: 'dither' };
+/** 网点风格自己按网格间距缩小画面，像素化的方法与偏移只有抖动与排线用 */
+const notHalftone = { id: 'style.type', in: ['dither', 'hatch'] };
 const fam = (family: string) => ({ id: 'dither.family', equals: family });
 const bgOn = { id: 'tone.bg.enabled', equals: true };
 const linkOn = { id: 'hatch.link', in: ['stroke', 'row', 'col', 'grid'] };
@@ -37,7 +59,7 @@ const famAnd = (family: string, id: string, value: string | string[]) => [
 
 export const PARAM_SCHEMA: readonly ParamDef[] = [
   // ---------- 风格 ----------
-  // 左栏页签「抖动 / 排线」就是这个参数；它决定下面哪些分组露出来
+  // 左栏页签「抖动 / 排线 / 网点」就是这个参数；它决定下面哪些分组露出来
   { id: 'style.type', group: 'style', label: '风格', type: 'select', default: 'dither', options: STYLE_KINDS },
 
   // ---------- 画布 ----------
@@ -62,10 +84,11 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     label: '降采样',
     type: 'select',
     default: 'box',
+    visibleWhen: notHalftone,
     options: [opt('box', 'Box 平均'), opt('bilinear', '双线性'), opt('lanczos', 'Lanczos'), opt('nearest', '最近邻')],
   },
-  { id: 'pixel.offsetX', group: 'pixel', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true },
-  { id: 'pixel.offsetY', group: 'pixel', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true },
+  { id: 'pixel.offsetX', group: 'pixel', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true, visibleWhen: notHalftone },
+  { id: 'pixel.offsetY', group: 'pixel', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true, visibleWhen: notHalftone },
 
   // ---------- 影调与预处理 ----------
   { id: 'tone.threshold', group: 'tone', label: '阈值', type: 'number', min: 0, max: 255, step: 1, default: 128 },
@@ -137,8 +160,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     type: 'boolean',
     default: true,
     advanced: true,
-    // 排线按"看起来多亮"定粗细，固定在 gamma 空间，这个开关只属于抖动
-    visibleWhen: onDither,
+    // 排线按"看起来多亮"定粗细，固定在 gamma 空间；抖动与网点（面积正比的墨量）都用得上
+    visibleWhen: { id: 'style.type', in: ['dither', 'halftone'] },
     hint: '在线性光里量化，抖动后的平均亮度与原图一致；关闭后在 gamma 空间量化，中间调更亮。',
   },
   {
@@ -419,6 +442,55 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   // 前景 / 背景在面板上归「颜色」一节（sections.ts 里按名单挪过去），数据上仍属排线分组，随预设一起露出
   { id: 'hatch.ink', group: 'hatch', label: '前景色', type: 'color', default: '#1C1C1C' },
   { id: 'hatch.paper', group: 'hatch', label: '背景色', type: 'color', default: '#D9D9D9' },
+
+  // ---------- 网点：网点 ----------
+  // 每个网格采样它盖住的那块画面的平均明暗，换成一颗点的大小；点是矢量形状，边缘抗锯齿。
+  // 大小以「100% 刚好占满自己的格子」定义，换了间距也不用重调；形状跟着网格角度转。
+  { id: 'halftone.shape', group: 'halftone', label: '网点形状', type: 'select', default: 'circle', options: HALFTONE_SHAPES },
+  { id: 'halftone.size', group: 'halftone', label: '网点大小', type: 'number', min: 10, max: 150, step: 1, default: 100, unit: '%' },
+  { id: 'halftone.minSize', group: 'halftone', label: '最小网点', type: 'number', min: 0, max: 100, step: 1, default: 10, unit: '%' },
+  {
+    id: 'halftone.mapping',
+    group: 'halftone',
+    label: '网点响应',
+    type: 'select',
+    default: 'area',
+    options: [opt('area', '面积正比'), opt('linear', '直径正比')],
+  },
+  { id: 'halftone.gain', group: 'halftone', label: '网点增益', type: 'number', min: -100, max: 100, step: 1, default: 0, unit: '%' },
+  { id: 'halftone.stepped', group: 'halftone', label: '灰阶分级', type: 'boolean', default: false, hint: '把点的大小限定在固定几档' },
+  { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
+  { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
+
+  // ---------- 网点：网格 ----------
+  // 间距是相邻点的中心距，也是格子的宽 / 高；网格绕画布中心转，画布中心永远是一颗点的中心
+  { id: 'screen.pitchX', group: 'screen', label: '横向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'screen.pitchY', group: 'screen', label: '纵向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'screen.angle', group: 'screen', label: '网格角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°' },
+  {
+    id: 'screen.lattice',
+    group: 'screen',
+    label: '排列',
+    type: 'select',
+    default: 'square',
+    options: [opt('square', '方格'), opt('hex', '交错')],
+  },
+  { id: 'screen.offsetX', group: 'screen', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
+  { id: 'screen.offsetY', group: 'screen', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
+
+  // ---------- 网点：颜色 ----------
+  // 面板上归「颜色」一节（sections.ts 里 color 节收 ink 分组），数据上是网点风格自己的分组
+  {
+    id: 'ink.mode',
+    group: 'ink',
+    label: '颜色模式',
+    type: 'select',
+    default: 'mono',
+    options: [opt('mono', '双色'), opt('source', '原图色'), opt('cmyk', 'CMYK 分色')],
+  },
+  { id: 'ink.dot', group: 'ink', label: '网点颜色', type: 'color', default: '#11192D', visibleWhen: { id: 'ink.mode', equals: 'mono' } },
+  { id: 'ink.paper', group: 'ink', label: '背景色', type: 'color', default: '#FFFFFF' },
 
   // ---------- 特效栈 ----------
   { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },

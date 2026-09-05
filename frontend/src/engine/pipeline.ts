@@ -16,6 +16,8 @@ import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
 import { renderGrid } from './render/grid';
 import { quantizeHatch, renderHatch, type HatchOptions } from './render/hatch';
+import { buildHalftone, CELL_SAMPLES, type HalftoneGeometry, type HalftoneSource } from './halftone/geometry';
+import { renderHalftone } from './halftone/render';
 import { orderedDitherGpu } from './gpu/orderedGpu';
 import { renderGridGpu } from './gpu/gridGpu';
 import { renderHatchGpu } from './gpu/hatchGpu';
@@ -57,6 +59,11 @@ export interface HatchState {
   opts: HatchOptions;
 }
 
+/** 网点风格的采样倍率：格子短边上留 CELL_SAMPLES 个采样点，再小就不缩了 */
+export function halftoneSampleSize(pitchX: number, pitchY: number): number {
+  return Math.max(1, Math.floor(Math.min(pitchX, pitchY) / CELL_SAMPLES));
+}
+
 /** 一次运行里各阶段共享的记账 */
 interface RunContext {
   recomputed: string[];
@@ -68,6 +75,8 @@ interface RunContext {
  *   抖动：抖动 → 颜色映射 → Accent → 网格渲染
  *   排线：明暗分档 → 笔画渲染
  * → 特效栈。
+ * 网点风格在「适配画布」之后就分岔（`runHalftone`）：按网格间距缩小 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 逐格采样成网点几何 → 光栅渲染，
+ * 自己一套缓存，切风格来回不互相冲掉，特效栈共用。
  * 每个阶段按"上游键 + 本阶段参数"缓存，参数没变的阶段直接复用。
  * 两种风格共用前半段（像素化的格子在抖动下是像素尺寸的方格，排线下是横纵间距的长方格），影调调整对两边一样生效。
  * 强制背景的蒙版按像素化结果算（与影调无关），替换发生在阈值偏置之后，所以背景点密度不随阈值滑块漂移。
@@ -87,6 +96,15 @@ export class Pipeline {
   private rendered?: Cached<RGBAFrame>;
   private effected?: Cached<RGBAFrame>;
   private hatch?: HatchState;
+  private htPixelated?: Cached<RGBFrame>;
+  private htToned?: Cached<RGBFrame>;
+  private htGray?: Cached<GrayFrame>;
+  private htBgMask?: Cached<Uint8Array>;
+  private htForced?: Cached<GrayFrame>;
+  private htGeometry?: Cached<HalftoneGeometry>;
+  private htRendered?: Cached<RGBAFrame>;
+  /** 最近一次运行走的是哪种风格 */
+  private lastStyle: PipelineOptions['style'] = 'dither';
   lastStats: PipelineStats = { recomputed: [], elapsedMs: 0, gpu: false };
   /** 允许走 WebGL 路径（由 Worker 按全局设置传入） */
   gpu = true;
@@ -95,6 +113,7 @@ export class Pipeline {
     const t0 = now();
     const ctx: RunContext = { recomputed: [], gpu: false };
     const opts = toPipelineOptions(params);
+    this.lastStyle = opts.style;
     const hatch = opts.style === 'hatch';
     // 格子：抖动是像素尺寸的方格，排线是横纵间距的长方格
     const cellW = hatch ? opts.hatch.spacingX : opts.pixel.size;
@@ -104,6 +123,13 @@ export class Pipeline {
     if (this.fitted?.key !== fitKey) {
       this.fitted = { key: fitKey, value: fitFrame(source, opts.canvas.width, opts.canvas.height, opts.canvas.fit) };
       ctx.recomputed.push('fit');
+    }
+
+    if (opts.style === 'halftone') {
+      const rendered = this.runHalftone(params, opts, fitKey, ctx);
+      const output = this.finish(rendered, params, ctx);
+      this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: false };
+      return output;
     }
 
     const pixelKey = `${fitKey}|${keyOfExcept(params, ['pixel.size'], 'pixel.')}|cell=${cellW}x${cellH}`;
@@ -173,7 +199,13 @@ export class Pipeline {
     if (hatch) this.runHatch(params, opts, this.forced.value, forcedKey, ctx);
     else this.runDither(params, opts, palette, bg, bgKey, toneKey, forcedKey, ctx);
 
-    const rendered = this.rendered!;
+    const output = this.finish(this.rendered!, params, ctx);
+    this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: ctx.gpu };
+    return output;
+  }
+
+  /** 渲染之后的收尾：特效栈（独立缓存）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本） */
+  private finish(rendered: Cached<RGBAFrame>, params: Params, ctx: RunContext): RGBAFrame {
     const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
     const effectsKey = `${rendered.key}|${stackJson}`;
     if (this.effected?.key !== effectsKey) {
@@ -182,13 +214,85 @@ export class Pipeline {
       this.effected = { key: effectsKey, value };
       if (value !== rendered.value) ctx.recomputed.push('effects');
     }
-
-    // 输出会被 Worker 转移给主线程，缓存里保留一份副本
     const cached = this.effected.value;
-    const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
+    return { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
+  }
 
-    this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: ctx.gpu };
-    return output;
+  /**
+   * 网点：不用 pixel.* 的像素化，而是按网格间距把画面缩到"每格短边上 CELL_SAMPLES 个采样"的分辨率，
+   * 影调在这张小图上做，然后每个格子在自己范围里超采样求平均明暗（与颜色），换成网点大小。
+   * 强制背景沿用抖动那套蒙版逻辑，只是目标亮度不再按级数取整（网点是连续的）。
+   */
+  private runHalftone(params: Params, opts: PipelineOptions, fitKey: string, ctx: RunContext): Cached<RGBAFrame> {
+    this.hatch = undefined;
+    const ht = opts.halftone;
+    const sample = halftoneSampleSize(ht.pitchX, ht.pitchY);
+    const pixelKey = `${fitKey}|ht-sample=${sample}`;
+    if (this.htPixelated?.key !== pixelKey) {
+      this.htPixelated = { key: pixelKey, value: pixelate(this.fitted!.value, sample, 'box', 0, 0) };
+      ctx.recomputed.push('pixelate');
+    }
+
+    const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear', 'tone.bg.'], 'tone.')}`;
+    if (this.htToned?.key !== toneKey) {
+      // 模糊单位是画布像素，换算成这张小图的像素
+      const toneOpts = { ...opts.tone, blur: num(params, 'tone.blur') / sample };
+      this.htToned = { key: toneKey, value: applyTone(this.htPixelated.value, toneOpts) };
+      ctx.recomputed.push('tone');
+    }
+
+    const grayKey = `${toneKey}|gray=${opts.tone.grayFormula}|linear=${opts.tone.linear}|threshold=${opts.tone.threshold}`;
+    if (this.htGray?.key !== grayKey) {
+      this.htGray = { key: grayKey, value: applyThresholdBias(toGray(this.htToned.value, opts.tone.grayFormula, opts.tone.linear), opts.tone.threshold) };
+      ctx.recomputed.push('gray');
+    }
+
+    let gray = this.htGray.value;
+    let bgKey = '';
+    const fb = opts.forcedBg;
+    if (fb.enabled) {
+      const maskKey = `${pixelKey}|${keyOfExcept(params, ['tone.bg.density', 'tone.bg.strength', 'tone.bg.polarity'], 'tone.bg.')}`;
+      if (this.htBgMask?.key !== maskKey) {
+        this.htBgMask = { key: maskKey, value: backgroundMask(this.htPixelated.value, fb) };
+        ctx.recomputed.push('background');
+      }
+      const mask = this.htBgMask.value;
+      const light = fb.polarity === 'auto' ? isLightBackground(gray.data, mask) : fb.polarity === 'light';
+      bgKey = `|bg=${keyOf(params, 'tone.bg.')}`;
+      const forcedKey = `${grayKey}${bgKey}`;
+      if (this.htForced?.key !== forcedKey) {
+        // 网点大小是连续的，背景目标亮度就是 1 − 密度（或密度），不按级数取整
+        this.htForced = { key: forcedKey, value: forceBackgroundGray(gray, mask, backgroundTarget(light, fb.density, 2), fb.strength) };
+      }
+      gray = this.htForced.value;
+    }
+
+    const geometryKey = `${grayKey}${bgKey}|${keyOf(params, 'halftone.', 'screen.', 'ink.')}|${opts.canvas.width}x${opts.canvas.height}`;
+    if (this.htGeometry?.key !== geometryKey) {
+      const src: HalftoneSource = {
+        width: opts.canvas.width,
+        height: opts.canvas.height,
+        sample,
+        grayWidth: gray.width,
+        grayHeight: gray.height,
+        gray: gray.data,
+        rgb: this.htToned.value.data,
+        linear: opts.tone.linear,
+      };
+      this.htGeometry = { key: geometryKey, value: buildHalftone(src, ht) };
+      ctx.recomputed.push('halftone');
+    }
+
+    if (this.htRendered?.key !== geometryKey) {
+      this.htRendered = { key: geometryKey, value: renderHalftone(this.htGeometry.value) };
+      ctx.recomputed.push('render');
+    }
+    return this.htRendered;
+  }
+
+  /** 最近一次网点运行的网点几何（SVG 导出用）；上一次跑的不是网点时为空 */
+  get currentHalftone(): HalftoneGeometry | undefined {
+    return this.lastStyle === 'halftone' ? this.htGeometry?.value : undefined;
   }
 
   /** 排线：明暗分档 → 笔画渲染 */
@@ -425,6 +529,7 @@ export class Pipeline {
   }
 
   clear() {
+    this.htPixelated = this.htToned = this.htGray = this.htBgMask = this.htForced = this.htGeometry = this.htRendered = undefined;
     this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.bgMask = this.forced = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
     this.hatch = undefined;
   }

@@ -5,6 +5,8 @@ import { parseColorList } from './color/palettes';
 import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { HatchLink, HatchOptions } from './render/hatch';
+import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
+import type { HalftoneShape } from './halftone/shapes';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
 import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
@@ -13,7 +15,7 @@ import type { ResampleMethod } from './preprocess/resample';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
-  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染 */
+  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染，网点走逐格采样 → 网点几何 → 光栅 */
   style: StyleKind;
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
@@ -36,6 +38,7 @@ export interface PipelineOptions {
     accent: AccentOptions;
   };
   hatch: HatchOptions;
+  halftone: HalftoneSettings;
   grid: {
     dot: DotShape;
     dotSize: number;
@@ -148,6 +151,26 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       linkColor: hexToRgb(str(params, 'hatch.linkColor')),
       ink: hexToRgb(str(params, 'hatch.ink')),
       paper: hexToRgb(str(params, 'hatch.paper')),
+    },
+    halftone: {
+      shape: str(params, 'halftone.shape') as HalftoneShape,
+      size: num(params, 'halftone.size') / 100,
+      minSize: num(params, 'halftone.minSize') / 100,
+      mapping: str(params, 'halftone.mapping') as SizeMapping,
+      gain: num(params, 'halftone.gain') / 100,
+      stepped: bool(params, 'halftone.stepped'),
+      levels: Math.max(2, Math.round(num(params, 'halftone.levels'))),
+      merge: num(params, 'halftone.merge') / 100,
+      antialias: bool(params, 'halftone.antialias'),
+      pitchX: Math.max(1, num(params, 'screen.pitchX')),
+      pitchY: Math.max(1, num(params, 'screen.pitchY')),
+      angle: num(params, 'screen.angle'),
+      lattice: str(params, 'screen.lattice') as LatticeKind,
+      offsetX: num(params, 'screen.offsetX'),
+      offsetY: num(params, 'screen.offsetY'),
+      mode: str(params, 'ink.mode') as InkMode,
+      dot: hexToRgb(str(params, 'ink.dot')),
+      paper: hexToRgb(str(params, 'ink.paper')),
     },
     grid: {
       dot: str(params, 'grid.dot') as DotShape,

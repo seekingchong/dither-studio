@@ -466,12 +466,13 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
 
   // ---------- 风格 ----------
   'style.type': {
-    summary: '整张图用哪种手法表现明暗：抖动是颗粒点阵，排线是一格一笔、越暗越粗。',
+    summary: '整张图用哪种手法表现明暗：抖动是颗粒点阵，排线是一格一笔，网点是一格一颗大小不同的点。',
     options: {
       dither: '像素颗粒点阵，复古电脑与印刷味',
       hatch: '斜线排线，一格一笔，越暗越粗，像素描与铜版画',
+      halftone: '规则网格上按明暗放大缩小的点，海报与丝网感',
     },
-    tip: '左栏页签「抖动 / 排线」切的就是它，影调调整两边共用。',
+    tip: '左栏页签「抖动 / 排线 / 网点」切的就是它，影调调整三边共用。',
   },
 
   // ---------- 排线 ----------
@@ -639,6 +640,95 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
   },
   'color.accent.seed': {
     summary: '决定这次强调色的具体落点。同一个种子结果可复现。',
+  },
+
+  // ---------- Halftone：网点 ----------
+  'halftone.shape': {
+    summary: '每个格子里画什么形状的点，点随那一块的明暗放大缩小。',
+    options: {
+      circle: '经典圆点，报纸与丝网印的样子',
+      square: '方块，像素与马赛克感',
+      roundsquare: '圆角方块，柔和的数码感',
+      diamond: '菱形，斜着的方块',
+      triangle: '正三角，锋利、有节奏',
+      hexagon: '六边形，配交错排列就是蜂窝',
+      line: '横条，粗细随明暗变化的线网',
+      cross: '十字，像刺绣与织物',
+    },
+    tip: '形状跟着网格角度一起转。',
+  },
+  'halftone.size': {
+    summary: '最暗处的点占格子多大。100 刚好占满，超过就相连成片。10–150%，默认 100。',
+  },
+  'halftone.minSize': {
+    summary: '最亮处也保留多大的点，0 就是空白。0–100%，默认 10。',
+    tip: '留一点最小网点，背景就是一层细密的点阵。',
+  },
+  'halftone.mapping': {
+    summary: '明暗怎么换算成点的大小。',
+    options: {
+      area: '点的面积与墨量成正比，灰度最准',
+      linear: '点的直径与墨量成正比，中间调更大更图形化',
+    },
+  },
+  'halftone.gain': {
+    summary: '中间调的点整体放大或缩小，像印刷里的网点增益。−100 到 100，默认 0。',
+  },
+  'halftone.stepped': {
+    summary: '把点的大小限定在固定几档，出现明显的台阶感，更像海报。',
+  },
+  'halftone.levels': {
+    summary: '点的大小分成几档，档越少越硬。2–32，默认 6。',
+    tip: '最小网点算一档，所以 2 档就是"小点 / 大点"。',
+  },
+  'halftone.merge': {
+    summary: '相邻的点像液体一样粘连成一团。0 关闭，越大粘得越远。0–100%，默认 0。',
+    tip: '导出 SVG 时用滤镜近似，和画布略有出入。',
+  },
+  'halftone.antialias': {
+    summary: '点的边缘做柔化，圆弧和斜线不出锯齿。关掉后只剩网点色和背景色两种颜色。',
+  },
+
+  // ---------- Halftone：网格 ----------
+  'screen.pitchX': {
+    summary: '相邻两个点在横向上的中心距，也是格子的宽。3–96px，默认 12。',
+    tip: '这是网点粗细的来源，网点大小只是格子里的占比。',
+  },
+  'screen.pitchY': {
+    summary: '纵向的中心距，也是格子的高。和横向不同时格子是长方形。3–96px，默认 12。',
+  },
+  'screen.angle': {
+    summary: '整张网格转多少度。0 横平竖直，45 是传统印刷的网线角度。0–180°，默认 0。',
+    tip: 'CMYK 模式下这是四层网线共同加上的角度。',
+  },
+  'screen.lattice': {
+    summary: '点怎么排。',
+    options: {
+      square: '横平竖直的方格',
+      hex: '隔行错开半格，像蜂窝一样密',
+    },
+  },
+  'screen.offsetX': {
+    summary: '网格横向挪多少，用来让某个细节落在点的中心。0–63px，默认 0。',
+  },
+  'screen.offsetY': {
+    summary: '网格纵向挪多少。0–63px，默认 0。',
+  },
+
+  // ---------- Halftone：颜色 ----------
+  'ink.mode': {
+    summary: '点用什么颜色。',
+    options: {
+      mono: '一种网点色加一种背景色',
+      source: '每个点取原图那一块的颜色',
+      cmyk: '青品黄黑四层网点按印刷角度叠印',
+    },
+  },
+  'ink.dot': {
+    summary: '网点的颜色。想要亮点配深底，把它和背景色对调再打开影调里的反相。',
+  },
+  'ink.paper': {
+    summary: '点与点之间的底色，相当于纸。',
   },
 };
 

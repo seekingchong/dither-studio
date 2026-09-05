@@ -1,9 +1,9 @@
 export type ParamValue = number | string | boolean;
 
-export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'hatch';
+export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'hatch' | 'halftone' | 'screen' | 'ink';
 
-/** 艺术风格：抖动（现有整条抖动流水线）或排线（斜线粗细表现明暗） */
-export type StyleKind = 'dither' | 'hatch';
+/** 艺术风格：抖动（现有整条抖动流水线）、排线（斜线粗细表现明暗）或网点（规则网格上按明暗放大缩小的点） */
+export type StyleKind = 'dither' | 'hatch' | 'halftone';
 
 export interface ParamOption {
   value: string;

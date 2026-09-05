@@ -229,6 +229,8 @@ Worker 那边的源帧和最后一帧由 `RendererProvider` 跟着撤。
 
 ### 3.4 Tab
 
+左栏操作行的页签是「抖动」「排线」「网点」「历史」：前三个是艺术风格，点它等于切 `style.type`；风格页签下方是该风格的预设卡片与参数分节。
+
 两种：
 - 无下划线 tab（顶部"创建/历史/介绍"、右栏"桌面端/移动端"）：16px，`gap 24px`，选中 = Medium + text-primary，未选 = Regular + text-tertiary。
 - 下划线 tab（语言 tab）：高 48px，`gap 24px`，选中项 `border-bottom 1px solid var(--tda-color-text-primary)`，文字 16/26 Medium；未选 Regular，颜色仍是 text-primary（只靠字重区分）。

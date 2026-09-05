@@ -1,5 +1,18 @@
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { DITHER_FAMILIES, defaultParams, getParamDef, hasParam, sanitizeParams, styleOf, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
+import {
+  DITHER_FAMILIES,
+  GROUP_STYLE,
+  PARAM_SCHEMA,
+  defaultParams,
+  getParamDef,
+  hasParam,
+  sanitizeParams,
+  styleOf,
+  type ParamDef,
+  type ParamGroup,
+  type Params,
+  type StyleKind,
+} from '@/params';
 
 /**
  * 预设 = 一整套方案。用户先选一套预设，参数面板只列出这套方案"具备"的参数供微调，
@@ -33,13 +46,17 @@ const effects = (stack: unknown[]) => JSON.stringify(stack);
 export const DEFAULT_PRESET_ID = 'default';
 /** 排线风格的「默认」：切到排线页签时预设模块的「重置」退回这一套 */
 export const HATCH_DEFAULT_PRESET_ID = 'hatch-classic';
+/** 网点风格的「默认」 */
+export const HALFTONE_DEFAULT_PRESET_ID = 'halftone-default';
 
-export const ALL_GROUPS: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'canvas', 'grid', 'effects'];
+export const ALL_GROUPS: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'halftone', 'screen', 'ink', 'canvas', 'grid', 'effects'];
 /**
  * 大多数风格预设具备的分组：像素化、影调、算法自身参数、颜色、排线、画布尺寸。
  * 抖动与排线的分组都在里面——两种风格的参数本来就按页签互斥显示，一起露出才能在任一预设上切换页签。
  */
 const CORE: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'canvas'];
+/** 网点预设一律露出自己的全部分组：参数本来就不多，藏起来反而找不到；影调 / 画布 / 特效共用 */
+const HT: readonly ParamGroup[] = ['style', 'halftone', 'screen', 'ink', 'tone', 'canvas', 'effects'];
 
 /** 内置预设：一键风格。参数是相对默认值的覆盖。第一项「默认」就是全部默认值、全部参数可调。 */
 export const BUILTIN_PRESETS: BuiltinPreset[] = [
@@ -358,6 +375,207 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: CORE,
   },
+
+  // ---------- 网点 ----------
+  // schema 默认值就是这一套：圆点 12px 方格、墨色配白纸、背景留 10% 的小点
+  {
+    id: HALFTONE_DEFAULT_PRESET_ID,
+    name: '默认',
+    hint: '圆点 12px 方格，墨色配白纸',
+    params: { 'style.type': 'halftone' },
+    exposes: HT,
+  },
+  {
+    id: 'ht-poster',
+    name: 'Poster',
+    hint: '海报红圆点，分 8 档，背景留细点',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'circle',
+      'halftone.size': 105,
+      'halftone.minSize': 12,
+      'halftone.stepped': true,
+      'halftone.levels': 8,
+      'screen.pitchX': 14,
+      'screen.pitchY': 14,
+      'screen.angle': 0,
+      'ink.dot': '#E4002B',
+      'ink.paper': '#F5F3EE',
+      'tone.contrast': 15,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-newsprint',
+    name: 'Newsprint',
+    hint: '45° 细圆点，报纸油墨配新闻纸',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'circle',
+      'halftone.size': 100,
+      'halftone.minSize': 0,
+      'halftone.mapping': 'area',
+      'screen.pitchX': 7,
+      'screen.pitchY': 7,
+      'screen.angle': 45,
+      'ink.dot': '#1F1B18',
+      'ink.paper': '#EDE6D6',
+      'tone.contrast': 10,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-comic',
+    name: 'Comic',
+    hint: 'Ben-Day 圆点四档，漫画红配米白',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'circle',
+      'halftone.size': 90,
+      'halftone.minSize': 18,
+      'halftone.stepped': true,
+      'halftone.levels': 4,
+      'halftone.mapping': 'linear',
+      'screen.pitchX': 9,
+      'screen.pitchY': 9,
+      'screen.angle': 30,
+      'ink.dot': '#D7263D',
+      'ink.paper': '#FFF6E5',
+      'tone.contrast': 20,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-cmyk',
+    name: 'CMYK Print',
+    hint: '青品黄黑四层网点按印刷角度叠印',
+    params: {
+      'style.type': 'halftone',
+      'ink.mode': 'cmyk',
+      'halftone.shape': 'circle',
+      'halftone.size': 100,
+      'halftone.minSize': 0,
+      'screen.pitchX': 10,
+      'screen.pitchY': 10,
+      'screen.angle': 0,
+      'ink.paper': '#FFFFFF',
+      'tone.saturation': 15,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-blob',
+    name: 'Ink Blob',
+    hint: '大圆点带融合，暗处的点粘成墨团',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'circle',
+      'halftone.size': 100,
+      'halftone.minSize': 6,
+      'halftone.mapping': 'linear',
+      'halftone.merge': 50,
+      'screen.pitchX': 16,
+      'screen.pitchY': 16,
+      'screen.angle': 0,
+      'ink.dot': '#11192D',
+      'ink.paper': '#F9F9F9',
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-lines',
+    name: 'Line Screen',
+    hint: '粗细随明暗的线网，像铜版雕刻',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'line',
+      'halftone.size': 100,
+      'halftone.minSize': 8,
+      'halftone.mapping': 'linear',
+      'screen.pitchX': 4,
+      'screen.pitchY': 7,
+      'screen.angle': 20,
+      'ink.dot': '#1B1B1B',
+      'ink.paper': '#FFFFFF',
+      'tone.contrast': 10,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-mosaic',
+    name: 'Mosaic',
+    hint: '圆角方块六档，蓝色数码马赛克',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'roundsquare',
+      'halftone.size': 90,
+      'halftone.minSize': 20,
+      'halftone.stepped': true,
+      'halftone.levels': 6,
+      'screen.pitchX': 12,
+      'screen.pitchY': 12,
+      'screen.angle': 0,
+      'ink.dot': '#005BBB',
+      'ink.paper': '#F4F7FB',
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-triangles',
+    name: 'Triangles',
+    hint: '交错三角，米白点配墨蓝底',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'triangle',
+      'halftone.size': 100,
+      'halftone.minSize': 10,
+      'screen.lattice': 'hex',
+      'screen.pitchX': 12,
+      'screen.pitchY': 11,
+      'screen.angle': 0,
+      'ink.dot': '#F4F1EA',
+      'ink.paper': '#11192D',
+      'tone.invert': true,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-color-dots',
+    name: 'Color Dots',
+    hint: '每颗点取原图颜色，交错排列像灯珠',
+    params: {
+      'style.type': 'halftone',
+      'ink.mode': 'source',
+      'halftone.shape': 'circle',
+      'halftone.size': 100,
+      'halftone.minSize': 30,
+      'screen.lattice': 'hex',
+      'screen.pitchX': 12,
+      'screen.pitchY': 10,
+      'screen.angle': 0,
+      'ink.paper': '#FFFFFF',
+      'tone.saturation': 20,
+    },
+    exposes: HT,
+  },
+  {
+    id: 'ht-honeycomb',
+    name: 'Honeycomb',
+    hint: '六边形配交错排列，铺成蜂窝',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'hexagon',
+      'halftone.size': 100,
+      'halftone.minSize': 22,
+      'screen.lattice': 'hex',
+      'screen.pitchX': 12,
+      'screen.pitchY': 10,
+      'screen.angle': 0,
+      'ink.dot': '#1E2A38',
+      'ink.paper': '#F2EFE9',
+    },
+    exposes: HT,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
@@ -371,12 +589,38 @@ export function findBuiltinPreset(id: string): BuiltinPreset | undefined {
 
 /** 一套参数（完整或相对默认值的覆盖）属于哪种风格 */
 export function presetStyle(params: Partial<Params>): StyleKind {
-  return params['style.type'] === 'hatch' ? 'hatch' : 'dither';
+  return styleOf(params);
+}
+
+/** 预设（内置或用户）的风格；不存在的 id 返回 null */
+export function presetStyleById(id: string, userPresets: readonly UserPreset[]): StyleKind | null {
+  const builtin = builtinById.get(id);
+  if (builtin) return presetStyle(builtin.params);
+  const user = userPresets.find((p) => p.id === id);
+  return user ? presetStyle(user.params) : null;
+}
+
+/** 某种风格的内置预设，「默认」在最前 */
+export function builtinPresetsOf(style: StyleKind): BuiltinPreset[] {
+  return BUILTIN_PRESETS.filter((p) => presetStyle(p.params) === style);
 }
 
 /** 某种风格的「默认」预设：预设模块的「重置」按当前页签退回它 */
 export function defaultPresetIdFor(style: StyleKind): string {
-  return style === 'hatch' ? HATCH_DEFAULT_PRESET_ID : DEFAULT_PRESET_ID;
+  return style === 'hatch' ? HATCH_DEFAULT_PRESET_ID : style === 'halftone' ? HALFTONE_DEFAULT_PRESET_ID : DEFAULT_PRESET_ID;
+}
+
+/**
+ * 两套参数在当前风格看得见的范围内是否有差别：只比共用参数与这种风格自己的参数，
+ * 风格本身与别的风格的参数不算——在网点页签里改过抖动那边的东西不算网点方案被动过。
+ */
+export function paramsDiffer(a: Params, b: Params, style: StyleKind): boolean {
+  return PARAM_SCHEMA.some((def) => {
+    if (def.group === 'style') return false;
+    const owner = GROUP_STYLE[def.group];
+    if (owner && owner !== style) return false;
+    return a[def.id] !== b[def.id];
+  });
 }
 
 /** 内置预设展开成完整参数 */
@@ -384,12 +628,12 @@ export function builtinPresetParams(preset: BuiltinPreset): Params {
   return sanitizeParams({ ...defaultParams(), ...preset.params });
 }
 
-/** 一个预设（内置或用户）的来源内置预设：用户预设看 base，找不到按「默认」 */
+/** 一个预设（内置或用户）的来源内置预设：用户预设看 base，找不到按它自身风格的「默认」 */
 export function resolveBase(id: string, userPresets: readonly UserPreset[]): BuiltinPreset {
   const builtin = builtinById.get(id);
   if (builtin) return builtin;
   const user = userPresets.find((p) => p.id === id);
-  return (user?.base && builtinById.get(user.base)) || builtinById.get(DEFAULT_PRESET_ID)!;
+  return (user?.base && builtinById.get(user.base)) || builtinById.get(user ? defaultPresetIdFor(presetStyle(user.params)) : DEFAULT_PRESET_ID)!;
 }
 
 /**
@@ -407,8 +651,21 @@ export function isParamExposed(def: ParamDef, exposes: readonly string[]): boole
   return exposes.includes(def.group) || exposes.includes(def.id);
 }
 
-/** 方案摘要：抖动是 算法族 · 算法 · 颜色模式 · 像素尺寸，排线是 角度 · 间距 · 色阶；用于历史列表与卡片说明 */
+const optionLabel = (id: string, value: unknown): string => {
+  const def = getParamDef(id);
+  return def.type === 'select' ? def.options.find((o) => o.value === value)?.label ?? String(value) : String(value);
+};
+
+/**
+ * 方案摘要，用于历史列表与卡片说明：抖动是 算法族 · 算法 · 颜色模式 · 像素尺寸，
+ * 排线是 角度 · 间距 · 色阶，网点是 形状 · 间距 · 颜色模式。
+ */
 export function summarizeParams(params: Params): string {
+  if (styleOf(params) === 'halftone') {
+    const px = params['screen.pitchX'];
+    const py = params['screen.pitchY'];
+    return ['网点', optionLabel('halftone.shape', params['halftone.shape']), px === py ? `${px}px` : `${px}×${py}px`, optionLabel('ink.mode', params['ink.mode'])].join(' · ');
+  }
   if (styleOf(params) === 'hatch') {
     return `排线 · ${params['hatch.angle']}° · 间距 ${params['hatch.spacingX']}×${params['hatch.spacingY']} · ${params['hatch.levels']} 级`;
   }
