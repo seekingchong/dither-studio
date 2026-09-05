@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup, type Params } from '@/params';
-import { isParamExposed, presetReferenceParams, resolveBase, useStudioStore } from '@/state';
+import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
+import { isParamExposed, presetReferenceParams, resolveBase, styleOfParams, useStudioStore } from '@/state';
 import { Icon, IconButton, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorSwatches } from './ColorSwatches';
@@ -11,9 +11,16 @@ import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
 import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
-import { leadParamIds, SECTIONS, type SectionMeta } from './sections';
+import { leadParamIds, sectionsFor, type SectionMeta } from './sections';
 
-type PaneTab = 'params' | 'history';
+/** 左栏页签：两个风格页签就是 `style.kind` 本身，再加一个「历史」 */
+type PaneTab = StyleKind | 'history';
+
+const PANE_TABS: Array<{ id: PaneTab; label: string }> = [
+  { id: 'dither', label: 'Dither' },
+  { id: 'halftone', label: 'Halftone' },
+  { id: 'history', label: '历史' },
+];
 
 interface SectionContent {
   meta: SectionMeta;
@@ -22,8 +29,9 @@ interface SectionContent {
 }
 
 /**
- * 左栏。「参数」页 = 预设模块（选一套方案）+ 在这套方案范围内微调的参数；
- * 「历史」页 = 保存过的所有方案。
+ * 左栏。「Dither」「Halftone」两个风格页签 = 预设模块（选一套这种风格的方案）+ 在这套方案范围内微调的参数；
+ * 点风格页签就是切换 `style.kind`（进撤销栈、跟着预设走），两种风格的参数都留在同一份参数表里，来回切不丢。
+ * 「历史」页 = 保存过的所有方案（两种风格都在）。
  *
  * 参数不再分 tab：整栏一列，每节可折叠、收起时显示当前值摘要。
  * 默认全部展开，需要时可逐节收起（收起后标题右侧显示当前值摘要），几节之间的关系一眼可见，也不用来回切 tab 找参数。
@@ -38,13 +46,28 @@ export function ParamPane() {
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
   // 「重置」把这一节退回当前方案本身的值（不是 schema 默认值），跟操作行的「还原」同一把尺子
   const reference = useStudioStore(useShallow((s) => presetReferenceParams(s.presetId, s.presets)));
-  const [paneTab, setPaneTab] = useState<PaneTab>('params');
+  const setStyle = useStudioStore((s) => s.setStyle);
+  // 只记"在看历史页还是在看参数"；具体是哪个风格页签由参数里的 style.kind 决定（撤销、应用预设都会带着它变）
+  const [showHistory, setShowHistory] = useState(false);
   // 分节默认全展开；点标题仍可单独收起，收起后标题右侧显示当前值摘要
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
+  const style = styleOfParams(params);
+  const paneTab: PaneTab = showHistory ? 'history' : style;
+  const selectTab = (tab: PaneTab) => {
+    if (tab === 'history') {
+      setShowHistory(true);
+      return;
+    }
+    setShowHistory(false);
+    setStyle(tab);
+  };
+  const metas = useMemo(() => sectionsFor(style), [style]);
+
   const family = String(params['dither.family']) as DitherFamily;
-  const algorithmId = FAMILY_PARAM[family];
-  const leads = useMemo(() => leadParamIds(family), [family]);
+  const algorithmId = style === 'dither' ? FAMILY_PARAM[family] : undefined;
+  // 「基础」那一排领头参数只有 Dither 有
+  const leads = useMemo(() => (style === 'dither' ? leadParamIds(family) : []), [style, family]);
 
   /**
    * 每一节管着哪些参数——重置要把没露出来、当前条件下不可见的一并退回去，
@@ -52,7 +75,7 @@ export function ParamPane() {
    */
   const sectionParamIds = useMemo(() => {
     const sectionOfGroup = new Map<ParamGroup, string>();
-    for (const meta of SECTIONS) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
+    for (const meta of metas) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
     const leadSet = new Set(leads);
     const bySection = new Map<string, string[]>();
     for (const def of PARAM_SCHEMA) {
@@ -63,7 +86,7 @@ export function ParamPane() {
       else bySection.set(id, [def.id]);
     }
     return bySection;
-  }, [leads]);
+  }, [leads, metas]);
 
   const sectionDirty = (id: string) => (sectionParamIds.get(id) ?? []).some((pid) => params[pid] !== reference[pid]);
   const resetSection = (id: string) => {
@@ -74,7 +97,7 @@ export function ParamPane() {
 
   const sections = useMemo<SectionContent[]>(() => {
     const sectionOfGroup = new Map<ParamGroup, string>();
-    for (const meta of SECTIONS) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
+    for (const meta of metas) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
     const leadSet = new Set(leads);
 
     const bySection = new Map<string, { basic: ParamDef[]; advanced: ParamDef[] }>();
@@ -88,7 +111,7 @@ export function ParamPane() {
       bySection.set(id, entry);
     }
 
-    return SECTIONS.map((meta) => {
+    return metas.map((meta) => {
       const entry = bySection.get(meta.id) ?? { basic: [], advanced: [] };
       const basic = entry.basic.slice();
       // 「基础」把那一排领头参数提到最前，其余保持 schema 顺序
@@ -101,19 +124,12 @@ export function ParamPane() {
       }
       return { meta, basic, advanced: entry.advanced };
     }).filter((s) => s.basic.length > 0 || s.advanced.length > 0);
-  }, [params, exposes, leads]);
+  }, [params, exposes, leads, metas]);
 
   return (
     <section className="pane pane--params" aria-label="参数面板">
       <div className="pane-actions">
-        <Tabs
-          items={[
-            { id: 'params', label: '参数' },
-            { id: 'history', label: '历史' },
-          ]}
-          value={paneTab}
-          onChange={setPaneTab}
-        />
+        <Tabs items={PANE_TABS} value={paneTab} onChange={selectTab} />
         <div className="pane-actions__tools">
           <SettingsMenu />
           <PresetActions />
@@ -121,12 +137,12 @@ export function ParamPane() {
       </div>
 
       <div className="pane-content">
-        {paneTab === 'history' && <HistoryPane onApplied={() => setPaneTab('params')} />}
-        {paneTab === 'params' && (
+        {paneTab === 'history' && <HistoryPane onApplied={() => setShowHistory(false)} />}
+        {paneTab !== 'history' && (
           <>
             <PresetPicker />
 
-            <div className="sections" data-testid="params-module">
+            <div className="sections" data-testid="params-module" data-style={style}>
               {sections.map(({ meta, basic, advanced }) => {
                 const open = openSections[meta.id] ?? true;
                 return (

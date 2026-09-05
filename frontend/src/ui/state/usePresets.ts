@@ -1,15 +1,17 @@
 import { useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlatform } from '@/platform';
-import { sanitizeParams, type Params } from '@/params';
+import { sanitizeParams } from '@/params';
 import {
-  DEFAULT_PRESET_ID,
   PRESETS_STORAGE_KEY,
   builtinPresetParams,
+  defaultPresetIdFor,
   findBuiltinPreset,
   newPresetId,
+  paramsDiffer,
   presetReferenceParams,
   resolveBase,
+  styleOfParams,
   useStudioStore,
   type BuiltinPreset,
   type UserPreset,
@@ -18,11 +20,6 @@ import type { RenderClient } from '@/engine';
 import { useToast } from '@/ui/primitives';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { frameToThumbnail } from './thumbnail';
-
-function sameParams(a: Params, b: Params): boolean {
-  for (const key of Object.keys(a)) if (a[key] !== b[key]) return false;
-  return true;
-}
 
 /** 等待渲染结果落定的上限；超时就用手头的帧 */
 const THUMBNAIL_SETTLE_MS = 2000;
@@ -67,7 +64,8 @@ export function usePresets() {
   const activeName = activeUser?.name ?? findBuiltinPreset(activeId)?.name ?? base.name;
   /** 当前方案没微调过时该有的那套参数；「还原」与各分节的「重置」都以它为准 */
   const reference = useMemo(() => presetReferenceParams(activeId, presets), [activeId, presets]);
-  const dirty = useMemo(() => !sameParams(reference, params), [reference, params]);
+  // 只看这套方案露出的参数：在另一种风格页签里改过的东西不算这套方案被动过
+  const dirty = useMemo(() => paramsDiffer(reference, params, base.exposes), [reference, params, base.exposes]);
 
   const persist = useCallback(
     async (list: UserPreset[]) => {
@@ -94,7 +92,7 @@ export function usePresets() {
     const state = useStudioStore.getState();
     const user = state.presets.find((p) => p.id === state.presetId);
     if (user) applyUser(user);
-    else applyBuiltin(findBuiltinPreset(state.presetId) ?? findBuiltinPreset(DEFAULT_PRESET_ID)!);
+    else applyBuiltin(findBuiltinPreset(state.presetId) ?? findBuiltinPreset(defaultPresetIdFor(styleOfParams(state.params)))!);
   }, [applyBuiltin, applyUser]);
 
   /** 把当前方案存成新的用户预设，并切换到它 */

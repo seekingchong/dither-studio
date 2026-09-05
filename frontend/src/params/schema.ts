@@ -25,7 +25,23 @@ const famAnd = (family: string, id: string, value: string | string[]) => [
   Array.isArray(value) ? { id, in: value } : { id, equals: value },
 ];
 
+/** Halftone 风格的网点形状（`halftone.shape`），与 `engine/halftone/shapes.ts` 的 SDF 一一对应 */
+export const HALFTONE_SHAPES: ParamOption[] = [
+  opt('circle', '圆形'),
+  opt('square', '方形'),
+  opt('roundsquare', '圆角方'),
+  opt('diamond', '菱形'),
+  opt('triangle', '三角'),
+  opt('hexagon', '六边形'),
+  opt('line', '线条'),
+  opt('cross', '十字'),
+];
+
 export const PARAM_SCHEMA: readonly ParamDef[] = [
+  // ---------- 风格 ----------
+  // 左栏页签就是这个参数：Dither / Halftone。进预设、进撤销栈，应用预设时跟着切
+  { id: 'style.kind', group: 'style', label: '风格', type: 'select', default: 'dither', options: [opt('dither', 'Dither'), opt('halftone', 'Halftone')] },
+
   // ---------- 画布 ----------
   { id: 'canvas.width', group: 'canvas', label: '宽度', type: 'number', min: 16, max: 8192, step: 1, default: 1000, unit: 'px', advanced: true },
   { id: 'canvas.height', group: 'canvas', label: '高度', type: 'number', min: 16, max: 8192, step: 1, default: 600, unit: 'px', advanced: true },
@@ -377,6 +393,52 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
 
   // ---------- 特效栈 ----------
   { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },
+
+  // ---------- Halftone：网点 ----------
+  // 每个网格采样一块画面的平均明暗，换算成一个点的大小；点是矢量形状，边缘抗锯齿
+  { id: 'halftone.shape', group: 'halftone', label: '网点形状', type: 'select', default: 'circle', options: HALFTONE_SHAPES },
+  { id: 'halftone.size', group: 'halftone', label: '网点大小', type: 'number', min: 10, max: 150, step: 1, default: 100, unit: '%' },
+  { id: 'halftone.minSize', group: 'halftone', label: '最小网点', type: 'number', min: 0, max: 100, step: 1, default: 10, unit: '%' },
+  {
+    id: 'halftone.mapping',
+    group: 'halftone',
+    label: '网点响应',
+    type: 'select',
+    default: 'area',
+    options: [opt('area', '面积正比'), opt('linear', '直径正比')],
+  },
+  { id: 'halftone.gain', group: 'halftone', label: '网点增益', type: 'number', min: -100, max: 100, step: 1, default: 0, unit: '%' },
+  { id: 'halftone.stepped', group: 'halftone', label: '灰阶分级', type: 'boolean', default: false, hint: '把点的大小限定在固定几档' },
+  { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
+  { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
+
+  // ---------- Halftone：网格 ----------
+  { id: 'screen.pitchX', group: 'screen', label: '横向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'screen.pitchY', group: 'screen', label: '纵向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'screen.angle', group: 'screen', label: '网格角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°' },
+  {
+    id: 'screen.lattice',
+    group: 'screen',
+    label: '排列',
+    type: 'select',
+    default: 'square',
+    options: [opt('square', '方格'), opt('hex', '交错')],
+  },
+  { id: 'screen.offsetX', group: 'screen', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
+  { id: 'screen.offsetY', group: 'screen', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
+
+  // ---------- Halftone：颜色 ----------
+  {
+    id: 'ink.mode',
+    group: 'ink',
+    label: '颜色模式',
+    type: 'select',
+    default: 'mono',
+    options: [opt('mono', '双色'), opt('source', '原图色'), opt('cmyk', 'CMYK 分色')],
+  },
+  { id: 'ink.dot', group: 'ink', label: '网点颜色', type: 'color', default: '#11192D', visibleWhen: { id: 'ink.mode', equals: 'mono' } },
+  { id: 'ink.paper', group: 'ink', label: '背景色', type: 'color', default: '#FFFFFF' },
 
   // ---------- 颜色 ----------
   {

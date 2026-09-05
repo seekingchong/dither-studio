@@ -9,6 +9,9 @@ import { colorDither } from './dither/color';
 import { resolveAlgorithm } from './dither/registry';
 import type { AlgorithmDef, DitherInput } from './dither/types';
 import { applyEffects, parseStack } from './effects/stack';
+import { buildHalftone, type HalftoneGeometry, type HalftoneSource } from './halftone/geometry';
+import { renderHalftone } from './halftone/render';
+import { CELL_SAMPLES } from './halftone/geometry';
 import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
 import { backgroundMask, backgroundTarget, forceBackgroundGray, forceBackgroundRgb, isLightBackground } from './preprocess/background';
 import { fitFrame } from './preprocess/fit';
@@ -42,8 +45,15 @@ export interface PipelineStats {
   gpu: boolean;
 }
 
+/** Halftone 的采样倍率：格子短边上留 CELL_SAMPLES 个采样点，再小就不缩了 */
+export function halftoneSampleSize(pitchX: number, pitchY: number): number {
+  return Math.max(1, Math.floor(Math.min(pitchX, pitchY) / CELL_SAMPLES));
+}
+
 /**
  * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 抖动 → 颜色映射 → Accent → 网格渲染。
+ * Halftone 风格在适配画布之后分叉：按网格间距缩小 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 逐格采样成网点几何 → 光栅渲染，
+ * 两条路各自一套缓存，切风格来回不会互相冲掉。特效栈两条路共用。
  * 每个阶段按"上游键 + 本阶段参数"缓存，参数没变的阶段直接复用。
  * 强制背景的蒙版按像素化结果算（与影调无关），替换发生在阈值偏置之后，所以背景点密度不随阈值滑块漂移。
  * 颜色映射按模式分三条路：亮度路径（单色 / 灰阶 / Tint / 深度错配）、真彩调色板路径、分通道路径。
@@ -61,17 +71,26 @@ export class Pipeline {
   lastStats: PipelineStats = { recomputed: [], elapsedMs: 0, gpu: false };
   /** 允许走 WebGL 路径（由 Worker 按全局设置传入） */
   gpu = true;
+  /** 最近一次运行走的是哪种风格 */
+  private lastStyle: PipelineOptions['style'] = 'dither';
 
   run(source: RGBAFrame, sourceId: string, params: Params): RGBAFrame {
     const t0 = now();
     const recomputed: string[] = [];
     let usedGpu = false;
     const opts = toPipelineOptions(params);
+    this.lastStyle = opts.style;
 
     const fitKey = `${sourceId}|${keyOf(params, 'canvas.')}`;
     if (this.fitted?.key !== fitKey) {
       this.fitted = { key: fitKey, value: fitFrame(source, opts.canvas.width, opts.canvas.height, opts.canvas.fit) };
       recomputed.push('fit');
+    }
+
+    if (opts.style === 'halftone') {
+      const output = this.runHalftone(params, opts, fitKey, recomputed);
+      this.lastStats = { recomputed, elapsedMs: now() - t0, gpu: false };
+      return output;
     }
 
     const pixelKey = `${fitKey}|${keyOf(params, 'pixel.')}`;
@@ -243,25 +262,112 @@ export class Pipeline {
       this.rendered = { key: renderKey, value: frame };
       recomputed.push(usedGpu && !plain ? 'render:gpu' : 'render');
     }
-    const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
-    const effectsKey = `${renderKey}|${stackJson}`;
-    if (this.effected?.key !== effectsKey) {
-      const stack = parseStack(stackJson);
-      const value = stack.some((e) => e.enabled) ? applyEffects(this.rendered.value, stack) : this.rendered.value;
-      this.effected = { key: effectsKey, value };
-      if (value !== this.rendered.value) recomputed.push('effects');
-    }
-
-    // 输出会被 Worker 转移给主线程，缓存里保留一份副本
-    const cached = this.effected.value;
-    const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
-
+    const output = this.finish(renderKey, this.rendered.value, params, recomputed);
     this.lastStats = { recomputed, elapsedMs: now() - t0, gpu: usedGpu };
     return output;
   }
 
   private rendered?: Cached<RGBAFrame>;
   private effected?: Cached<RGBAFrame>;
+
+  /** 渲染之后的收尾：特效栈（独立缓存）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本） */
+  private finish(renderKey: string, rendered: RGBAFrame, params: Params, recomputed: string[]): RGBAFrame {
+    const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
+    const effectsKey = `${renderKey}|${stackJson}`;
+    if (this.effected?.key !== effectsKey) {
+      const stack = parseStack(stackJson);
+      const value = stack.some((e) => e.enabled) ? applyEffects(rendered, stack) : rendered;
+      this.effected = { key: effectsKey, value };
+      if (value !== rendered) recomputed.push('effects');
+    }
+    const cached = this.effected.value;
+    return { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
+  }
+
+  // ---------- Halftone 分支 ----------
+  private htPixelated?: Cached<RGBFrame>;
+  private htToned?: Cached<RGBFrame>;
+  private htGray?: Cached<GrayFrame>;
+  private htBgMask?: Cached<Uint8Array>;
+  private htForced?: Cached<GrayFrame>;
+  private htGeometry?: Cached<HalftoneGeometry>;
+  private htRendered?: Cached<RGBAFrame>;
+
+  /**
+   * Halftone：不用 pixel.* 的像素化，而是按网格间距把画面缩到"每格短边上 CELL_SAMPLES 个采样"的分辨率，
+   * 影调在这张小图上做，然后每个格子在自己范围里超采样求平均明暗（与颜色），换成网点大小。
+   * 强制背景沿用 Dither 那套蒙版逻辑，只是目标亮度不再按级数取整（网点是连续的）。
+   */
+  private runHalftone(params: Params, opts: PipelineOptions, fitKey: string, recomputed: string[]): RGBAFrame {
+    const ht = opts.halftone;
+    const sample = halftoneSampleSize(ht.pitchX, ht.pitchY);
+    const pixelKey = `${fitKey}|ht-sample=${sample}`;
+    if (this.htPixelated?.key !== pixelKey) {
+      this.htPixelated = { key: pixelKey, value: pixelate(this.fitted!.value, sample, 'box', 0, 0) };
+      recomputed.push('pixelate');
+    }
+
+    const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear', 'tone.bg.'], 'tone.')}`;
+    if (this.htToned?.key !== toneKey) {
+      // 模糊单位是画布像素，换算成这张小图的像素
+      const toneOpts = { ...opts.tone, blur: num(params, 'tone.blur') / sample };
+      this.htToned = { key: toneKey, value: applyTone(this.htPixelated.value, toneOpts) };
+      recomputed.push('tone');
+    }
+
+    const grayKey = `${toneKey}|gray=${opts.tone.grayFormula}|linear=${opts.tone.linear}|threshold=${opts.tone.threshold}`;
+    if (this.htGray?.key !== grayKey) {
+      this.htGray = { key: grayKey, value: applyThresholdBias(toGray(this.htToned.value, opts.tone.grayFormula, opts.tone.linear), opts.tone.threshold) };
+      recomputed.push('gray');
+    }
+
+    let gray = this.htGray.value;
+    let bgKey = '';
+    const fb = opts.forcedBg;
+    if (fb.enabled) {
+      const maskKey = `${pixelKey}|${keyOfExcept(params, ['tone.bg.density', 'tone.bg.strength', 'tone.bg.polarity'], 'tone.bg.')}`;
+      if (this.htBgMask?.key !== maskKey) {
+        this.htBgMask = { key: maskKey, value: backgroundMask(this.htPixelated.value, fb) };
+        recomputed.push('background');
+      }
+      const mask = this.htBgMask.value;
+      const light = fb.polarity === 'auto' ? isLightBackground(gray.data, mask) : fb.polarity === 'light';
+      bgKey = `|bg=${keyOf(params, 'tone.bg.')}`;
+      const forcedKey = `${grayKey}${bgKey}`;
+      if (this.htForced?.key !== forcedKey) {
+        // 网点大小是连续的，背景目标亮度就是 1 − 密度（或密度），不按级数取整
+        this.htForced = { key: forcedKey, value: forceBackgroundGray(gray, mask, backgroundTarget(light, fb.density, 2), fb.strength) };
+      }
+      gray = this.htForced.value;
+    }
+
+    const geometryKey = `${grayKey}${bgKey}|${keyOf(params, 'halftone.', 'screen.', 'ink.')}|${opts.canvas.width}x${opts.canvas.height}`;
+    if (this.htGeometry?.key !== geometryKey) {
+      const src: HalftoneSource = {
+        width: opts.canvas.width,
+        height: opts.canvas.height,
+        sample,
+        grayWidth: gray.width,
+        grayHeight: gray.height,
+        gray: gray.data,
+        rgb: this.htToned.value.data,
+        linear: opts.tone.linear,
+      };
+      this.htGeometry = { key: geometryKey, value: buildHalftone(src, ht) };
+      recomputed.push('halftone');
+    }
+
+    if (this.htRendered?.key !== geometryKey) {
+      this.htRendered = { key: geometryKey, value: renderHalftone(this.htGeometry.value) };
+      recomputed.push('render');
+    }
+    return this.finish(geometryKey, this.htRendered.value, params, recomputed);
+  }
+
+  /** 最近一次 Halftone 运行的网点几何（SVG 导出用）；上一次跑的是 Dither 时为空 */
+  get currentHalftone(): HalftoneGeometry | undefined {
+    return this.lastStyle === 'halftone' ? this.htGeometry?.value : undefined;
+  }
 
   private channels?: Cached<LevelFrame[]>;
 
@@ -335,6 +441,7 @@ export class Pipeline {
 
   clear() {
     this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.bgMask = this.forced = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
+    this.htPixelated = this.htToned = this.htGray = this.htBgMask = this.htForced = this.htGeometry = this.htRendered = undefined;
   }
 }
 

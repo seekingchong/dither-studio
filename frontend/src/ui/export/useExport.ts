@@ -4,9 +4,8 @@ import { usePlatform } from '@/platform';
 import { useStudioStore } from '@/state';
 import { usePlaybackStore } from '@/ui/media/playback';
 import { useToast } from '@/ui/primitives/Toast';
-import { useFrameStore } from '@/ui/renderer/RendererContext';
+import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { exportFileName, frameToPngBlob } from './png';
-import { frameToSvg } from './svg';
 
 /** 等全分辨率那一帧回来的上限；超时就用手头的 */
 const FULL_FRAME_SETTLE_MS = 2000;
@@ -35,6 +34,7 @@ async function fullFrame(slot: number, current: RGBAFrame, scale: number): Promi
 /** 导出当前坑位：PNG、SVG（当前帧的矢量版）、复制 PNG */
 export function useExport() {
   const platform = usePlatform();
+  const client = useRenderClient();
   const show = useToast((s) => s.show);
   const activeSlot = useStudioStore((s) => s.view.activeSlot);
   const media = useStudioStore((s) => s.slots[s.view.activeSlot]?.media ?? null);
@@ -54,17 +54,23 @@ export function useExport() {
     }
   }, [platform, rendered, media, activeSlot, show]);
 
+  /**
+   * SVG 由 Worker 出：它手里有流水线缓存，Halftone 还能直接拿网点几何出真矢量（圆就是 <circle>），
+   * 不用把光栅结果再切成矩形。播放中先停下来，免得预览的降分辨率参数把缓存冲掉。
+   */
   const exportSvg = useCallback(async () => {
-    if (!rendered || !media) return;
+    if (!rendered || !media || !client) return;
     try {
-      const frame = await fullFrame(activeSlot, rendered.frame, rendered.scale);
-      const bytes = new TextEncoder().encode(frameToSvg(frame));
+      usePlaybackStore.getState().update(activeSlot, { playing: false });
+      const { params, settings } = useStudioStore.getState();
+      const svg = await client.exportSvg(activeSlot, params, { gpu: settings.gpu, previewScale: 1 });
+      const bytes = new TextEncoder().encode(svg);
       const saved = await platform.files.save(bytes, exportFileName(media.name, 'svg'), 'image/svg+xml');
       if (saved) show(`已导出 ${saved.path}`);
     } catch (err) {
       show(`导出帧失败：${(err as Error).message}`, 'error');
     }
-  }, [platform, rendered, media, activeSlot, show]);
+  }, [platform, client, rendered, media, activeSlot, show]);
 
   const copyPng = useCallback(async () => {
     if (!rendered) return;

@@ -1,4 +1,6 @@
 /// <reference lib="webworker" />
+import { frameToSvg } from './export/svg';
+import { halftoneToSvg } from './halftone/svg';
 import { Pipeline } from './pipeline';
 import { scaleParamsForPreview } from './preview';
 import type { WorkerRequest, WorkerResponse } from './protocol';
@@ -92,6 +94,24 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
           },
           [out.data.buffer as ArrayBuffer],
         );
+      } catch (err) {
+        post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });
+      }
+      break;
+    }
+    case 'svg': {
+      const entry = sources.get(msg.slot);
+      if (!entry) {
+        post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: '坑位没有源媒体' });
+        return;
+      }
+      try {
+        // 导出用全分辨率参数跑一遍（缓存命中就几乎不花时间），Halftone 直接拿几何出矢量，Dither 把色块并成矩形
+        entry.pipeline.gpu = msg.options?.gpu ?? true;
+        const out = entry.pipeline.run(entry.frame, entry.id, msg.params);
+        const geometry = entry.pipeline.currentHalftone;
+        const svg = String(msg.params['style.kind']) === 'halftone' && geometry ? halftoneToSvg(geometry) : frameToSvg(out);
+        post({ type: 'svg', jobId: msg.jobId, slot: msg.slot, svg });
       } catch (err) {
         post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });
       }

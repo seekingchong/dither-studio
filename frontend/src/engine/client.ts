@@ -39,6 +39,8 @@ export class RenderClient {
   /** 已把源帧送进 Worker 的坑位 */
   private sourced = new Set<number>();
   private scheduled = false;
+  /** 在途的 SVG 导出，按 jobId 等结果 */
+  private svgJobs = new Map<number, { resolve: (svg: string) => void; reject: (err: Error) => void }>();
   private frameListeners = new Set<FrameListener>();
   private errorListeners = new Set<ErrorListener>();
 
@@ -119,6 +121,15 @@ export class RenderClient {
     });
   }
 
+  /** 当前帧的矢量版 SVG：Worker 按全分辨率参数出图，Halftone 是真网点几何，Dither 是合并后的色块 */
+  exportSvg(slot: number, params: Params, options?: RenderOptions): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const jobId = ++this.jobSeq;
+      this.svgJobs.set(jobId, { resolve, reject });
+      this.send({ type: 'svg', jobId, slot, params, options });
+    });
+  }
+
   onFrame(cb: FrameListener): () => void {
     this.frameListeners.add(cb);
     return () => this.frameListeners.delete(cb);
@@ -134,6 +145,8 @@ export class RenderClient {
     this.pending.clear();
     this.inflight.clear();
     this.sourced.clear();
+    for (const job of this.svgJobs.values()) job.reject(new Error('渲染器已关闭'));
+    this.svgJobs.clear();
     this.frameListeners.clear();
     this.errorListeners.clear();
   }
@@ -169,7 +182,20 @@ export class RenderClient {
         this.flush();
         break;
       }
+      case 'svg': {
+        const job = this.svgJobs.get(msg.jobId);
+        this.svgJobs.delete(msg.jobId);
+        job?.resolve(msg.svg);
+        break;
+      }
       case 'error': {
+        // SVG 导出的错误只回给发起它的那个 Promise，不当成渲染错误弹给界面
+        const svgJob = msg.jobId !== null ? this.svgJobs.get(msg.jobId) : undefined;
+        if (svgJob) {
+          this.svgJobs.delete(msg.jobId!);
+          svgJob.reject(new Error(msg.message));
+          break;
+        }
         if (msg.jobId !== null && this.inflight.get(msg.slot) === msg.jobId) this.inflight.delete(msg.slot);
         for (const cb of this.errorListeners) cb(msg.slot, msg.message);
         this.flush();

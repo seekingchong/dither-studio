@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RGBAFrame } from '@/engine';
-import { frameToRects, frameToSvg } from '@/ui/export/svg';
+import { frameToRects, frameToSvg, type RGBAFrame } from '@/engine';
 
 /** 按 `pick(x, y)` 生成一帧；返回 [r,g,b,a]，a 省略为 255 */
 function frameOf(width: number, height: number, pick: (x: number, y: number) => number[]): RGBAFrame {

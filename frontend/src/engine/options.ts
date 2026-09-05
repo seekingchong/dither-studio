@@ -1,10 +1,12 @@
-import { bool, num, str, type Params } from '@/params';
+import { bool, num, str, type Params, type StyleKind } from '@/params';
 import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
 import type { ChannelSpace, ColorMode } from './color/map';
 import { parseColorList } from './color/palettes';
 import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { GrayFormula } from './color/gray';
+import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
+import type { HalftoneShape } from './halftone/shapes';
 import type { FitMode } from './preprocess/fit';
 import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
@@ -12,6 +14,8 @@ import type { ResampleMethod } from './preprocess/resample';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
+  /** 艺术风格：抖动走原有流水线，网点走 halftone 分支 */
+  style: StyleKind;
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
   tone: ToneOptions & { linear: boolean; threshold: number; grayFormula: GrayFormula };
@@ -48,11 +52,13 @@ export interface PipelineOptions {
     bgDotShape: BgDotShape;
     bgDotSize: number;
   };
+  halftone: HalftoneSettings;
 }
 
 export function toPipelineOptions(params: Params): PipelineOptions {
   const mode = str(params, 'color.mode') as ColorMode;
   return {
+    style: str(params, 'style.kind') as StyleKind,
     canvas: {
       width: Math.round(num(params, 'canvas.width')),
       height: Math.round(num(params, 'canvas.height')),
@@ -136,6 +142,26 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       bgColor: hexToRgb(str(params, 'grid.bgColor')),
       bgDotShape: str(params, 'grid.bgDotShape') as BgDotShape,
       bgDotSize: num(params, 'grid.bgDotSize') / 100,
+    },
+    halftone: {
+      shape: str(params, 'halftone.shape') as HalftoneShape,
+      size: num(params, 'halftone.size') / 100,
+      minSize: num(params, 'halftone.minSize') / 100,
+      mapping: str(params, 'halftone.mapping') as SizeMapping,
+      gain: num(params, 'halftone.gain') / 100,
+      stepped: bool(params, 'halftone.stepped'),
+      levels: Math.max(2, Math.round(num(params, 'halftone.levels'))),
+      merge: num(params, 'halftone.merge') / 100,
+      antialias: bool(params, 'halftone.antialias'),
+      pitchX: Math.max(1, num(params, 'screen.pitchX')),
+      pitchY: Math.max(1, num(params, 'screen.pitchY')),
+      angle: num(params, 'screen.angle'),
+      lattice: str(params, 'screen.lattice') as LatticeKind,
+      offsetX: num(params, 'screen.offsetX'),
+      offsetY: num(params, 'screen.offsetY'),
+      mode: str(params, 'ink.mode') as InkMode,
+      dot: hexToRgb(str(params, 'ink.dot')),
+      paper: hexToRgb(str(params, 'ink.paper')),
     },
   };
 }

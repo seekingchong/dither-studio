@@ -1,4 +1,4 @@
-import type { RGBAFrame } from '@/engine';
+import type { RGBAFrame } from '../types';
 
 /**
  * 超过这个矩形数就不出了：抖动结果在像素尺寸 1 且用误差扩散时接近噪声，

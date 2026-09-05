@@ -43,4 +43,6 @@ export * from './effects';
 export { GpuContext, orderedDitherGpu, renderGridGpu } from './gpu';
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse, RenderOptions } from './protocol';
+export * from './halftone';
+export { frameToRects, frameToSvg, MAX_RECTS, type SvgRect } from './export/svg';
 export { scaleParamsForPreview, captureSizeFor, pacePreview, PREVIEW_SCALES, PREVIEW_BUDGET_MS, INITIAL_PACER, type PreviewPacer } from './preview';

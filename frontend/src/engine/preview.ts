@@ -29,6 +29,11 @@ export function scaleParamsForPreview(params: Params, scale: number): { params: 
       'grid.gapY': px('grid.gapY'),
       'grid.lineWidth': Math.max(1, px('grid.lineWidth')),
       'tone.blur': (Number(params['tone.blur']) || 0) * effective,
+      // Halftone 的网格也按画布同比缩：格子数不变，只是每个点画得更小
+      'screen.pitchX': Math.max(2, px('screen.pitchX')),
+      'screen.pitchY': Math.max(2, px('screen.pitchY')),
+      'screen.offsetX': px('screen.offsetX'),
+      'screen.offsetY': px('screen.offsetY'),
     },
   };
 }

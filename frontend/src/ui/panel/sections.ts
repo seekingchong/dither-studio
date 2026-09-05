@@ -1,5 +1,5 @@
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { bool, getParamDef, num, str, type ParamGroup, type Params } from '@/params';
+import { bool, getParamDef, num, str, type ParamGroup, type Params, type StyleKind } from '@/params';
 
 export interface SectionMeta {
   id: string;
@@ -130,6 +130,63 @@ export const SECTIONS: SectionMeta[] = [
     },
   },
 ];
+
+/** 影调与特效两节两种风格共用 */
+const TONE_SECTION = SECTIONS.find((s) => s.id === 'tone')!;
+const EFFECTS_SECTION = SECTIONS.find((s) => s.id === 'effects')!;
+
+/**
+ * Halftone 页签的分节：网点 → 网格 → 颜色 → 影调 → 特效。
+ * 网点与网格拆成两节：前者管一颗点长什么样、多大，后者管点排在哪。
+ */
+export const HALFTONE_SECTIONS: SectionMeta[] = [
+  {
+    id: 'dots',
+    label: '网点',
+    hint: '每个格子按它盖住的那块画面的明暗放一颗点：形状、最大与最小、明暗到大小的响应、分级与融合。',
+    groups: ['halftone'],
+    summary: (p) => {
+      const parts = [optionLabel('halftone.shape', p), `${num(p, 'halftone.size')}%`];
+      if (bool(p, 'halftone.stepped')) parts.push(`${num(p, 'halftone.levels')} 档`);
+      const merge = num(p, 'halftone.merge');
+      if (merge > 0) parts.push(`融合 ${merge}%`);
+      return parts.join(' · ');
+    },
+  },
+  {
+    id: 'screen',
+    label: '网格',
+    hint: '点排在什么样的网格上：横向 / 纵向中心距、角度、方格或交错。间距越小点越细密，网点大小只是格子里的占比。',
+    groups: ['screen'],
+    summary: (p) => {
+      const px = num(p, 'screen.pitchX');
+      const py = num(p, 'screen.pitchY');
+      const parts = [px === py ? `${px}px` : `${px} × ${py}px`, `${num(p, 'screen.angle')}°`];
+      if (str(p, 'screen.lattice') === 'hex') parts.push('交错');
+      return parts.join(' · ');
+    },
+  },
+  {
+    id: 'ink',
+    label: '颜色',
+    hint: '网点色与底色。原图色让每颗点带上那一块画面的颜色；CMYK 把画面分成青品黄黑四层网点，按印刷角度叠印。',
+    groups: ['ink'],
+    summary: (p) => {
+      const mode = str(p, 'ink.mode');
+      const parts = [optionLabel('ink.mode', p)];
+      if (mode === 'mono') parts.push(str(p, 'ink.dot'));
+      parts.push(str(p, 'ink.paper'));
+      return parts.join(' · ');
+    },
+  },
+  TONE_SECTION,
+  EFFECTS_SECTION,
+];
+
+/** 当前风格页签的分节 */
+export function sectionsFor(style: StyleKind): SectionMeta[] {
+  return style === 'halftone' ? HALFTONE_SECTIONS : SECTIONS;
+}
 
 /**
  * 「基础」最前面这几个参数原来是 tab 之上单独一排"快捷参数"：算法族、当前族的算法、
