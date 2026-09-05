@@ -1,9 +1,9 @@
-import { PARAM_SCHEMA } from './schema';
-import type { ParamDef, ParamValue, Params, VisibleWhen } from './types';
+import { GROUP_STYLE, PARAM_SCHEMA } from './schema';
+import type { ParamDef, ParamValue, Params, StyleKind, VisibleWhen } from './types';
 
 export * from './types';
 export * from './help';
-export { PARAM_SCHEMA, DITHER_FAMILIES } from './schema';
+export { PARAM_SCHEMA, DITHER_FAMILIES, STYLE_KINDS, GROUP_STYLE } from './schema';
 
 const byId = new Map<string, ParamDef>(PARAM_SCHEMA.map((p) => [p.id, p]));
 
@@ -31,7 +31,14 @@ function matchCondition(cond: VisibleWhen, params: Params): boolean {
   return true;
 }
 
+/** 当前参数所选的艺术风格 */
+export function styleOf(params: Params): StyleKind {
+  return params['style.type'] === 'hatch' ? 'hatch' : 'dither';
+}
+
 export function isParamVisible(def: ParamDef, params: Params): boolean {
+  const style = GROUP_STYLE[def.group];
+  if (style && styleOf(params) !== style) return false;
   if (!def.visibleWhen) return true;
   const conds = Array.isArray(def.visibleWhen) ? def.visibleWhen : [def.visibleWhen];
   return conds.every((c) => matchCondition(c, params));

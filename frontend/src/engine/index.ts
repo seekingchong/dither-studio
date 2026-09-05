@@ -37,10 +37,26 @@ export {
 export * from './dither';
 export { renderCells } from './render/upscale';
 export { renderGrid, DEFAULT_GRID, type GridRenderOptions, type DotShape, type BackgroundKind, type LineDirection, type BgDotShape } from './render/grid';
+export {
+  renderHatch,
+  quantizeHatch,
+  hatchLayers,
+  levelWidths,
+  crossWidths,
+  chordOf,
+  pitchOf,
+  rowShift,
+  DEFAULT_HATCH,
+  type HatchOptions,
+  type HatchLink,
+  type StrokeLayer,
+} from './render/hatch';
+export { hatchToSvg } from './render/hatchSvg';
+export { frameToRects, frameToSvg, MAX_RECTS, type SvgRect } from './render/svg';
 export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
-export { Pipeline, renderImage, type PipelineStats } from './pipeline';
+export { Pipeline, renderImage, type PipelineStats, type HatchState } from './pipeline';
 export * from './effects';
-export { GpuContext, orderedDitherGpu, renderGridGpu } from './gpu';
+export { GpuContext, orderedDitherGpu, renderGridGpu, renderHatchGpu } from './gpu';
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse, RenderOptions } from './protocol';
 export { scaleParamsForPreview, captureSizeFor, pacePreview, PREVIEW_SCALES, PREVIEW_BUDGET_MS, INITIAL_PACER, type PreviewPacer } from './preview';

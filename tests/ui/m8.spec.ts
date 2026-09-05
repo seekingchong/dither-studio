@@ -145,7 +145,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await page.getByRole('button', { name: '删除' }).click();
   await expect(page.locator('.history-item')).toHaveCount(0);
   // 删除正在使用的预设：参数保留，来源退回 Game Boy
-  await page.getByRole('tab', { name: '参数' }).click();
+  await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('30');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy · 已微调');
   await page.reload();
@@ -155,7 +155,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.history-item')).toHaveCount(0);
 
   // 预设模块自己的「重置」= 退回「默认」；已经在默认且没微调时置灰
-  await page.getByRole('tab', { name: '参数' }).click();
+  await page.getByRole('tab', { name: '抖动' }).click();
   await page.locator('[data-preset="gameboy"]').click();
   await expect(page.getByTestId('reset-preset')).toBeEnabled();
   await page.getByTestId('reset-preset').click();
