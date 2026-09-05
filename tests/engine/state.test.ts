@@ -153,7 +153,7 @@ describe('风格页签', () => {
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     useStudioStore.getState().setStyle('halftone');
     expect(useStudioStore.getState().presetId).toBe('ht-poster');
-    // 应用 Dither 预设时参数里带着 style.kind，风格跟着回去
+    // 应用抖动预设时参数里带着 style.type，风格跟着回去
     useStudioStore.getState().replaceParams(builtinPresetParams(findBuiltinPreset('zine')!), 'zine');
     expect(useStudioStore.getState().params['style.type']).toBe('dither');
     expect(defaultPresetIdFor('halftone')).toBe(HALFTONE_DEFAULT_PRESET_ID);
