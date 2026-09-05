@@ -84,6 +84,22 @@ describe('撤销 / 重做', () => {
     expect(useStudioStore.getState().history.past.length).toBeLessThanOrEqual(HISTORY_LIMIT);
   });
 
+  it('setParams 传 editId 时同一来源的连续变化合并成一条记录（合成的像素尺寸滑杆拖动）', () => {
+    const s = useStudioStore.getState();
+    s.setParams({ 'hatch.spacingX': 20, 'hatch.spacingY': 20 }, 'hatch.cell');
+    s.setParams({ 'hatch.spacingX': 22, 'hatch.spacingY': 22 }, 'hatch.cell');
+    s.setParams({ 'hatch.spacingX': 24, 'hatch.spacingY': 24 }, 'hatch.cell');
+    expect(useStudioStore.getState().history.past).toHaveLength(1);
+    // 不传 editId 照旧每次一条
+    s.setParams({ 'hatch.spacingY': 30 });
+    expect(useStudioStore.getState().history.past).toHaveLength(2);
+    s.undo();
+    expect(useStudioStore.getState().params['hatch.spacingY']).toBe(24);
+    s.undo();
+    expect(useStudioStore.getState().params['hatch.spacingX']).toBe(14);
+    expect(useStudioStore.getState().params['hatch.spacingY']).toBe(14);
+  });
+
   it('replaceParams / resetParams 进历史', () => {
     const s = useStudioStore.getState();
     expect(useStudioStore.getState().params['pixel.size']).toBe(4);
@@ -232,6 +248,11 @@ describe('预设与设置', () => {
     expect(resolveBase('nope', users).id).toBe(DEFAULT_PRESET_ID);
     expect(resolveBase('crt', users).id).toBe('crt');
     expect(summarizeParams(builtinPresetParams(findBuiltinPreset('gameboy')!))).toBe('有序 · Bayer 4×4 · Palette · 像素 4');
+    // 排线：横纵相等写一个像素尺寸，不等写成 7×16
+    const rain = builtinPresetParams(findBuiltinPreset('hatch-rain')!);
+    expect(summarizeParams(rain)).toBe(`排线 · ${rain['hatch.angle']}° · 像素 7×16 · ${rain['hatch.levels']} 级`);
+    const pencil = builtinPresetParams(findBuiltinPreset('hatch-pencil')!);
+    expect(summarizeParams(pencil)).toBe('排线 · 60° · 像素 8 · 8 级');
     // Halftone 的用户预设没写来源时退回 Halftone 的「默认」，摘要按网点写
     const ht = { id: 'u3', name: 'C', params: builtinPresetParams(findBuiltinPreset('ht-lines')!), createdAt: 1 };
     expect(resolveBase('u3', [ht]).id).toBe(HALFTONE_DEFAULT_PRESET_ID);

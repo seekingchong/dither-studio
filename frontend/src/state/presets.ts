@@ -658,7 +658,7 @@ const optionLabel = (id: string, value: unknown): string => {
 
 /**
  * 方案摘要，用于历史列表与卡片说明：抖动是 算法族 · 算法 · 颜色模式 · 像素尺寸，
- * 排线是 角度 · 间距 · 色阶，网点是 形状 · 间距 · 颜色模式。
+ * 排线是 角度 · 像素尺寸 · 色阶，网点是 形状 · 间距 · 颜色模式。横纵不等时像素尺寸写成 7×16。
  */
 export function summarizeParams(params: Params): string {
   if (styleOf(params) === 'halftone') {
@@ -667,7 +667,9 @@ export function summarizeParams(params: Params): string {
     return ['网点', optionLabel('halftone.shape', params['halftone.shape']), px === py ? `${px}px` : `${px}×${py}px`, optionLabel('ink.mode', params['ink.mode'])].join(' · ');
   }
   if (styleOf(params) === 'hatch') {
-    return `排线 · ${params['hatch.angle']}° · 间距 ${params['hatch.spacingX']}×${params['hatch.spacingY']} · ${params['hatch.levels']} 级`;
+    const sx = params['hatch.spacingX'];
+    const sy = params['hatch.spacingY'];
+    return `排线 · ${params['hatch.angle']}° · 像素 ${sx === sy ? sx : `${sx}×${sy}`} · ${params['hatch.levels']} 级`;
   }
   const family = String(params['dither.family']) as DitherFamily;
   const familyLabel = DITHER_FAMILIES.find((f) => f.value === family)?.label ?? family;

@@ -1,5 +1,5 @@
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { bool, getParamDef, num, str, styleOf, type ParamDef, type ParamGroup, type Params } from '@/params';
+import { bool, getParamDef, num, str, styleOf, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
 
 export interface SectionMeta {
   id: string;
@@ -28,6 +28,34 @@ function join(parts: string[], fallback: string): string {
 const signed = (label: string, value: number) => `${label} ${value > 0 ? '+' : ''}${value}`;
 
 /**
+ * 排线 / 网点的「像素尺寸」：数据上是横向、纵向两个间距（`x` / `y`），面板上合成一个滑杆同时写两个，
+ * 跟抖动的像素尺寸一个叫法、一个手感；旁边一个「横纵分开」开关，打开才露出横、纵各自的滑杆（长方格）。
+ * `id` 是合成控件的 `data-param` 与解读文案的键，`${id}.split` 是那个开关的。
+ */
+export interface CellPair {
+  id: string;
+  x: string;
+  y: string;
+}
+
+export const CELL_PAIRS: Readonly<Partial<Record<StyleKind, CellPair>>> = {
+  hatch: { id: 'hatch.cell', x: 'hatch.spacingX', y: 'hatch.spacingY' },
+  halftone: { id: 'screen.cell', x: 'screen.pitchX', y: 'screen.pitchY' },
+};
+
+/** 这种风格的像素尺寸由哪两个参数合成；抖动本来就只有一个 `pixel.size`，没有 */
+export function cellPairOf(style: StyleKind): CellPair | undefined {
+  return CELL_PAIRS[style];
+}
+
+/** 摘要里的像素尺寸：横纵相等写一个数，不等写成 7×16 */
+export function cellSummary(p: Params, pair: CellPair): string {
+  const x = num(p, pair.x);
+  const y = num(p, pair.y);
+  return `像素 ${x === y ? x : `${x}×${y}`}`;
+}
+
+/**
  * 左栏的参数分节。原来是一排 tab，一次只看得见一节；现在整栏一列，
  * 每节默认展开、可单独收起，收起时显示当前值摘要，几节的关系一眼可见。
  * 「颜色」紧跟「基础」：颜色模式就在「基础」那一排里选，细节挨着它才接得上，影调再往后。
@@ -42,13 +70,13 @@ export const SECTIONS: SectionMeta[] = [
     label: '基础',
     hint: (p) =>
       styleOf(p) === 'hatch'
-        ? '角度是笔画朝向，横纵间距是格子大小，色阶是粗细分几档——这三样定排线的大方向。每一笔长什么样在下一节「笔画」。'
+        ? '角度是笔画朝向，像素尺寸是格子大小，色阶是粗细分几档——这三样定排线的大方向。想要长方格就打开「横纵分开」。每一笔长什么样在下一节「笔画」。'
         : styleOf(p) === 'halftone'
-          ? '网点形状定一颗点长什么样，横纵间距、角度、排列定点排在哪——这几样定网点的大方向。点的大小、分级与融合在下一节「网点」。'
+          ? '网点形状定一颗点长什么样，像素尺寸、角度、排列定点排在哪——这几样定网点的大方向。想要长方格就打开「横纵分开」。点的大小、分级与融合在下一节「网点」。'
           : '算法族决定风格的大方向，颜色模式决定用几种颜色，像素尺寸决定颗粒粗细。下面的参数随所选算法族变化。',
     groups: ['dither', 'pixel', 'screen'],
     summary: (p) => {
-      if (styleOf(p) === 'hatch') return `排线 · ${num(p, 'hatch.angle')}° · 间距 ${num(p, 'hatch.spacingX')}×${num(p, 'hatch.spacingY')}`;
+      if (styleOf(p) === 'hatch') return `排线 · ${num(p, 'hatch.angle')}° · ${cellSummary(p, CELL_PAIRS.hatch!)}`;
       if (styleOf(p) === 'halftone') {
         const px = num(p, 'screen.pitchX');
         const py = num(p, 'screen.pitchY');
@@ -212,6 +240,7 @@ export function sectionOf(def: ParamDef, leads: ReadonlySet<string>): string | u
  * 颜色模式、像素尺寸。tab 拆掉后它们整排并进「基础」，顺序不变，末尾补上降采样。
  * 颜色模式归在 color 分组，靠这份名单被拉到「基础」，不在「颜色」里重复出现。
  * 排线风格下领头的是角度、横纵间距、色阶——排线的"算法"就是这几样；网点风格下是形状、横纵间距、角度、排列。
+ * 横纵间距在面板上合成一个「像素尺寸」（`CELL_PAIRS`），数据与分节归属仍按这两个参数算。
  */
 export function leadParamIds(params: Params): string[] {
   if (styleOf(params) === 'hatch') return ['hatch.angle', 'hatch.spacingX', 'hatch.spacingY', 'hatch.levels', 'pixel.method'];

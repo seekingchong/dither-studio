@@ -72,6 +72,12 @@ export function helpForParam(def: ParamDef, label?: string): HelpContent | null 
   };
 }
 
+/** 面板上合成的控件（不是 schema 参数，如排线 / 网点的「像素尺寸」）的解读：按 id 查文案，没有就不弹 */
+export function helpForId(id: string, title: string): HelpContent | null {
+  const help = getParamHelp(id);
+  return help ? { key: id, title, summary: help.summary, tip: help.tip, variant: 'param' } : null;
+}
+
 /** 下拉某一行的解读 */
 export function helpForOption(paramId: string, value: string, label: string): HelpContent | null {
   const desc = getOptionHelp(paramId, value);

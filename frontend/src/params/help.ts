@@ -10,6 +10,8 @@ import { PARAM_SCHEMA } from './schema';
  * - tip 可选，一条，写默认值、常见坑或要和谁一起调。
  * - 不讲数学。可以说"高质量重采样"，不要说"加窗 sinc 卷积"。
  * - 文案可以随标签改，id 不能改：它是 schema 主键，也是 docs/PARAM_HELP.md 的锚点。
+ * - 少数键不是 schema 参数而是面板上合成的控件（排线 / 网点的「像素尺寸」`hatch.cell` / `screen.cell`
+ *   与它们的「横纵分开」`*.split`，见 `ui/panel/sections.ts` 的 CELL_PAIRS），由 `helpForId` 取用。
  */
 export interface ParamHelp {
   summary: string;
@@ -42,7 +44,7 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
 
   // ---------- 像素化 ----------
   'pixel.size': {
-    summary: '降采样倍率，决定颗粒粗细。填 4 就是每 4×4 个原像素合成一个抖动点。1–64，默认 4。',
+    summary: '降采样倍率，决定颗粒粗细。填 4 就是每 4×4 个原像素合成一个抖动点。1–16，默认 4。',
     tip: '这是颗粒粗细的唯一来源，下面的降采样和偏移都不改变粗细。',
   },
   'pixel.method': {
@@ -480,9 +482,17 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
     summary: '每一笔的倾斜角。0 横、90 竖，默认 45° 是最经典的素描排线方向。',
     tip: '与画面主要线条错开 30° 以上，轮廓最不容易被吃掉。',
   },
+  'hatch.cell': {
+    summary: '格子多大，也就是排线的颗粒粗细：越大每一笔越大越稀。3–128px，默认 14。',
+    tip: '和抖动的像素尺寸一个意思；想要长方格就打开旁边的「横纵分开」。',
+  },
+  'hatch.cell.split': {
+    summary: '横向、纵向分开定格子大小，做长方格；关掉时纵向跟着横向走。',
+    tip: 'Rain、Brick 这类方案本身横纵不等，选中就自动打开。',
+  },
   'hatch.spacingX': {
     summary: '相邻两笔左右隔多远，也是格子的宽。3–128px，默认 14。',
-    tip: '间距越小越细腻也越慢，导出大图时可以再调大。',
+    tip: '「横纵分开」打开才露出；间距越小越细腻也越慢，导出大图时可以再调大。',
   },
   'hatch.spacingY': {
     summary: '相邻两行隔多远，也是格子的高。和横向间距不同就是长方格，排列会拉长。',
@@ -690,9 +700,17 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
   },
 
   // ---------- Halftone：网格 ----------
+  'screen.cell': {
+    summary: '相邻两个点的中心距，也就是网点的粗细：越大点越大越稀。3–96px，默认 12。',
+    tip: '和抖动的像素尺寸一个意思，网点大小只是格子里的占比。',
+  },
+  'screen.cell.split': {
+    summary: '横向、纵向分开定中心距，做长方形网格；关掉时纵向跟着横向走。',
+    tip: '线条网点这类方案本身横纵不等，选中就自动打开。',
+  },
   'screen.pitchX': {
     summary: '相邻两个点在横向上的中心距，也是格子的宽。3–96px，默认 12。',
-    tip: '这是网点粗细的来源，网点大小只是格子里的占比。',
+    tip: '「横纵分开」打开才露出；这是网点粗细的来源，网点大小只是格子里的占比。',
   },
   'screen.pitchY': {
     summary: '纵向的中心距，也是格子的高。和横向不同时格子是长方形。3–96px，默认 12。',

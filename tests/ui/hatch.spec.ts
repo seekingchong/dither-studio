@@ -46,16 +46,18 @@ test('左栏页签「抖动 | 排线 | 网点 | 历史」：切页签就是切�
   await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'dither');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);
 
-  // 切到排线：领头参数换成角度 / 横纵间距 / 色阶，多出「笔画」一节，「网格」（抖动专属）收起
+  // 切到排线：领头参数换成角度 / 像素尺寸（横纵间距合成一个，旁边「横纵分开」）/ 色阶，多出「笔画」一节，「网格」（抖动专属）收起
   await page.getByRole('tab', { name: '排线' }).click();
   await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'hatch');
   await expect(sectionLabels(page)).toHaveText(['基础', '笔画', '颜色', '影调', '特效']);
   await expect(basicParams(page).nth(0)).toHaveAttribute('data-param', 'hatch.angle');
-  await expect(basicParams(page).nth(1)).toHaveAttribute('data-param', 'hatch.spacingX');
-  await expect(basicParams(page).nth(2)).toHaveAttribute('data-param', 'hatch.spacingY');
+  await expect(basicParams(page).nth(1)).toHaveAttribute('data-param', 'hatch.cell');
+  await expect(basicParams(page).nth(2)).toHaveAttribute('data-param', 'hatch.cell.split');
   await expect(basicParams(page).nth(3)).toHaveAttribute('data-param', 'hatch.levels');
   await expect(basicParams(page).nth(4)).toHaveAttribute('data-param', 'pixel.method');
+  await expect(page.locator('[data-param="hatch.spacingX"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="hatch.cell"] input[type="range"]')).toHaveValue('14');
   await expect(page.locator('[data-param="dither.family"]')).toHaveCount(0);
   await expect(page.locator('[data-param="pixel.size"]')).toHaveCount(0);
   await expect(page.locator('[data-param="hatch.length"]')).toBeVisible();
@@ -88,6 +90,31 @@ test('左栏页签「抖动 | 排线 | 网点 | 历史」：切页签就是切�
   await page.getByTestId('reset-preset').click();
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Hatching');
   await expect(page.locator('[data-param="hatch.angle"] input[type="range"]')).toHaveValue('45');
+
+  // 像素尺寸一个滑杆同时写横纵；「横纵分开」打开才换成横 / 纵各自的滑杆，关掉时纵向跟着横向走
+  const cell = page.locator('[data-param="hatch.cell"] input[type="range"]');
+  await cell.fill('20');
+  await expect(cell).toHaveValue('20');
+  await page.locator('[data-param="hatch.cell.split"]').click();
+  await expect(basicParams(page).nth(1)).toHaveAttribute('data-param', 'hatch.spacingX');
+  await expect(basicParams(page).nth(2)).toHaveAttribute('data-param', 'hatch.spacingY');
+  await expect(basicParams(page).nth(3)).toHaveAttribute('data-param', 'hatch.cell.split');
+  await expect(page.locator('[data-param="hatch.cell"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="hatch.spacingX"] input[type="range"]')).toHaveValue('20');
+  await expect(page.locator('[data-param="hatch.spacingY"] input[type="range"]')).toHaveValue('20');
+  await page.locator('[data-param="hatch.spacingY"] input[type="range"]').fill('30');
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('排线 · 45° · 像素 20×30');
+  await page.locator('[data-param="hatch.cell.split"]').click();
+  await expect(page.locator('[data-param="hatch.spacingY"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="hatch.cell"] input[type="range"]')).toHaveValue('20');
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('排线 · 45° · 像素 20');
+  // 方案本身横纵不等（Rain 是 7×16）时「横纵分开」自动打开
+  await page.locator('[data-preset="hatch-rain"]').click();
+  await expect(page.locator('[data-param="hatch.cell.split"] input[role="switch"]')).toBeChecked();
+  await expect(page.locator('[data-param="hatch.spacingX"] input[type="range"]')).toHaveValue('7');
+  await expect(page.locator('[data-param="hatch.spacingY"] input[type="range"]')).toHaveValue('16');
+  await page.getByTestId('reset-preset').click();
+  await expect(page.locator('[data-param="hatch.cell"] input[type="range"]')).toHaveValue('14');
 
   // 切回抖动：抖动那套回来，排线的预设不在列表里
   await page.getByRole('tab', { name: '抖动' }).click();
