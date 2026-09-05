@@ -1,4 +1,4 @@
-import type { ParamDef, ParamOption } from './types';
+import type { ParamDef, ParamGroup, ParamOption, StyleKind } from './types';
 
 /**
  * 参数总表。PRD 里的每个参数是一条记录；参数面板、预设序列化、撤销重做、自动调整全部从这张表推导。
@@ -18,14 +18,28 @@ export const DITHER_FAMILIES: ParamOption[] = [
   opt('pattern', '图案'),
 ];
 
+export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线')];
+
+/**
+ * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
+ * 不用在每条记录上重复写条件。没列出的分组（画布、像素化、影调、特效）两种风格共用。
+ */
+export const GROUP_STYLE: Partial<Record<ParamGroup, StyleKind>> = { dither: 'dither', color: 'dither', grid: 'dither', hatch: 'hatch' };
+
+const onDither = { id: 'style.type', equals: 'dither' };
 const fam = (family: string) => ({ id: 'dither.family', equals: family });
 const bgOn = { id: 'tone.bg.enabled', equals: true };
+const linkOn = { id: 'hatch.link', in: ['stroke', 'row', 'col', 'grid'] };
 const famAnd = (family: string, id: string, value: string | string[]) => [
   fam(family),
   Array.isArray(value) ? { id, in: value } : { id, equals: value },
 ];
 
 export const PARAM_SCHEMA: readonly ParamDef[] = [
+  // ---------- 风格 ----------
+  // 左栏页签「抖动 / 排线」就是这个参数；它决定下面哪些分组露出来
+  { id: 'style.type', group: 'style', label: '风格', type: 'select', default: 'dither', options: STYLE_KINDS },
+
   // ---------- 画布 ----------
   { id: 'canvas.width', group: 'canvas', label: '宽度', type: 'number', min: 16, max: 8192, step: 1, default: 1000, unit: 'px', advanced: true },
   { id: 'canvas.height', group: 'canvas', label: '高度', type: 'number', min: 16, max: 8192, step: 1, default: 600, unit: 'px', advanced: true },
@@ -40,7 +54,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
 
   // ---------- 像素化 ----------
-  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4 },
+  // 排线风格下格子大小由「横向 / 纵向间距」决定，像素尺寸只属于抖动
+  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4, visibleWhen: onDither },
   {
     id: 'pixel.method',
     group: 'pixel',
@@ -122,6 +137,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     type: 'boolean',
     default: true,
     advanced: true,
+    // 排线按"看起来多亮"定粗细，固定在 gamma 空间，这个开关只属于抖动
+    visibleWhen: onDither,
     hint: '在线性光里量化，抖动后的平均亮度与原图一致；关闭后在 gamma 空间量化，中间调更亮。',
   },
   {
@@ -374,6 +391,34 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
   { id: 'grid.bgDotSize', group: 'grid', label: '图形大小', type: 'number', min: 5, max: 100, step: 1, default: 30, unit: '%', visibleWhen: { id: 'grid.background', equals: 'dots' } },
   { id: 'grid.bgColor', group: 'grid', label: '背景色', type: 'color', default: '#888888', visibleWhen: { id: 'grid.background', in: ['lines', 'dots'] } },
+
+  // ---------- 排线 ----------
+  // 一个格子一笔：格子由横纵间距划分，每笔的粗细按格子明暗分成若干档，角度、长度、圆角全图一致。
+  // 长度以「贯穿格子的那条弦」为 100%，粗细以「相邻平行线的间距」为 100%——100% 就是刚好连上 / 刚好挨上，换间距也不用重调。
+  { id: 'hatch.angle', group: 'hatch', label: '角度', type: 'number', min: 0, max: 180, step: 1, default: 45, unit: '°' },
+  { id: 'hatch.spacingX', group: 'hatch', label: '横向间距', type: 'number', min: 3, max: 128, step: 1, default: 14, unit: 'px' },
+  { id: 'hatch.spacingY', group: 'hatch', label: '纵向间距', type: 'number', min: 3, max: 128, step: 1, default: 14, unit: 'px' },
+  { id: 'hatch.levels', group: 'hatch', label: '色阶', type: 'number', min: 2, max: 16, step: 1, default: 6, hint: '明暗分成几档，每档一种粗细' },
+  { id: 'hatch.length', group: 'hatch', label: '长度', type: 'number', min: 10, max: 200, step: 1, default: 80, unit: '%' },
+  { id: 'hatch.maxWidth', group: 'hatch', label: '最粗', type: 'number', min: 5, max: 150, step: 1, default: 70, unit: '%' },
+  { id: 'hatch.minWidth', group: 'hatch', label: '最细', type: 'number', min: 0, max: 100, step: 1, default: 8, unit: '%' },
+  { id: 'hatch.roundness', group: 'hatch', label: '圆角', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%' },
+  { id: 'hatch.cross', group: 'hatch', label: '交叉排线', type: 'boolean', default: false, hint: '暗部再叠一层垂直方向的线' },
+  { id: 'hatch.crossStart', group: 'hatch', label: '交叉起点', type: 'number', min: 0, max: 95, step: 1, default: 50, unit: '%', visibleWhen: { id: 'hatch.cross', equals: true } },
+  { id: 'hatch.stagger', group: 'hatch', label: '错行', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%', advanced: true },
+  {
+    id: 'hatch.link',
+    group: 'hatch',
+    label: '连线',
+    type: 'select',
+    default: 'none',
+    options: [opt('none', '无'), opt('stroke', '沿斜线'), opt('row', '横向'), opt('col', '纵向'), opt('grid', '横纵')],
+  },
+  { id: 'hatch.linkWidth', group: 'hatch', label: '连线粗细', type: 'number', min: 1, max: 16, step: 1, default: 1, unit: 'px', visibleWhen: linkOn },
+  { id: 'hatch.linkColor', group: 'hatch', label: '连线颜色', type: 'color', default: '#9A9A9A', visibleWhen: linkOn },
+  // 前景 / 背景在面板上归「颜色」一节（sections.ts 里按名单挪过去），数据上仍属排线分组，随预设一起露出
+  { id: 'hatch.ink', group: 'hatch', label: '前景色', type: 'color', default: '#1C1C1C' },
+  { id: 'hatch.paper', group: 'hatch', label: '背景色', type: 'color', default: '#D9D9D9' },
 
   // ---------- 特效栈 ----------
   { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },

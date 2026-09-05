@@ -12,7 +12,9 @@ export type WorkerRequest =
   | { type: 'setSource'; slot: number; id: string; bitmap: ImageBitmap }
   | { type: 'setSourceFrame'; slot: number; id: string; width: number; height: number; buffer: ArrayBuffer }
   | { type: 'clearSource'; slot: number }
-  | { type: 'render'; jobId: number; slot: number; params: Params; options?: RenderOptions };
+  | { type: 'render'; jobId: number; slot: number; params: Params; options?: RenderOptions }
+  /** 当前帧的矢量版：抖动出实色块合并的 path，排线出真正的笔画 */
+  | { type: 'svg'; jobId: number; slot: number; params: Params; options?: RenderOptions };
 
 /** Worker → 主线程 */
 export type WorkerResponse =
@@ -33,4 +35,5 @@ export type WorkerResponse =
       canvasHeight: number;
       gpu: boolean;
     }
+  | { type: 'svg'; jobId: number; slot: number; svg: string }
   | { type: 'error'; jobId: number | null; slot: number; message: string };

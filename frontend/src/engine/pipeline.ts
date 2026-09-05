@@ -15,8 +15,10 @@ import { fitFrame } from './preprocess/fit';
 import { pixelate } from './preprocess/pixelate';
 import { applyThresholdBias, applyTone, thresholdBias } from './preprocess/tone';
 import { renderGrid } from './render/grid';
+import { quantizeHatch, renderHatch, type HatchOptions } from './render/hatch';
 import { orderedDitherGpu } from './gpu/orderedGpu';
 import { renderGridGpu } from './gpu/gridGpu';
+import { renderHatchGpu } from './gpu/hatchGpu';
 import { getMatrix } from './dither/ordered';
 import { num, str } from '@/params';
 import type { CellFrame, GrayFrame, LevelFrame, RGBAFrame, RGBFrame } from './types';
@@ -42,9 +44,32 @@ export interface PipelineStats {
   gpu: boolean;
 }
 
+/** 排线风格最近一次的分档结果与几何，供矢量导出直接出笔画 */
+export interface HatchState {
+  levels: LevelFrame;
+  /** 画布尺寸 */
+  width: number;
+  height: number;
+  sx: number;
+  sy: number;
+  offsetX: number;
+  offsetY: number;
+  opts: HatchOptions;
+}
+
+/** 一次运行里各阶段共享的记账 */
+interface RunContext {
+  recomputed: string[];
+  gpu: boolean;
+}
+
 /**
- * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 抖动 → 颜色映射 → Accent → 网格渲染。
+ * 流水线：源帧 → 适配画布 → 像素化 → 影调 → 灰度 → 阈值偏置 → 强制背景 → 按风格分岔：
+ *   抖动：抖动 → 颜色映射 → Accent → 网格渲染
+ *   排线：明暗分档 → 笔画渲染
+ * → 特效栈。
  * 每个阶段按"上游键 + 本阶段参数"缓存，参数没变的阶段直接复用。
+ * 两种风格共用前半段（像素化的格子在抖动下是像素尺寸的方格，排线下是横纵间距的长方格），影调调整对两边一样生效。
  * 强制背景的蒙版按像素化结果算（与影调无关），替换发生在阈值偏置之后，所以背景点密度不随阈值滑块漂移。
  * 颜色映射按模式分三条路：亮度路径（单色 / 灰阶 / Tint / 深度错配）、真彩调色板路径、分通道路径。
  */
@@ -58,40 +83,49 @@ export class Pipeline {
   private forced?: Cached<GrayFrame>;
   private levels?: Cached<LevelFrame>;
   private cells?: Cached<CellFrame>;
+  private channels?: Cached<LevelFrame[]>;
+  private rendered?: Cached<RGBAFrame>;
+  private effected?: Cached<RGBAFrame>;
+  private hatch?: HatchState;
   lastStats: PipelineStats = { recomputed: [], elapsedMs: 0, gpu: false };
   /** 允许走 WebGL 路径（由 Worker 按全局设置传入） */
   gpu = true;
 
   run(source: RGBAFrame, sourceId: string, params: Params): RGBAFrame {
     const t0 = now();
-    const recomputed: string[] = [];
-    let usedGpu = false;
+    const ctx: RunContext = { recomputed: [], gpu: false };
     const opts = toPipelineOptions(params);
+    const hatch = opts.style === 'hatch';
+    // 格子：抖动是像素尺寸的方格，排线是横纵间距的长方格
+    const cellW = hatch ? opts.hatch.spacingX : opts.pixel.size;
+    const cellH = hatch ? opts.hatch.spacingY : opts.pixel.size;
 
     const fitKey = `${sourceId}|${keyOf(params, 'canvas.')}`;
     if (this.fitted?.key !== fitKey) {
       this.fitted = { key: fitKey, value: fitFrame(source, opts.canvas.width, opts.canvas.height, opts.canvas.fit) };
-      recomputed.push('fit');
+      ctx.recomputed.push('fit');
     }
 
-    const pixelKey = `${fitKey}|${keyOf(params, 'pixel.')}`;
+    const pixelKey = `${fitKey}|${keyOfExcept(params, ['pixel.size'], 'pixel.')}|cell=${cellW}x${cellH}`;
     if (this.pixelated?.key !== pixelKey) {
-      const { size, method, offsetX, offsetY } = opts.pixel;
-      this.pixelated = { key: pixelKey, value: pixelate(this.fitted.value, size, method, offsetX, offsetY) };
-      recomputed.push('pixelate');
+      const { method, offsetX, offsetY } = opts.pixel;
+      this.pixelated = { key: pixelKey, value: pixelate(this.fitted.value, cellW, method, offsetX, offsetY, cellH) };
+      ctx.recomputed.push('pixelate');
     }
 
     // 阈值、灰度公式、线性空间、强制背景不属于影调阶段，排除在键之外
     const toneKey = `${pixelKey}|${keyOfExcept(params, ['tone.threshold', 'tone.grayFormula', 'tone.linear', 'tone.bg.'], 'tone.')}`;
     if (this.toned?.key !== toneKey) {
       this.toned = { key: toneKey, value: applyTone(this.pixelated.value, opts.tone) };
-      recomputed.push('tone');
+      ctx.recomputed.push('tone');
     }
 
-    const grayKey = `${toneKey}|gray=${opts.tone.grayFormula}|linear=${opts.tone.linear}`;
+    // 排线按"看起来多亮"定粗细，一律在 gamma 空间取灰度；线性光是给抖动用的（抖动后的平均亮度要与原图一致）
+    const linear = hatch ? false : opts.tone.linear;
+    const grayKey = `${toneKey}|gray=${opts.tone.grayFormula}|linear=${linear}`;
     if (this.gray?.key !== grayKey) {
-      this.gray = { key: grayKey, value: toGray(this.toned.value, opts.tone.grayFormula, opts.tone.linear) };
-      recomputed.push('gray');
+      this.gray = { key: grayKey, value: toGray(this.toned.value, opts.tone.grayFormula, linear) };
+      ctx.recomputed.push('gray');
     }
 
     const biasedKey = `${grayKey}|threshold=${opts.tone.threshold}`;
@@ -107,7 +141,7 @@ export class Pipeline {
       const maskKey = `${pixelKey}|${keyOfExcept(params, ['tone.bg.density', 'tone.bg.strength', 'tone.bg.polarity'], 'tone.bg.')}`;
       if (this.bgMask?.key !== maskKey) {
         this.bgMask = { key: maskKey, value: backgroundMask(this.pixelated.value, fb) };
-        recomputed.push('background');
+        ctx.recomputed.push('background');
       }
       const mask = this.bgMask.value;
       const light = fb.polarity === 'auto' ? isLightBackground(this.gray.value.data, mask) : fb.polarity === 'light';
@@ -115,16 +149,19 @@ export class Pipeline {
       bgKey = `|bg=${keyOf(params, 'tone.bg.')}`;
     }
 
-    const algo = resolveAlgorithm(params);
-    const ditherParams = keyOf(params, 'dither.');
     const palette = resolvePalette(opts.color.palettePreset, opts.color.paletteCustom);
-    const paletteKey = `${opts.color.palettePreset}:${opts.color.paletteCustom}`;
-    const { width, height } = this.biased.value;
     const mode = opts.color.mode;
 
-    // 抖动输入：阈值偏置后的亮度，开了强制背景则蒙版内换成目标亮度（目标随该路径的级数变化）
-    const pathLevels =
-      mode === 'palette' && !opts.color.mismatch ? palette.size : mode === 'channels' ? opts.color.levels : mode === 'palette' ? opts.color.paletteLevels : opts.color.levels;
+    // 量化输入：阈值偏置后的亮度，开了强制背景则蒙版内换成目标亮度（目标随该路径的级数变化）
+    const pathLevels = hatch
+      ? opts.hatch.levels
+      : mode === 'palette' && !opts.color.mismatch
+        ? palette.size
+        : mode === 'channels'
+          ? opts.color.levels
+          : mode === 'palette'
+            ? opts.color.paletteLevels
+            : opts.color.levels;
     const forcedKey = `${biasedKey}${bgKey}|fb=${pathLevels}`;
     if (this.forced?.key !== forcedKey) {
       this.forced = {
@@ -132,7 +169,72 @@ export class Pipeline {
         value: bg ? forceBackgroundGray(this.biased.value, bg.mask, backgroundTarget(bg.light, bg.density, pathLevels), bg.strength) : this.biased.value,
       };
     }
-    const ditherGray = this.forced.value;
+
+    if (hatch) this.runHatch(params, opts, this.forced.value, forcedKey, ctx);
+    else this.runDither(params, opts, palette, bg, bgKey, toneKey, forcedKey, ctx);
+
+    const rendered = this.rendered!;
+    const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
+    const effectsKey = `${rendered.key}|${stackJson}`;
+    if (this.effected?.key !== effectsKey) {
+      const stack = parseStack(stackJson);
+      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack) : rendered.value;
+      this.effected = { key: effectsKey, value };
+      if (value !== rendered.value) ctx.recomputed.push('effects');
+    }
+
+    // 输出会被 Worker 转移给主线程，缓存里保留一份副本
+    const cached = this.effected.value;
+    const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
+
+    this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: ctx.gpu };
+    return output;
+  }
+
+  /** 排线：明暗分档 → 笔画渲染 */
+  private runHatch(params: Params, opts: PipelineOptions, gray: GrayFrame, forcedKey: string, ctx: RunContext) {
+    const h = opts.hatch;
+    const key = `${forcedKey}|hatch=${h.levels}/${h.stagger}`;
+    if (this.levels?.key !== key) {
+      this.levels = { key, value: quantizeHatch(gray, h.levels, h.stagger) };
+      ctx.recomputed.push('quantize:hatch');
+    }
+    const { offsetX, offsetY } = opts.pixel;
+    const { width, height } = opts.canvas;
+    const renderKey = `${key}|${keyOf(params, 'hatch.')}|${offsetX},${offsetY}|${width}x${height}`;
+    if (this.rendered?.key !== renderKey) {
+      let frame: RGBAFrame | null = null;
+      let gpu = false;
+      if (this.gpu) {
+        frame = renderHatchGpu(this.levels.value, width, height, h.spacingX, h.spacingY, offsetX, offsetY, h);
+        gpu = !!frame;
+      }
+      if (!frame) frame = renderHatch(this.levels.value, width, height, h.spacingX, h.spacingY, offsetX, offsetY, h);
+      this.rendered = { key: renderKey, value: frame };
+      ctx.recomputed.push(gpu ? 'render:hatch:gpu' : 'render:hatch');
+      if (gpu) ctx.gpu = true;
+    }
+    this.hatch = { levels: this.levels.value, width, height, sx: h.spacingX, sy: h.spacingY, offsetX, offsetY, opts: h };
+  }
+
+  /** 抖动：抖动 → 颜色映射 → Accent → 网格渲染 */
+  private runDither(
+    params: Params,
+    opts: PipelineOptions,
+    palette: Palette,
+    bg: BackgroundState | null,
+    bgKey: string,
+    toneKey: string,
+    forcedKey: string,
+    ctx: RunContext,
+  ) {
+    this.hatch = undefined;
+    const algo = resolveAlgorithm(params);
+    const ditherParams = keyOf(params, 'dither.');
+    const paletteKey = `${opts.color.palettePreset}:${opts.color.paletteCustom}`;
+    const ditherGray = this.forced!.value;
+    const { width, height } = ditherGray;
+    const mode = opts.color.mode;
 
     let levelFrame: LevelFrame;
     let cellsKey: string;
@@ -151,7 +253,7 @@ export class Pipeline {
       if (this.levels?.key !== key) {
         const data = this.runColorPath(algo, params, opts, palette, bg);
         this.levels = { key, value: { width, height, levels: palette.size, data } };
-        recomputed.push(`dither:${algo.family}/${algo.id}:palette`);
+        ctx.recomputed.push(`dither:${algo.family}/${algo.id}:palette`);
       }
       levelFrame = this.levels.value;
       cellsKey = `${key}|${keyOf(params, 'color.')}`;
@@ -165,7 +267,7 @@ export class Pipeline {
       if (this.channels?.key !== key) {
         frames = this.runChannelPath(algo, params, opts, bg);
         this.channels = { key, value: frames };
-        recomputed.push(`dither:${algo.family}/${algo.id}:channels`);
+        ctx.recomputed.push(`dither:${algo.family}/${algo.id}:channels`);
       } else {
         frames = this.channels.value;
       }
@@ -175,10 +277,11 @@ export class Pipeline {
     } else {
       // 亮度路径
       const n = mode === 'palette' ? opts.color.paletteLevels : opts.color.levels;
-      const key = `${biasedKey}${bgKey}|levels=${n}|${ditherParams}|path=gray`;
+      const key = `${forcedKey}|levels=${n}|${ditherParams}|path=gray`;
       if (this.levels?.key !== key) {
         const input: DitherInput = { width, height, gray: ditherGray.data, levels: n, seed: 0 };
         let data: Uint8Array | null = null;
+        let gpu = false;
         if (this.gpu && algo.family === 'ordered') {
           data = orderedDitherGpu(input.gray, width, height, n, getMatrix(str(params, 'dither.ordered.matrix')), {
             scale: num(params, 'dither.ordered.scale'),
@@ -186,11 +289,12 @@ export class Pipeline {
             offsetX: num(params, 'dither.ordered.offsetX'),
             offsetY: num(params, 'dither.ordered.offsetY'),
           });
-          if (data) usedGpu = true;
+          gpu = !!data;
         }
         if (!data) data = algo.run(input, params);
         this.levels = { key, value: { width, height, levels: n, data } };
-        recomputed.push(`dither:${algo.family}/${algo.id}${usedGpu ? ':gpu' : ''}`);
+        ctx.recomputed.push(`dither:${algo.family}/${algo.id}${gpu ? ':gpu' : ''}`);
+        if (gpu) ctx.gpu = true;
       }
       levelFrame = this.levels.value;
       cellsKey = `${key}|linear=${opts.tone.linear}|${keyOf(params, 'color.')}`;
@@ -226,7 +330,7 @@ export class Pipeline {
         );
       }
       this.cells = { key: cellsKey, value: cells };
-      recomputed.push('color');
+      ctx.recomputed.push('color');
     }
 
     const { size, offsetX, offsetY } = opts.pixel;
@@ -235,35 +339,17 @@ export class Pipeline {
       const gridOpts = { ...opts.grid, paper, ink };
       const plain = gridOpts.dot === 'square' && !gridOpts.metaball && gridOpts.gapX === 0 && gridOpts.gapY === 0 && gridOpts.background === 'none' && !gridOpts.invert && !gridOpts.dotTone;
       let frame: RGBAFrame | null = null;
+      let gpu = false;
       if (this.gpu && !plain) {
         frame = renderGridGpu(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, gridOpts);
-        if (frame) usedGpu = true;
+        gpu = !!frame;
       }
       if (!frame) frame = renderGrid(this.cells.value, opts.canvas.width, opts.canvas.height, size, offsetX, offsetY, gridOpts);
       this.rendered = { key: renderKey, value: frame };
-      recomputed.push(usedGpu && !plain ? 'render:gpu' : 'render');
+      ctx.recomputed.push(gpu ? 'render:gpu' : 'render');
+      if (gpu) ctx.gpu = true;
     }
-    const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
-    const effectsKey = `${renderKey}|${stackJson}`;
-    if (this.effected?.key !== effectsKey) {
-      const stack = parseStack(stackJson);
-      const value = stack.some((e) => e.enabled) ? applyEffects(this.rendered.value, stack) : this.rendered.value;
-      this.effected = { key: effectsKey, value };
-      if (value !== this.rendered.value) recomputed.push('effects');
-    }
-
-    // 输出会被 Worker 转移给主线程，缓存里保留一份副本
-    const cached = this.effected.value;
-    const output: RGBAFrame = { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
-
-    this.lastStats = { recomputed, elapsedMs: now() - t0, gpu: usedGpu };
-    return output;
   }
-
-  private rendered?: Cached<RGBAFrame>;
-  private effected?: Cached<RGBAFrame>;
-
-  private channels?: Cached<LevelFrame[]>;
 
   /** 真彩路径；算法没有颜色实现时回退到亮度路径并按亮度秩取色 */
   private runColorPath(algo: AlgorithmDef, params: Params, opts: PipelineOptions, palette: Palette, bg: BackgroundState | null): Uint8Array {
@@ -328,13 +414,19 @@ export class Pipeline {
     return channels.map((gray) => ({ width, height, levels: n, data: algo.run({ width, height, gray, levels: n, seed: 0 }, params) }));
   }
 
-  /** 当前缓存的量化结果（导出、统计用） */
+  /** 当前缓存的量化结果（导出、统计用）：抖动是灰阶索引，排线是暗度档位 */
   get currentLevels(): LevelFrame | undefined {
     return this.levels?.value;
   }
 
+  /** 排线风格最近一次的分档结果与几何；抖动风格下为空 */
+  get currentHatch(): HatchState | undefined {
+    return this.hatch;
+  }
+
   clear() {
     this.fitted = this.pixelated = this.toned = this.gray = this.biased = this.bgMask = this.forced = this.levels = this.cells = this.channels = this.rendered = this.effected = undefined;
+    this.hatch = undefined;
   }
 }
 

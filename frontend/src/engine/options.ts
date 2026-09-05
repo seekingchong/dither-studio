@@ -1,9 +1,10 @@
-import { bool, num, str, type Params } from '@/params';
+import { bool, num, str, styleOf, type Params, type StyleKind } from '@/params';
 import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
 import type { ChannelSpace, ColorMode } from './color/map';
 import { parseColorList } from './color/palettes';
 import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
+import type { HatchLink, HatchOptions } from './render/hatch';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
 import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
@@ -12,6 +13,8 @@ import type { ResampleMethod } from './preprocess/resample';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
+  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染 */
+  style: StyleKind;
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
   tone: ToneOptions & { linear: boolean; threshold: number; grayFormula: GrayFormula };
@@ -32,6 +35,7 @@ export interface PipelineOptions {
     channelSpace: ChannelSpace;
     accent: AccentOptions;
   };
+  hatch: HatchOptions;
   grid: {
     dot: DotShape;
     dotSize: number;
@@ -52,14 +56,21 @@ export interface PipelineOptions {
 
 export function toPipelineOptions(params: Params): PipelineOptions {
   const mode = str(params, 'color.mode') as ColorMode;
+  const style = styleOf(params);
+  const spacingX = Math.max(1, Math.round(num(params, 'hatch.spacingX')));
+  const spacingY = Math.max(1, Math.round(num(params, 'hatch.spacingY')));
+  const pixelSize = Math.max(1, Math.round(num(params, 'pixel.size')));
+  // 模糊单位是画布像素，换算成工作分辨率像素：抖动的格子是像素尺寸，排线的格子是横纵间距
+  const cellSize = style === 'hatch' ? (spacingX + spacingY) / 2 : pixelSize;
   return {
+    style,
     canvas: {
       width: Math.round(num(params, 'canvas.width')),
       height: Math.round(num(params, 'canvas.height')),
       fit: str(params, 'canvas.fit') as FitMode,
     },
     pixel: {
-      size: Math.max(1, Math.round(num(params, 'pixel.size'))),
+      size: pixelSize,
       method: str(params, 'pixel.method') as ResampleMethod,
       offsetX: Math.round(num(params, 'pixel.offsetX')),
       offsetY: Math.round(num(params, 'pixel.offsetY')),
@@ -72,8 +83,7 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       midtones: num(params, 'tone.midtones') / 100,
       highlights: num(params, 'tone.highlights') / 100,
       saturation: num(params, 'tone.saturation') / 100,
-      // 模糊单位是画布像素，换算成工作分辨率像素
-      blur: num(params, 'tone.blur') / Math.max(1, Math.round(num(params, 'pixel.size'))),
+      blur: num(params, 'tone.blur') / cellSize,
       sharpen: num(params, 'tone.sharpen') / 100,
       denoise: num(params, 'tone.denoise') / 100,
       noise: num(params, 'tone.noise') / 100,
@@ -120,6 +130,24 @@ export function toPipelineOptions(params: Params): PipelineOptions {
         chain: num(params, 'color.accent.chain') / 100,
         seed: Math.round(num(params, 'color.accent.seed')),
       },
+    },
+    hatch: {
+      angle: num(params, 'hatch.angle'),
+      spacingX,
+      spacingY,
+      levels: Math.max(2, Math.round(num(params, 'hatch.levels'))),
+      length: num(params, 'hatch.length') / 100,
+      maxWidth: num(params, 'hatch.maxWidth') / 100,
+      minWidth: Math.min(num(params, 'hatch.minWidth'), num(params, 'hatch.maxWidth')) / 100,
+      roundness: num(params, 'hatch.roundness') / 100,
+      cross: bool(params, 'hatch.cross'),
+      crossStart: num(params, 'hatch.crossStart') / 100,
+      stagger: num(params, 'hatch.stagger') / 100,
+      link: str(params, 'hatch.link') as HatchLink,
+      linkWidth: Math.max(0, num(params, 'hatch.linkWidth')),
+      linkColor: hexToRgb(str(params, 'hatch.linkColor')),
+      ink: hexToRgb(str(params, 'hatch.ink')),
+      paper: hexToRgb(str(params, 'hatch.paper')),
     },
     grid: {
       dot: str(params, 'grid.dot') as DotShape,

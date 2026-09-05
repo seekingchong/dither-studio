@@ -1,6 +1,8 @@
 /// <reference lib="webworker" />
 import { Pipeline } from './pipeline';
 import { scaleParamsForPreview } from './preview';
+import { hatchToSvg } from './render/hatchSvg';
+import { frameToSvg } from './render/svg';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 import type { RGBAFrame } from './types';
 
@@ -92,6 +94,24 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
           },
           [out.data.buffer as ArrayBuffer],
         );
+      } catch (err) {
+        post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });
+      }
+      break;
+    }
+    case 'svg': {
+      const entry = sources.get(msg.slot);
+      if (!entry) {
+        post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: '坑位没有源媒体' });
+        return;
+      }
+      try {
+        // 矢量导出永远按全分辨率参数算：排线直接从分档结果出笔画，抖动把成品帧的实色块并成 path
+        entry.pipeline.gpu = msg.options?.gpu ?? true;
+        const out = entry.pipeline.run(entry.frame, entry.id, msg.params);
+        const hatch = entry.pipeline.currentHatch;
+        const svg = hatch ? hatchToSvg(hatch.levels, hatch.width, hatch.height, hatch.sx, hatch.sy, hatch.offsetX, hatch.offsetY, hatch.opts) : frameToSvg(out);
+        post({ type: 'svg', jobId: msg.jobId, slot: msg.slot, svg });
       } catch (err) {
         post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });
       }
