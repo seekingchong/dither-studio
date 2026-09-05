@@ -90,6 +90,8 @@ export function Select<T extends string>({ label, value, options, onChange, disa
 
   const pick = (v: T) => {
     onChange(v);
+    // 停在选项行上不到 400ms 就点了：解读还在计时，下拉一收起没人再收它，会孤零零留在原地——连计时一起掐掉
+    dismissHelp(true);
     close();
     triggerRef.current?.focus();
   };

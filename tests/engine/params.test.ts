@@ -36,7 +36,7 @@ describe('参数 schema', () => {
 
   it('默认：Dither 风格、有序 Bayer 2×2、单色、像素尺寸 4', () => {
     const params = defaultParams();
-    expect(params['style.kind']).toBe('dither');
+    expect(params['style.type']).toBe('dither');
     expect(params['dither.family']).toBe('ordered');
     expect(params['dither.ordered.matrix']).toBe('bayer2');
     expect(params['color.mode']).toBe('mono');
@@ -57,7 +57,13 @@ describe('参数 schema', () => {
     }
     params['color.mode'] = 'palette';
     expect(isParamVisible(getParamDef('color.tint.dark'), params)).toBe(false);
-    // Halftone：分级级数随开关出现，网点颜色只在双色模式下出现
+    // 网点风格的分组只在网点页签下可见；分级级数随开关出现，网点颜色只在双色模式下出现
+    expect(isParamVisible(getParamDef('halftone.shape'), params)).toBe(false);
+    params['style.type'] = 'halftone';
+    expect(isParamVisible(getParamDef('halftone.shape'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('dither.family'), params)).toBe(false);
+    expect(isParamVisible(getParamDef('pixel.method'), params)).toBe(false);
+    expect(isParamVisible(getParamDef('tone.linear'), params)).toBe(true);
     expect(isParamVisible(getParamDef('halftone.levels'), params)).toBe(false);
     params['halftone.stepped'] = true;
     expect(isParamVisible(getParamDef('halftone.levels'), params)).toBe(true);

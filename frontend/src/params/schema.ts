@@ -1,4 +1,4 @@
-import type { ParamDef, ParamOption } from './types';
+import type { ParamDef, ParamGroup, ParamOption, StyleKind } from './types';
 
 /**
  * 参数总表。PRD 里的每个参数是一条记录；参数面板、预设序列化、撤销重做、自动调整全部从这张表推导。
@@ -18,14 +18,9 @@ export const DITHER_FAMILIES: ParamOption[] = [
   opt('pattern', '图案'),
 ];
 
-const fam = (family: string) => ({ id: 'dither.family', equals: family });
-const bgOn = { id: 'tone.bg.enabled', equals: true };
-const famAnd = (family: string, id: string, value: string | string[]) => [
-  fam(family),
-  Array.isArray(value) ? { id, in: value } : { id, equals: value },
-];
+export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线'), opt('halftone', '网点')];
 
-/** Halftone 风格的网点形状（`halftone.shape`），与 `engine/halftone/shapes.ts` 的 SDF 一一对应 */
+/** 网点风格的形状（`halftone.shape`），与 `engine/halftone/shapes.ts` 的距离场一一对应 */
 export const HALFTONE_SHAPES: ParamOption[] = [
   opt('circle', '圆形'),
   opt('square', '方形'),
@@ -37,10 +32,35 @@ export const HALFTONE_SHAPES: ParamOption[] = [
   opt('cross', '十字'),
 ];
 
+/**
+ * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
+ * 不用在每条记录上重复写条件。没列出的分组（画布、像素化、影调、特效）几种风格共用。
+ */
+export const GROUP_STYLE: Partial<Record<ParamGroup, StyleKind>> = {
+  dither: 'dither',
+  color: 'dither',
+  grid: 'dither',
+  hatch: 'hatch',
+  halftone: 'halftone',
+  screen: 'halftone',
+  ink: 'halftone',
+};
+
+const onDither = { id: 'style.type', equals: 'dither' };
+/** 网点风格自己按网格间距缩小画面，像素化的方法与偏移只有抖动与排线用 */
+const notHalftone = { id: 'style.type', in: ['dither', 'hatch'] };
+const fam = (family: string) => ({ id: 'dither.family', equals: family });
+const bgOn = { id: 'tone.bg.enabled', equals: true };
+const linkOn = { id: 'hatch.link', in: ['stroke', 'row', 'col', 'grid'] };
+const famAnd = (family: string, id: string, value: string | string[]) => [
+  fam(family),
+  Array.isArray(value) ? { id, in: value } : { id, equals: value },
+];
+
 export const PARAM_SCHEMA: readonly ParamDef[] = [
   // ---------- 风格 ----------
-  // 左栏页签就是这个参数：Dither / Halftone。进预设、进撤销栈，应用预设时跟着切
-  { id: 'style.kind', group: 'style', label: '风格', type: 'select', default: 'dither', options: [opt('dither', 'Dither'), opt('halftone', 'Halftone')] },
+  // 左栏页签「抖动 / 排线 / 网点」就是这个参数；它决定下面哪些分组露出来
+  { id: 'style.type', group: 'style', label: '风格', type: 'select', default: 'dither', options: STYLE_KINDS },
 
   // ---------- 画布 ----------
   { id: 'canvas.width', group: 'canvas', label: '宽度', type: 'number', min: 16, max: 8192, step: 1, default: 1000, unit: 'px', advanced: true },
@@ -56,17 +76,19 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
 
   // ---------- 像素化 ----------
-  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4 },
+  // 排线风格下格子大小由「横向 / 纵向间距」决定，像素尺寸只属于抖动
+  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4, visibleWhen: onDither },
   {
     id: 'pixel.method',
     group: 'pixel',
     label: '降采样',
     type: 'select',
     default: 'box',
+    visibleWhen: notHalftone,
     options: [opt('box', 'Box 平均'), opt('bilinear', '双线性'), opt('lanczos', 'Lanczos'), opt('nearest', '最近邻')],
   },
-  { id: 'pixel.offsetX', group: 'pixel', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true },
-  { id: 'pixel.offsetY', group: 'pixel', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true },
+  { id: 'pixel.offsetX', group: 'pixel', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true, visibleWhen: notHalftone },
+  { id: 'pixel.offsetY', group: 'pixel', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, advanced: true, visibleWhen: notHalftone },
 
   // ---------- 影调与预处理 ----------
   { id: 'tone.threshold', group: 'tone', label: '阈值', type: 'number', min: 0, max: 255, step: 1, default: 128 },
@@ -138,6 +160,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     type: 'boolean',
     default: true,
     advanced: true,
+    // 排线按"看起来多亮"定粗细，固定在 gamma 空间；抖动与网点（面积正比的墨量）都用得上
+    visibleWhen: { id: 'style.type', in: ['dither', 'halftone'] },
     hint: '在线性光里量化，抖动后的平均亮度与原图一致；关闭后在 gamma 空间量化，中间调更亮。',
   },
   {
@@ -391,11 +415,37 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'grid.bgDotSize', group: 'grid', label: '图形大小', type: 'number', min: 5, max: 100, step: 1, default: 30, unit: '%', visibleWhen: { id: 'grid.background', equals: 'dots' } },
   { id: 'grid.bgColor', group: 'grid', label: '背景色', type: 'color', default: '#888888', visibleWhen: { id: 'grid.background', in: ['lines', 'dots'] } },
 
-  // ---------- 特效栈 ----------
-  { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },
+  // ---------- 排线 ----------
+  // 一个格子一笔：格子由横纵间距划分，每笔的粗细按格子明暗分成若干档，角度、长度、圆角全图一致。
+  // 长度以「贯穿格子的那条弦」为 100%，粗细以「相邻平行线的间距」为 100%——100% 就是刚好连上 / 刚好挨上，换间距也不用重调。
+  { id: 'hatch.angle', group: 'hatch', label: '角度', type: 'number', min: 0, max: 180, step: 1, default: 45, unit: '°' },
+  { id: 'hatch.spacingX', group: 'hatch', label: '横向间距', type: 'number', min: 3, max: 128, step: 1, default: 14, unit: 'px' },
+  { id: 'hatch.spacingY', group: 'hatch', label: '纵向间距', type: 'number', min: 3, max: 128, step: 1, default: 14, unit: 'px' },
+  { id: 'hatch.levels', group: 'hatch', label: '色阶', type: 'number', min: 2, max: 16, step: 1, default: 6, hint: '明暗分成几档，每档一种粗细' },
+  { id: 'hatch.length', group: 'hatch', label: '长度', type: 'number', min: 10, max: 200, step: 1, default: 80, unit: '%' },
+  { id: 'hatch.maxWidth', group: 'hatch', label: '最粗', type: 'number', min: 5, max: 150, step: 1, default: 70, unit: '%' },
+  { id: 'hatch.minWidth', group: 'hatch', label: '最细', type: 'number', min: 0, max: 100, step: 1, default: 8, unit: '%' },
+  { id: 'hatch.roundness', group: 'hatch', label: '圆角', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%' },
+  { id: 'hatch.cross', group: 'hatch', label: '交叉排线', type: 'boolean', default: false, hint: '暗部再叠一层垂直方向的线' },
+  { id: 'hatch.crossStart', group: 'hatch', label: '交叉起点', type: 'number', min: 0, max: 95, step: 1, default: 50, unit: '%', visibleWhen: { id: 'hatch.cross', equals: true } },
+  { id: 'hatch.stagger', group: 'hatch', label: '错行', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%', advanced: true },
+  {
+    id: 'hatch.link',
+    group: 'hatch',
+    label: '连线',
+    type: 'select',
+    default: 'none',
+    options: [opt('none', '无'), opt('stroke', '沿斜线'), opt('row', '横向'), opt('col', '纵向'), opt('grid', '横纵')],
+  },
+  { id: 'hatch.linkWidth', group: 'hatch', label: '连线粗细', type: 'number', min: 1, max: 16, step: 1, default: 1, unit: 'px', visibleWhen: linkOn },
+  { id: 'hatch.linkColor', group: 'hatch', label: '连线颜色', type: 'color', default: '#9A9A9A', visibleWhen: linkOn },
+  // 前景 / 背景在面板上归「颜色」一节（sections.ts 里按名单挪过去），数据上仍属排线分组，随预设一起露出
+  { id: 'hatch.ink', group: 'hatch', label: '前景色', type: 'color', default: '#1C1C1C' },
+  { id: 'hatch.paper', group: 'hatch', label: '背景色', type: 'color', default: '#D9D9D9' },
 
-  // ---------- Halftone：网点 ----------
-  // 每个网格采样一块画面的平均明暗，换算成一个点的大小；点是矢量形状，边缘抗锯齿
+  // ---------- 网点：网点 ----------
+  // 每个网格采样它盖住的那块画面的平均明暗，换成一颗点的大小；点是矢量形状，边缘抗锯齿。
+  // 大小以「100% 刚好占满自己的格子」定义，换了间距也不用重调；形状跟着网格角度转。
   { id: 'halftone.shape', group: 'halftone', label: '网点形状', type: 'select', default: 'circle', options: HALFTONE_SHAPES },
   { id: 'halftone.size', group: 'halftone', label: '网点大小', type: 'number', min: 10, max: 150, step: 1, default: 100, unit: '%' },
   { id: 'halftone.minSize', group: 'halftone', label: '最小网点', type: 'number', min: 0, max: 100, step: 1, default: 10, unit: '%' },
@@ -413,7 +463,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
   { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
 
-  // ---------- Halftone：网格 ----------
+  // ---------- 网点：网格 ----------
+  // 间距是相邻点的中心距，也是格子的宽 / 高；网格绕画布中心转，画布中心永远是一颗点的中心
   { id: 'screen.pitchX', group: 'screen', label: '横向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
   { id: 'screen.pitchY', group: 'screen', label: '纵向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
   { id: 'screen.angle', group: 'screen', label: '网格角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°' },
@@ -428,7 +479,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'screen.offsetX', group: 'screen', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
   { id: 'screen.offsetY', group: 'screen', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
 
-  // ---------- Halftone：颜色 ----------
+  // ---------- 网点：颜色 ----------
+  // 面板上归「颜色」一节（sections.ts 里 color 节收 ink 分组），数据上是网点风格自己的分组
   {
     id: 'ink.mode',
     group: 'ink',
@@ -439,6 +491,9 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
   { id: 'ink.dot', group: 'ink', label: '网点颜色', type: 'color', default: '#11192D', visibleWhen: { id: 'ink.mode', equals: 'mono' } },
   { id: 'ink.paper', group: 'ink', label: '背景色', type: 'color', default: '#FFFFFF' },
+
+  // ---------- 特效栈 ----------
+  { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },
 
   // ---------- 颜色 ----------
   {

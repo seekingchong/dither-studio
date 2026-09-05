@@ -39,8 +39,8 @@ export class RenderClient {
   /** 已把源帧送进 Worker 的坑位 */
   private sourced = new Set<number>();
   private scheduled = false;
-  /** 在途的 SVG 导出，按 jobId 等结果 */
-  private svgJobs = new Map<number, { resolve: (svg: string) => void; reject: (err: Error) => void }>();
+  /** 在途的矢量导出任务，按 jobId 回填 */
+  private svgJobs = new Map<number, { slot: number; resolve: (svg: string) => void; reject: (err: Error) => void }>();
   private frameListeners = new Set<FrameListener>();
   private errorListeners = new Set<ErrorListener>();
 
@@ -121,11 +121,15 @@ export class RenderClient {
     });
   }
 
-  /** 当前帧的矢量版 SVG：Worker 按全分辨率参数出图，Halftone 是真网点几何，Dither 是合并后的色块 */
+  /** 当前帧的 SVG（Worker 按全分辨率参数算；抖动出实色块 path，排线出真笔画） */
   exportSvg(slot: number, params: Params, options?: RenderOptions): Promise<string> {
     return new Promise((resolve, reject) => {
+      if (!this.sourced.has(slot)) {
+        reject(new Error('坑位没有源媒体'));
+        return;
+      }
       const jobId = ++this.jobSeq;
-      this.svgJobs.set(jobId, { resolve, reject });
+      this.svgJobs.set(jobId, { slot, resolve, reject });
       this.send({ type: 'svg', jobId, slot, params, options });
     });
   }
@@ -142,11 +146,11 @@ export class RenderClient {
 
   dispose() {
     this.worker.terminate();
+    for (const job of this.svgJobs.values()) job.reject(new Error('渲染器已关闭'));
+    this.svgJobs.clear();
     this.pending.clear();
     this.inflight.clear();
     this.sourced.clear();
-    for (const job of this.svgJobs.values()) job.reject(new Error('渲染器已关闭'));
-    this.svgJobs.clear();
     this.frameListeners.clear();
     this.errorListeners.clear();
   }
@@ -184,15 +188,17 @@ export class RenderClient {
       }
       case 'svg': {
         const job = this.svgJobs.get(msg.jobId);
-        this.svgJobs.delete(msg.jobId);
-        job?.resolve(msg.svg);
+        if (job) {
+          this.svgJobs.delete(msg.jobId);
+          job.resolve(msg.svg);
+        }
         break;
       }
       case 'error': {
-        // SVG 导出的错误只回给发起它的那个 Promise，不当成渲染错误弹给界面
+        // 矢量导出的错误只回给发起它的那个 Promise，不当渲染失败广播
         const svgJob = msg.jobId !== null ? this.svgJobs.get(msg.jobId) : undefined;
-        if (svgJob) {
-          this.svgJobs.delete(msg.jobId!);
+        if (svgJob && msg.jobId !== null) {
+          this.svgJobs.delete(msg.jobId);
           svgJob.reject(new Error(msg.message));
           break;
         }

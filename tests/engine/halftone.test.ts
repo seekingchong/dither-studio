@@ -262,7 +262,7 @@ describe('流水线 Halftone 分支', () => {
   const source = () => makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]);
   const params = (patch: Record<string, unknown> = {}) => ({
     ...defaultParams(),
-    'style.kind': 'halftone',
+    'style.type': 'halftone',
     'canvas.width': 48,
     'canvas.height': 24,
     'screen.pitchX': 6,
@@ -314,12 +314,12 @@ describe('流水线 Halftone 分支', () => {
     const src = source();
     p.run(src, 'a', params());
     expect(p.currentHalftone).toBeDefined();
-    p.run(src, 'a', params({ 'style.kind': 'dither', 'pixel.size': 2 }));
+    p.run(src, 'a', params({ 'style.type': 'dither', 'pixel.size': 2 }));
     expect(p.currentHalftone).toBeUndefined();
     expect(p.lastStats.recomputed).toContain('dither:ordered/bayer2');
     p.run(src, 'a', params());
     expect(p.lastStats.recomputed).toEqual([]);
-    p.run(src, 'a', params({ 'style.kind': 'dither', 'pixel.size': 2 }));
+    p.run(src, 'a', params({ 'style.type': 'dither', 'pixel.size': 2 }));
     expect(p.lastStats.recomputed).toEqual([]);
   });
 

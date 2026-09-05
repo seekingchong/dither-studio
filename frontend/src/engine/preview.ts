@@ -2,40 +2,51 @@ import type { Params } from '@/params';
 import { computeFit, type FitMode } from './preprocess/fit';
 
 /**
- * 预览降分辨率：优先把画布与像素尺寸同比缩小，格子数不变，抖动图案与全分辨率一致，
- * 只是每个格子画得更小。像素尺寸已经缩不动时（1 或 2），改为按倍率减少格子数——
+ * 预览降分辨率：优先把画布与格子尺寸（像素尺寸 / 排线间距）同比缩小，格子数不变，
+ * 图案与全分辨率一致，只是每个格子画得更小。格子已经缩不动时（1 或 2），改为按倍率减少格子数——
  * 图案会比最终结果粗，但只发生在播放过程中，暂停与导出仍是全分辨率。
  */
 export function scaleParamsForPreview(params: Params, scale: number): { params: Params; scale: number } {
   if (scale >= 1) return { params, scale: 1 };
-  const size = Number(params['pixel.size']) || 1;
+  // 排线 / 网点风格的"格子"是横纵间距，按短的那边缩
+  const hatch = params['style.type'] === 'hatch';
+  const halftone = params['style.type'] === 'halftone';
+  const spacingX = Number(params['hatch.spacingX']) || 1;
+  const spacingY = Number(params['hatch.spacingY']) || 1;
+  const pitchX = Number(params['screen.pitchX']) || 1;
+  const pitchY = Number(params['screen.pitchY']) || 1;
+  const size = hatch ? Math.min(spacingX, spacingY) : halftone ? Math.min(pitchX, pitchY) : Number(params['pixel.size']) || 1;
   const newSize = Math.max(1, Math.round(size * scale));
-  // 像素尺寸一点都没缩小 → 这一档只能靠减少格子数拿到
+  // 格子一点都没缩小 → 这一档只能靠减少格子数拿到
   const effective = newSize === size ? scale : newSize / size;
   if (effective >= 1) return { params, scale: 1 };
   const width = Math.max(16, Math.round((Number(params['canvas.width']) || 1000) * effective));
   const height = Math.max(16, Math.round((Number(params['canvas.height']) || 600) * effective));
   const px = (id: string) => Math.round((Number(params[id]) || 0) * effective);
-  return {
-    scale: effective,
-    params: {
-      ...params,
-      'canvas.width': width,
-      'canvas.height': height,
-      'pixel.size': newSize,
-      'pixel.offsetX': px('pixel.offsetX'),
-      'pixel.offsetY': px('pixel.offsetY'),
-      'grid.gapX': px('grid.gapX'),
-      'grid.gapY': px('grid.gapY'),
-      'grid.lineWidth': Math.max(1, px('grid.lineWidth')),
-      'tone.blur': (Number(params['tone.blur']) || 0) * effective,
-      // Halftone 的网格也按画布同比缩：格子数不变，只是每个点画得更小
-      'screen.pitchX': Math.max(2, px('screen.pitchX')),
-      'screen.pitchY': Math.max(2, px('screen.pitchY')),
-      'screen.offsetX': px('screen.offsetX'),
-      'screen.offsetY': px('screen.offsetY'),
-    },
+  const scaled: Params = {
+    ...params,
+    'canvas.width': width,
+    'canvas.height': height,
+    'pixel.offsetX': px('pixel.offsetX'),
+    'pixel.offsetY': px('pixel.offsetY'),
+    'grid.gapX': px('grid.gapX'),
+    'grid.gapY': px('grid.gapY'),
+    'grid.lineWidth': Math.max(1, px('grid.lineWidth')),
+    'tone.blur': (Number(params['tone.blur']) || 0) * effective,
   };
+  if (hatch) {
+    scaled['hatch.spacingX'] = Math.max(1, Math.round(spacingX * effective));
+    scaled['hatch.spacingY'] = Math.max(1, Math.round(spacingY * effective));
+    scaled['hatch.linkWidth'] = Math.max(1, px('hatch.linkWidth'));
+  } else if (halftone) {
+    scaled['screen.pitchX'] = Math.max(2, Math.round(pitchX * effective));
+    scaled['screen.pitchY'] = Math.max(2, Math.round(pitchY * effective));
+    scaled['screen.offsetX'] = px('screen.offsetX');
+    scaled['screen.offsetY'] = px('screen.offsetY');
+  } else {
+    scaled['pixel.size'] = newSize;
+  }
+  return { scale: effective, params: scaled };
 }
 
 /** 预览倍率档位，从清晰到粗糙 */

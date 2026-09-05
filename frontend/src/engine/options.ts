@@ -1,12 +1,13 @@
-import { bool, num, str, type Params, type StyleKind } from '@/params';
+import { bool, num, str, styleOf, type Params, type StyleKind } from '@/params';
 import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
 import type { ChannelSpace, ColorMode } from './color/map';
 import { parseColorList } from './color/palettes';
 import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
-import type { GrayFormula } from './color/gray';
+import type { HatchLink, HatchOptions } from './render/hatch';
 import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
 import type { HalftoneShape } from './halftone/shapes';
+import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
 import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
@@ -14,7 +15,7 @@ import type { ResampleMethod } from './preprocess/resample';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
-  /** 艺术风格：抖动走原有流水线，网点走 halftone 分支 */
+  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染，网点走逐格采样 → 网点几何 → 光栅 */
   style: StyleKind;
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
@@ -36,6 +37,8 @@ export interface PipelineOptions {
     channelSpace: ChannelSpace;
     accent: AccentOptions;
   };
+  hatch: HatchOptions;
+  halftone: HalftoneSettings;
   grid: {
     dot: DotShape;
     dotSize: number;
@@ -52,20 +55,25 @@ export interface PipelineOptions {
     bgDotShape: BgDotShape;
     bgDotSize: number;
   };
-  halftone: HalftoneSettings;
 }
 
 export function toPipelineOptions(params: Params): PipelineOptions {
   const mode = str(params, 'color.mode') as ColorMode;
+  const style = styleOf(params);
+  const spacingX = Math.max(1, Math.round(num(params, 'hatch.spacingX')));
+  const spacingY = Math.max(1, Math.round(num(params, 'hatch.spacingY')));
+  const pixelSize = Math.max(1, Math.round(num(params, 'pixel.size')));
+  // 模糊单位是画布像素，换算成工作分辨率像素：抖动的格子是像素尺寸，排线的格子是横纵间距
+  const cellSize = style === 'hatch' ? (spacingX + spacingY) / 2 : pixelSize;
   return {
-    style: str(params, 'style.kind') as StyleKind,
+    style,
     canvas: {
       width: Math.round(num(params, 'canvas.width')),
       height: Math.round(num(params, 'canvas.height')),
       fit: str(params, 'canvas.fit') as FitMode,
     },
     pixel: {
-      size: Math.max(1, Math.round(num(params, 'pixel.size'))),
+      size: pixelSize,
       method: str(params, 'pixel.method') as ResampleMethod,
       offsetX: Math.round(num(params, 'pixel.offsetX')),
       offsetY: Math.round(num(params, 'pixel.offsetY')),
@@ -78,8 +86,7 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       midtones: num(params, 'tone.midtones') / 100,
       highlights: num(params, 'tone.highlights') / 100,
       saturation: num(params, 'tone.saturation') / 100,
-      // 模糊单位是画布像素，换算成工作分辨率像素
-      blur: num(params, 'tone.blur') / Math.max(1, Math.round(num(params, 'pixel.size'))),
+      blur: num(params, 'tone.blur') / cellSize,
       sharpen: num(params, 'tone.sharpen') / 100,
       denoise: num(params, 'tone.denoise') / 100,
       noise: num(params, 'tone.noise') / 100,
@@ -127,21 +134,23 @@ export function toPipelineOptions(params: Params): PipelineOptions {
         seed: Math.round(num(params, 'color.accent.seed')),
       },
     },
-    grid: {
-      dot: str(params, 'grid.dot') as DotShape,
-      dotSize: num(params, 'grid.dotSize') / 100,
-      dotTone: bool(params, 'grid.dotTone'),
-      invert: bool(params, 'grid.invert'),
-      metaball: bool(params, 'grid.metaball'),
-      metaballRadius: num(params, 'grid.metaballRadius') / 100,
-      gapX: Math.round(num(params, 'grid.gapX')),
-      gapY: Math.round(num(params, 'grid.gapY')),
-      background: str(params, 'grid.background') as BackgroundKind,
-      lineDirection: str(params, 'grid.lineDirection') as LineDirection,
-      lineWidth: num(params, 'grid.lineWidth'),
-      bgColor: hexToRgb(str(params, 'grid.bgColor')),
-      bgDotShape: str(params, 'grid.bgDotShape') as BgDotShape,
-      bgDotSize: num(params, 'grid.bgDotSize') / 100,
+    hatch: {
+      angle: num(params, 'hatch.angle'),
+      spacingX,
+      spacingY,
+      levels: Math.max(2, Math.round(num(params, 'hatch.levels'))),
+      length: num(params, 'hatch.length') / 100,
+      maxWidth: num(params, 'hatch.maxWidth') / 100,
+      minWidth: Math.min(num(params, 'hatch.minWidth'), num(params, 'hatch.maxWidth')) / 100,
+      roundness: num(params, 'hatch.roundness') / 100,
+      cross: bool(params, 'hatch.cross'),
+      crossStart: num(params, 'hatch.crossStart') / 100,
+      stagger: num(params, 'hatch.stagger') / 100,
+      link: str(params, 'hatch.link') as HatchLink,
+      linkWidth: Math.max(0, num(params, 'hatch.linkWidth')),
+      linkColor: hexToRgb(str(params, 'hatch.linkColor')),
+      ink: hexToRgb(str(params, 'hatch.ink')),
+      paper: hexToRgb(str(params, 'hatch.paper')),
     },
     halftone: {
       shape: str(params, 'halftone.shape') as HalftoneShape,
@@ -162,6 +171,22 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       mode: str(params, 'ink.mode') as InkMode,
       dot: hexToRgb(str(params, 'ink.dot')),
       paper: hexToRgb(str(params, 'ink.paper')),
+    },
+    grid: {
+      dot: str(params, 'grid.dot') as DotShape,
+      dotSize: num(params, 'grid.dotSize') / 100,
+      dotTone: bool(params, 'grid.dotTone'),
+      invert: bool(params, 'grid.invert'),
+      metaball: bool(params, 'grid.metaball'),
+      metaballRadius: num(params, 'grid.metaballRadius') / 100,
+      gapX: Math.round(num(params, 'grid.gapX')),
+      gapY: Math.round(num(params, 'grid.gapY')),
+      background: str(params, 'grid.background') as BackgroundKind,
+      lineDirection: str(params, 'grid.lineDirection') as LineDirection,
+      lineWidth: num(params, 'grid.lineWidth'),
+      bgColor: hexToRgb(str(params, 'grid.bgColor')),
+      bgDotShape: str(params, 'grid.bgDotShape') as BgDotShape,
+      bgDotSize: num(params, 'grid.bgDotSize') / 100,
     },
   };
 }

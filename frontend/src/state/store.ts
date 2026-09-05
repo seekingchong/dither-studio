@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { coerceParam, defaultParams, getParamDef, sanitizeParams, type ParamValue, type Params, type StyleKind } from '@/params';
-import { DEFAULT_PRESET_ID, defaultPresetIdFor, presetStyle, sanitizeUserPresets, styleOfParams, type UserPreset } from './presets';
+import { coerceParam, defaultParams, getParamDef, sanitizeParams, styleOf, type ParamValue, type Params, type StyleKind } from '@/params';
+import { DEFAULT_PRESET_ID, defaultPresetIdFor, presetStyleById, sanitizeUserPresets, type UserPreset } from './presets';
 import { DEFAULT_SETTINGS, type LoadedMedia, type PreviewTab, type Settings, type Slot, type SlotCount, type ZoomLevel } from './types';
 
 /** 同一参数连续变化在此间隔内合并成一条撤销记录（滑块拖动） */
@@ -24,7 +24,7 @@ export interface StudioState {
   replaceParams(next: unknown, presetId?: string): void;
   resetParams(): void;
   /**
-   * 切风格页签（Dither / Halftone）。只改 `style.kind`，两边的参数都留着；
+   * 切风格页签（抖动 / 排线 / 网点）。只改 `style.type`，各风格的参数都留着；
    * 当前方案不属于新风格时，退回这种风格上次用的方案（没有就是它的「默认」）。
    */
   setStyle(kind: StyleKind): void;
@@ -107,13 +107,13 @@ export const useStudioStore = create<StudioState>((set) => ({
     })),
   setStyle: (kind) =>
     set((state) => {
-      const current = styleOfParams(state.params);
+      const current = styleOf(state.params);
       if (current === kind) return state;
       const lastPresetByStyle = { ...state.lastPresetByStyle, [current]: state.presetId };
       const remembered = lastPresetByStyle[kind];
-      const presetId = remembered && presetStyle(remembered, state.presets) === kind ? remembered : defaultPresetIdFor(kind);
+      const presetId = remembered && presetStyleById(remembered, state.presets) === kind ? remembered : defaultPresetIdFor(kind);
       return {
-        params: { ...state.params, 'style.kind': kind },
+        params: { ...state.params, 'style.type': kind },
         presetId,
         lastPresetByStyle,
         history: pushHistory(state.history, snapshot(state), null, now()),

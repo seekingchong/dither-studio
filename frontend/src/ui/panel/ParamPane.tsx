@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { PARAM_SCHEMA, isParamVisible, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
-import { isParamExposed, presetReferenceParams, resolveBase, styleOfParams, useStudioStore } from '@/state';
+import { PARAM_SCHEMA, isParamVisible, styleOf, type ParamDef, type Params, type StyleKind } from '@/params';
+import { isParamExposed, presetReferenceParams, resolveBase, useStudioStore } from '@/state';
 import { Icon, IconButton, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
 import { ColorSwatches } from './ColorSwatches';
@@ -11,14 +11,15 @@ import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
 import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
-import { leadParamIds, sectionsFor, type SectionMeta } from './sections';
+import { leadParamIds, SECTIONS, sectionHint, sectionOf, type SectionMeta } from './sections';
 
-/** 左栏页签：两个风格页签就是 `style.kind` 本身，再加一个「历史」 */
+/** 左栏页签：三种艺术风格各一页（页签本身就是 `style.type`），再加「历史」 */
 type PaneTab = StyleKind | 'history';
 
-const PANE_TABS: Array<{ id: PaneTab; label: string }> = [
-  { id: 'dither', label: 'Dither' },
-  { id: 'halftone', label: 'Halftone' },
+const TABS: { id: PaneTab; label: string }[] = [
+  { id: 'dither', label: '抖动' },
+  { id: 'hatch', label: '排线' },
+  { id: 'halftone', label: '网点' },
   { id: 'history', label: '历史' },
 ];
 
@@ -29,9 +30,9 @@ interface SectionContent {
 }
 
 /**
- * 左栏。「Dither」「Halftone」两个风格页签 = 预设模块（选一套这种风格的方案）+ 在这套方案范围内微调的参数；
- * 点风格页签就是切换 `style.kind`（进撤销栈、跟着预设走），两种风格的参数都留在同一份参数表里，来回切不丢。
- * 「历史」页 = 保存过的所有方案（两种风格都在）。
+ * 左栏。「抖动」「排线」「网点」三页 = 预设模块（选一套该风格的方案）+ 在这套方案范围内微调的参数，
+ * 切页签就是切 `style.type`（`setStyle`：进撤销栈，并换到那种风格上次用的方案），各风格的参数都留在同一份参数表里；
+ * 「历史」页 = 保存过的所有方案。
  *
  * 参数不再分 tab：整栏一列，每节可折叠、收起时显示当前值摘要。
  * 默认全部展开，需要时可逐节收起（收起后标题右侧显示当前值摘要），几节之间的关系一眼可见，也不用来回切 tab 找参数。
@@ -41,52 +42,48 @@ interface SectionContent {
  */
 export function ParamPane() {
   const params = useStudioStore((s) => s.params);
+  const setStyle = useStudioStore((s) => s.setStyle);
   const setParams = useStudioStore((s) => s.setParams);
   // 当前方案的来源预设决定参数面板露出哪些分组 / 参数
   const exposes = useStudioStore(useShallow((s) => resolveBase(s.presetId, s.presets).exposes));
   // 「重置」把这一节退回当前方案本身的值（不是 schema 默认值），跟操作行的「还原」同一把尺子
   const reference = useStudioStore(useShallow((s) => presetReferenceParams(s.presetId, s.presets)));
-  const setStyle = useStudioStore((s) => s.setStyle);
-  // 只记"在看历史页还是在看参数"；具体是哪个风格页签由参数里的 style.kind 决定（撤销、应用预设都会带着它变）
   const [showHistory, setShowHistory] = useState(false);
   // 分节默认全展开；点标题仍可单独收起，收起后标题右侧显示当前值摘要
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
-  const style = styleOfParams(params);
-  const paneTab: PaneTab = showHistory ? 'history' : style;
-  const selectTab = (tab: PaneTab) => {
-    if (tab === 'history') {
+  const style = styleOf(params);
+  const family = String(params['dither.family']) as DitherFamily;
+  const algorithmId = style === 'dither' ? FAMILY_PARAM[family] : undefined;
+  // 领头参数只随风格与算法族变；用拼起来的键做依赖，免得每改一个滑块都重排
+  const leadsKey = leadParamIds(params).join('|');
+  const leads = useMemo(() => leadsKey.split('|'), [leadsKey]);
+  const tab: PaneTab = showHistory ? 'history' : style;
+  const onTab = (id: PaneTab) => {
+    if (id === 'history') {
       setShowHistory(true);
       return;
     }
     setShowHistory(false);
-    setStyle(tab);
+    if (id !== style) setStyle(id);
   };
-  const metas = useMemo(() => sectionsFor(style), [style]);
-
-  const family = String(params['dither.family']) as DitherFamily;
-  const algorithmId = style === 'dither' ? FAMILY_PARAM[family] : undefined;
-  // 「基础」那一排领头参数只有 Dither 有
-  const leads = useMemo(() => (style === 'dither' ? leadParamIds(family) : []), [style, family]);
 
   /**
    * 每一节管着哪些参数——重置要把没露出来、当前条件下不可见的一并退回去，
    * 所以按整份 schema 算，不用面板上正在显示的那份。
    */
   const sectionParamIds = useMemo(() => {
-    const sectionOfGroup = new Map<ParamGroup, string>();
-    for (const meta of metas) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
     const leadSet = new Set(leads);
     const bySection = new Map<string, string[]>();
     for (const def of PARAM_SCHEMA) {
-      const id = leadSet.has(def.id) ? 'basic' : sectionOfGroup.get(def.group);
+      const id = sectionOf(def, leadSet);
       if (!id) continue;
       const list = bySection.get(id);
       if (list) list.push(def.id);
       else bySection.set(id, [def.id]);
     }
     return bySection;
-  }, [leads, metas]);
+  }, [leads]);
 
   const sectionDirty = (id: string) => (sectionParamIds.get(id) ?? []).some((pid) => params[pid] !== reference[pid]);
   const resetSection = (id: string) => {
@@ -96,22 +93,19 @@ export function ParamPane() {
   };
 
   const sections = useMemo<SectionContent[]>(() => {
-    const sectionOfGroup = new Map<ParamGroup, string>();
-    for (const meta of metas) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
     const leadSet = new Set(leads);
-
     const bySection = new Map<string, { basic: ParamDef[]; advanced: ParamDef[] }>();
     for (const def of PARAM_SCHEMA) {
       if (!isParamExposed(def, exposes) || !isParamVisible(def, params)) continue;
-      // 领头的那几个不管属于哪个分组，一律归「基础」；没有对应分节的分组（画布）不在左栏出现
-      const id = leadSet.has(def.id) ? 'basic' : sectionOfGroup.get(def.group);
+      // 领头的那几个不管属于哪个分组，一律归「基础」；没有对应分节的分组（画布、风格）不在左栏出现
+      const id = sectionOf(def, leadSet);
       if (!id) continue;
       const entry = bySection.get(id) ?? { basic: [], advanced: [] };
       (def.advanced ? entry.advanced : entry.basic).push(def);
       bySection.set(id, entry);
     }
 
-    return metas.map((meta) => {
+    return SECTIONS.map((meta) => {
       const entry = bySection.get(meta.id) ?? { basic: [], advanced: [] };
       const basic = entry.basic.slice();
       // 「基础」把那一排领头参数提到最前，其余保持 schema 顺序
@@ -124,12 +118,12 @@ export function ParamPane() {
       }
       return { meta, basic, advanced: entry.advanced };
     }).filter((s) => s.basic.length > 0 || s.advanced.length > 0);
-  }, [params, exposes, leads, metas]);
+  }, [params, exposes, leads]);
 
   return (
-    <section className="pane pane--params" aria-label="参数面板">
+    <section className="pane pane--params" aria-label="参数面板" data-style={style}>
       <div className="pane-actions">
-        <Tabs items={PANE_TABS} value={paneTab} onChange={selectTab} />
+        <Tabs items={TABS} value={tab} onChange={onTab} />
         <div className="pane-actions__tools">
           <SettingsMenu />
           <PresetActions />
@@ -137,12 +131,12 @@ export function ParamPane() {
       </div>
 
       <div className="pane-content">
-        {paneTab === 'history' && <HistoryPane onApplied={() => setShowHistory(false)} />}
-        {paneTab !== 'history' && (
+        {tab === 'history' && <HistoryPane onApplied={() => setShowHistory(false)} />}
+        {tab !== 'history' && (
           <>
             <PresetPicker />
 
-            <div className="sections" data-testid="params-module" data-style={style}>
+            <div className="sections" data-testid="params-module">
               {sections.map(({ meta, basic, advanced }) => {
                 const open = openSections[meta.id] ?? true;
                 return (
@@ -170,7 +164,7 @@ export function ParamPane() {
                     </h3>
                     {open && (
                       <div className="section__body">
-                        <p className="section__hint">{meta.hint}</p>
+                        <p className="section__hint">{sectionHint(meta, params)}</p>
                         {meta.id === 'color' && <ColorSwatches />}
                         {meta.id === 'effects' && <EffectsEditor />}
                         {meta.id !== 'effects' && basic.length > 0 && (

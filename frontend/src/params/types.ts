@@ -1,13 +1,9 @@
 export type ParamValue = number | string | boolean;
 
-/**
- * 参数分组。style 只有一个参数（风格），dither / pixel / color / grid 是 Dither 风格专属，
- * halftone / screen / ink 是 Halftone 风格专属，canvas / tone / effects 两种风格共用。
- */
-export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'halftone' | 'screen' | 'ink';
+export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'hatch' | 'halftone' | 'screen' | 'ink';
 
-/** 两种艺术风格：抖动（Dither）与网点（Halftone），在左栏以页签切换 */
-export type StyleKind = 'dither' | 'halftone';
+/** 艺术风格：抖动（现有整条抖动流水线）、排线（斜线粗细表现明暗）或网点（规则网格上按明暗放大缩小的点） */
+export type StyleKind = 'dither' | 'hatch' | 'halftone';
 
 export interface ParamOption {
   value: string;

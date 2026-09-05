@@ -51,17 +51,18 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('Halftone 页签：自己的预设与分节，来回切换不丢参数，保存与历史按风格分开，SVG 出真网点', async ({ page }) => {
+test('网点页签：自己的预设与分节，来回切换不丢参数，保存与历史按风格分开，SVG 出真网点', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
 
-  // 左栏页签：Dither / Halftone / 历史，默认在 Dither
-  await expect(page.getByRole('tab', { name: 'Dither' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByRole('tab', { name: '参数' })).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Halftone' }).click();
-  await expect(page.getByRole('tab', { name: 'Halftone' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('params-module')).toHaveAttribute('data-style', 'halftone');
-  await expect(sectionLabels(page)).toHaveText(['网点', '网格', '颜色', '影调', '特效']);
+  // 左栏页签：抖动 / 排线 / 网点 / 历史，默认在抖动
+  const tabs = page.locator('.pane--params .pane-actions [role="tab"]');
+  await expect(tabs).toHaveText(['抖动', '排线', '网点', '历史']);
+  await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: '网点' }).click();
+  await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'halftone');
+  await expect(sectionLabels(page)).toHaveText(['基础', '网点', '颜色', '影调', '特效']);
 
   // Halftone 自己的预设：「默认」在最前且选中，Dither 的卡片不在这里
   await expect(page.locator('[data-preset="halftone-default"]')).toHaveClass(/is-active/);
@@ -69,14 +70,27 @@ test('Halftone 页签：自己的预设与分节，来回切换不丢参数，�
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
   await expect(page.locator('.preset-card').first()).toHaveAttribute('data-preset', 'halftone-default');
 
-  // 网点分节里是形状、大小、最小网点…；网格分节里是间距与角度；颜色分节里是网点色 / 背景色
+  // 「基础」领头的是形状、横纵间距、角度、排列；「网点」里是大小、最小网点…；「颜色」里是网点色 / 背景色（色板也只有这两块）
+  const basic = page.locator('[data-section="basic"] .param-grid').first().locator('.tda-select, .tda-field');
+  await expect(basic.nth(0)).toHaveAttribute('data-param', 'halftone.shape');
+  await expect(basic.nth(1)).toHaveAttribute('data-param', 'screen.pitchX');
+  await expect(basic.nth(2)).toHaveAttribute('data-param', 'screen.pitchY');
+  await expect(basic.nth(3)).toHaveAttribute('data-param', 'screen.angle');
+  await expect(basic.nth(4)).toHaveAttribute('data-param', 'screen.lattice');
+  await expect(page.locator('[data-param="dither.family"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="pixel.size"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="pixel.method"]')).toHaveCount(0);
   const dots = page.locator('[data-section="dots"] .param-grid').first().locator('.tda-select, .tda-field');
-  await expect(dots.nth(0)).toHaveAttribute('data-param', 'halftone.shape');
-  await expect(dots.nth(1)).toHaveAttribute('data-param', 'halftone.size');
-  await expect(page.locator('[data-param="screen.pitchX"]')).toBeVisible();
-  await expect(page.locator('[data-param="screen.angle"]')).toBeVisible();
+  await expect(dots.nth(0)).toHaveAttribute('data-param', 'halftone.size');
+  await expect(dots.nth(1)).toHaveAttribute('data-param', 'halftone.minSize');
   await expect(page.locator('[data-param="ink.dot"]')).toBeVisible();
   await expect(page.locator('[data-param="ink.paper"]')).toBeVisible();
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(2);
+  await expect(swatches.nth(0)).toHaveAttribute('aria-label', '网点颜色 #11192D');
+  await expect(swatches.nth(1)).toHaveAttribute('aria-label', '背景色 #FFFFFF');
+  // 线性空间开关对网点有效（面积正比在线性光里算墨量），留在影调的「更多参数」里
+  await expect(page.locator('[data-param="tone.linear"]')).toHaveCount(1);
   // 分级级数只在打开分级后出现
   await expect(page.locator('[data-param="halftone.levels"]')).toHaveCount(0);
 
@@ -93,25 +107,28 @@ test('Halftone 页签：自己的预设与分节，来回切换不丢参数，�
   await page.locator('[data-param="halftone.size"] input[type="range"]').fill('80');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Poster · 已微调');
 
-  // 切回 Dither：那边还是默认方案、没被动过；再切回来，Poster 与微调都还在
-  await page.getByRole('tab', { name: 'Dither' }).click();
-  await expect(page.getByTestId('params-module')).toHaveAttribute('data-style', 'dither');
+  // 切回抖动：那边还是默认方案，自己的参数没被动过（影调三种风格共用，Poster 带的对比度 +15 在这边也算微调）；再切回来，Poster 与微调都还在
+  await page.getByRole('tab', { name: '抖动' }).click();
+  await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'dither');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);
   await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认 · 已微调');
+  await expect(page.locator('[data-param="dither.ordered.matrix"] .tda-select__value')).toHaveText('Bayer 2×2');
+  await expect(page.locator('[data-param="tone.contrast"] input[type="range"]')).toHaveValue('15');
   await expect(page.locator('[data-preset="ht-poster"]')).toHaveCount(0);
-  await page.getByRole('tab', { name: 'Halftone' }).click();
+  await page.getByRole('tab', { name: '网点' }).click();
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Poster · 已微调');
   await expect(page.locator('[data-param="halftone.size"] input[type="range"]')).toHaveValue('80');
 
-  // 颜色模式换成 CMYK：网点颜色那格收起来，背景色还在
-  await openSection(page, 'ink');
+  // 颜色模式换成 CMYK：网点颜色那格收起来，色板只剩背景色
+  await openSection(page, 'color');
   await pick(page, 'ink.mode', 'CMYK 分色');
   await expect(page.locator('[data-param="ink.dot"]')).toHaveCount(0);
   await expect(page.locator('[data-param="ink.paper"]')).toBeVisible();
+  await expect(swatches).toHaveCount(1);
   await pick(page, 'ink.mode', '双色');
 
-  // 保存成我的预设：只出现在 Halftone 页签，Dither 页签里没有；历史页摘要以 Halftone 开头
+  // 保存成我的预设：只出现在网点页签，抖动页签里没有；历史页摘要以「网点」开头
   await page.getByTestId('preset-save-button').click();
   await expect(page.getByLabel('新预设名称')).toHaveValue('Poster 副本');
   await page.getByLabel('新预设名称').fill('我的网点');
@@ -119,13 +136,13 @@ test('Halftone 页签：自己的预设与分节，来回切换不丢参数，�
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await expect(page.locator('.preset-card--user')).toContainText('基于 Poster');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的网点');
-  await page.getByRole('tab', { name: 'Dither' }).click();
+  await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('.preset-card--user')).toHaveCount(0);
   await page.getByRole('tab', { name: '历史' }).click();
-  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Poster · Halftone · 圆形 · 14px · 双色/);
-  // 从历史页应用回来：风格页签跟着回到 Halftone
+  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Poster · 网点 · 圆形 · 14px · 双色/);
+  // 从历史页应用回来：风格页签跟着回到网点
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
-  await expect(page.getByRole('tab', { name: 'Halftone' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '网点' })).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的网点');
 
   // 导出帧：真矢量——每颗点一个 <circle>，网格旋转写在 <g transform> 上
@@ -140,28 +157,28 @@ test('Halftone 页签：自己的预设与分节，来回切换不丢参数，�
   expect(svg).toContain('fill="#E4002B"');
 });
 
-test('Halftone：形状、排列与融合都能切，撤销能跨风格页签回退', async ({ page }) => {
+test('网点：形状、排列与融合都能切，撤销能跨风格页签回退', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
-  await page.getByRole('tab', { name: 'Halftone' }).click();
+  await page.getByRole('tab', { name: '网点' }).click();
   await pick(page, 'halftone.shape', '三角');
   await expect(page.locator('[data-param="halftone.shape"] .tda-select__value')).toHaveText('三角');
   await pick(page, 'screen.lattice', '交错');
   await page.locator('[data-param="halftone.merge"] input[type="range"]').fill('60');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
-  // 收起网点分节，摘要写着形状与融合
+  // 收起两节，摘要写着形状 / 排列与融合
+  await page.locator('[data-section="basic"] .section__toggle').click();
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('三角 · 12px · 0° · 交错');
   await page.locator('[data-section="dots"] .section__toggle').click();
-  await expect(page.locator('[data-section="dots"] .section__summary')).toHaveText('三角 · 100% · 融合 60%');
-  await page.locator('[data-section="screen"] .section__toggle').click();
-  await expect(page.locator('[data-section="screen"] .section__summary')).toHaveText('12px · 0° · 交错');
+  await expect(page.locator('[data-section="dots"] .section__summary')).toHaveText('100% · 最小 10% · 融合 60%');
 
-  // 撤销：融合 → 排列 → 形状 → 切页签（回到 Dither）
+  // 撤销：融合 → 排列 → 形状 → 切页签（回到抖动）
   await page.keyboard.press('ControlOrMeta+z');
   await page.keyboard.press('ControlOrMeta+z');
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(page.locator('[data-section="dots"] .section__summary')).toHaveText('圆形 · 100%');
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('圆形 · 12px · 0°');
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(page.getByRole('tab', { name: 'Dither' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '抖动' })).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('ControlOrMeta+Shift+z');
-  await expect(page.getByRole('tab', { name: 'Halftone' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: '网点' })).toHaveAttribute('aria-selected', 'true');
 });

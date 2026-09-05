@@ -10,18 +10,19 @@ export function cellCount(length: number, size: number, offset: number): number 
 /**
  * 像素化：按 size 倍率降采样成格子，每个格子一个颜色。
  * offsetX / offsetY 为网格相对原图的起始偏移（0..size-1）。
+ * sizeY 省略时格子是正方形；排线风格的横纵间距不同时传入，格子就是 size × sizeY 的长方形。
  * 输出 0..1 的浮点 RGB（源帧视为不透明，alpha 合成到白色）。
  */
-export function pixelate(frame: RGBAFrame, size: number, method: ResampleMethod, offsetX = 0, offsetY = 0): RGBFrame {
+export function pixelate(frame: RGBAFrame, size: number, method: ResampleMethod, offsetX = 0, offsetY = 0, sizeY = size): RGBFrame {
   const { width, height, data } = frame;
   const ox = ((offsetX % size) + size) % size;
-  const oy = ((offsetY % size) + size) % size;
+  const oy = ((offsetY % sizeY) + sizeY) % sizeY;
   const w = cellCount(width, size, ox);
-  const h = cellCount(height, size, oy);
+  const h = cellCount(height, sizeY, oy);
   const out = createRGB(w, h);
   const o = out.data;
 
-  if (size === 1 && ox === 0 && oy === 0) {
+  if (size === 1 && sizeY === 1 && ox === 0 && oy === 0) {
     for (let i = 0, j = 0; j < data.length; i += 3, j += 4) {
       const a = data[j + 3] / 255;
       o[i] = (data[j] * a + 255 * (1 - a)) / 255;
@@ -31,7 +32,7 @@ export function pixelate(frame: RGBAFrame, size: number, method: ResampleMethod,
     return out;
   }
 
-  const f = resampleCore(frame, w, h, size, size, ox, oy, method);
+  const f = resampleCore(frame, w, h, size, sizeY, ox, oy, method);
   for (let i = 0, j = 0; j < f.length; i += 3, j += 4) {
     const a = f[j + 3] / 255;
     o[i] = (f[j] * a + 255 * (1 - a)) / 255;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { PALETTE_PRESETS, buildLevelPalette, getPresetPalette, parseColorList, resolvePalette, rgbToHex, type ColorMode } from '@/engine';
-import { getParamDef, type ParamValue } from '@/params';
+import { getParamDef, styleOf, type ParamValue } from '@/params';
 import { useStudioStore } from '@/state';
 import { ColorPopover, Icon } from '@/ui/primitives';
 
@@ -11,6 +11,10 @@ const LIGHT_ID = 'color.tint.light';
 const STOPS_ID = 'color.tint.stops';
 const PRESET_ID = 'color.palette.preset';
 const CUSTOM_ID = 'color.palette.custom';
+const INK_ID = 'hatch.ink';
+const PAPER_ID = 'hatch.paper';
+const DOT_ID = 'ink.dot';
+const HT_PAPER_ID = 'ink.paper';
 
 interface Editing {
   index: number;
@@ -30,10 +34,17 @@ function suggestNewColor(colors: string[]): string {
  * 颜色分区的色板：每个色块就是当前会用到的一种颜色，点开可用取色器改或直接输入色值。
  * 单色 / 灰阶 / Tint 的两端对应「暗色 / 亮色」，Tint 的中间级各自成为色带站点（灰阶改中间色会转成 Tint）；
  * Palette 直接编辑调色板里的每一色，改内置调色板会转为「自定义」。Channels 的颜色由 RGB / CMYK 原色决定，不在这里调。
+ * 排线风格只有前景色（笔画）与背景色（纸）两块；网点风格是网点颜色与背景色，原图色 / CMYK 模式下只剩背景色。
  */
 export function ColorSwatches() {
-  const { mode, levels, dark, light, stopsText, preset, customText, linear, setParam, setParams } = useStudioStore(
+  const { style, ink, paper, dot, htPaper, inkMode, mode, levels, dark, light, stopsText, preset, customText, linear, setParam, setParams } = useStudioStore(
     useShallow((s) => ({
+      style: styleOf(s.params),
+      ink: String(s.params[INK_ID]),
+      paper: String(s.params[PAPER_ID]),
+      dot: String(s.params[DOT_ID]),
+      htPaper: String(s.params[HT_PAPER_ID]),
+      inkMode: String(s.params['ink.mode']),
       mode: String(s.params[MODE_ID]) as ColorMode,
       levels: Number(s.params['color.levels']),
       dark: String(s.params[DARK_ID]),
@@ -52,6 +63,8 @@ export function ColorSwatches() {
   const stops = useMemo(() => parseColorList(stopsText), [stopsText]);
 
   const model = useMemo(() => {
+    if (style === 'hatch') return { kind: 'hatch' as const, colors: [ink, paper], presetLabel: '' };
+    if (style === 'halftone') return { kind: 'halftone' as const, colors: inkMode === 'mono' ? [dot, htPaper] : [htPaper], presetLabel: '' };
     if (mode === 'channels') return null;
     if (mode === 'palette') {
       const source = preset === 'custom' ? parseColorList(customText) : (getPresetPalette(preset) ?? PALETTE_PRESETS[0]).colors;
@@ -73,7 +86,7 @@ export function ColorSwatches() {
     const colors: string[] = [];
     for (let i = 0; i < lut.length; i += 3) colors.push(rgbToHex(lut[i], lut[i + 1], lut[i + 2]));
     return { kind: 'levels' as const, colors, presetLabel: '' };
-  }, [mode, levels, dark, light, stops, preset, customText, linear]);
+  }, [style, ink, paper, dot, htPaper, inkMode, mode, levels, dark, light, stops, preset, customText, linear]);
 
   const colors = model?.colors ?? [];
   const count = colors.length;
@@ -86,6 +99,8 @@ export function ColorSwatches() {
   const close = useCallback(() => setEditing(null), []);
 
   const titleOf = (i: number) => {
+    if (model?.kind === 'hatch') return i === 0 ? '前景色' : '背景色';
+    if (model?.kind === 'halftone') return count === 2 && i === 0 ? '网点颜色' : '背景色';
     if (model?.kind === 'palette') return `第 ${i + 1} 色`;
     if (i === 0) return '暗色';
     if (i === count - 1) return '亮色';
@@ -95,6 +110,8 @@ export function ColorSwatches() {
   /** 改第 i 块的颜色，落到对应参数上 */
   const applyColor = (i: number, hex: string) => {
     if (!model) return;
+    if (model.kind === 'hatch') return setParam(i === 0 ? INK_ID : PAPER_ID, hex);
+    if (model.kind === 'halftone') return setParam(count === 2 && i === 0 ? DOT_ID : HT_PAPER_ID, hex);
     if (model.kind === 'palette') {
       const next = colors.slice();
       next[i] = hex;
@@ -171,7 +188,7 @@ export function ColorSwatches() {
           </button>
         )}
         <span className="swatches__count">
-          {count} 色{model.kind === 'palette' ? ` · ${model.presetLabel}` : ''}
+          {model.kind === 'hatch' ? '前景 / 背景' : model.kind === 'halftone' ? (count === 2 ? '网点 / 背景' : '背景') : `${count} 色${model.kind === 'palette' ? ` · ${model.presetLabel}` : ''}`}
         </span>
         {model.kind === 'levels' && mode === 'tint' && stops.length > 0 && (
           <button type="button" className="swatches__link" onClick={() => setParam(STOPS_ID, '')}>

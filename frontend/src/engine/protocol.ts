@@ -13,7 +13,7 @@ export type WorkerRequest =
   | { type: 'setSourceFrame'; slot: number; id: string; width: number; height: number; buffer: ArrayBuffer }
   | { type: 'clearSource'; slot: number }
   | { type: 'render'; jobId: number; slot: number; params: Params; options?: RenderOptions }
-  /** 当前帧的矢量版：Halftone 出网点几何，Dither 出合并后的色块 */
+  /** 当前帧的矢量版：抖动出实色块合并的 path，排线出真正的笔画 */
   | { type: 'svg'; jobId: number; slot: number; params: Params; options?: RenderOptions };
 
 /** Worker → 主线程 */

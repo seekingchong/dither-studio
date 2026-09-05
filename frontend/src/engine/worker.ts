@@ -1,8 +1,9 @@
 /// <reference lib="webworker" />
-import { frameToSvg } from './export/svg';
 import { halftoneToSvg } from './halftone/svg';
 import { Pipeline } from './pipeline';
 import { scaleParamsForPreview } from './preview';
+import { hatchToSvg } from './render/hatchSvg';
+import { frameToSvg } from './render/svg';
 import type { WorkerRequest, WorkerResponse } from './protocol';
 import type { RGBAFrame } from './types';
 
@@ -106,11 +107,16 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
         return;
       }
       try {
-        // 导出用全分辨率参数跑一遍（缓存命中就几乎不花时间），Halftone 直接拿几何出矢量，Dither 把色块并成矩形
+        // 矢量导出永远按全分辨率参数算：排线直接从分档结果出笔画，网点从网点几何出图形，抖动把成品帧的实色块并成 path
         entry.pipeline.gpu = msg.options?.gpu ?? true;
         const out = entry.pipeline.run(entry.frame, entry.id, msg.params);
-        const geometry = entry.pipeline.currentHalftone;
-        const svg = String(msg.params['style.kind']) === 'halftone' && geometry ? halftoneToSvg(geometry) : frameToSvg(out);
+        const hatch = entry.pipeline.currentHatch;
+        const halftone = entry.pipeline.currentHalftone;
+        const svg = halftone
+          ? halftoneToSvg(halftone)
+          : hatch
+            ? hatchToSvg(hatch.levels, hatch.width, hatch.height, hatch.sx, hatch.sy, hatch.offsetX, hatch.offsetY, hatch.opts)
+            : frameToSvg(out);
         post({ type: 'svg', jobId: msg.jobId, slot: msg.slot, svg });
       } catch (err) {
         post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });

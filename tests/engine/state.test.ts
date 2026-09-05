@@ -13,10 +13,10 @@ import {
   isParamExposed,
   paramsDiffer,
   presetStyle,
+  presetStyleById,
   resolveBase,
   sanitizeSettings,
   sanitizeUserPresets,
-  styleOfParams,
   summarizeParams,
   useStudioStore,
 } from '@/state';
@@ -121,22 +121,22 @@ describe('撤销 / 重做', () => {
 describe('风格页签', () => {
   beforeEach(reset);
 
-  it('切风格只改 style.kind，两边参数都留着，进撤销栈', () => {
+  it('切风格只改 style.type，两边参数都留着，进撤销栈', () => {
     const s = useStudioStore.getState();
     s.setParam('pixel.size', 7);
     s.setStyle('halftone');
     let state = useStudioStore.getState();
-    expect(state.params['style.kind']).toBe('halftone');
+    expect(state.params['style.type']).toBe('halftone');
     expect(state.params['pixel.size']).toBe(7);
     expect(state.presetId).toBe(HALFTONE_DEFAULT_PRESET_ID);
     state.setParam('halftone.size', 60);
     useStudioStore.getState().setStyle('dither');
     state = useStudioStore.getState();
-    expect(state.params['style.kind']).toBe('dither');
+    expect(state.params['style.type']).toBe('dither');
     expect(state.params['halftone.size']).toBe(60);
     expect(state.presetId).toBe(DEFAULT_PRESET_ID);
     state.undo();
-    expect(useStudioStore.getState().params['style.kind']).toBe('halftone');
+    expect(useStudioStore.getState().params['style.type']).toBe('halftone');
     // 同一风格再点一次不产生记录
     const before = useStudioStore.getState().history.past.length;
     useStudioStore.getState().setStyle('halftone');
@@ -148,14 +148,14 @@ describe('风格页签', () => {
     s.replaceParams(builtinPresetParams(findBuiltinPreset('gameboy')!), 'gameboy');
     s.setStyle('halftone');
     useStudioStore.getState().replaceParams(builtinPresetParams(findBuiltinPreset('ht-poster')!), 'ht-poster');
-    expect(useStudioStore.getState().params['style.kind']).toBe('halftone');
+    expect(useStudioStore.getState().params['style.type']).toBe('halftone');
     useStudioStore.getState().setStyle('dither');
     expect(useStudioStore.getState().presetId).toBe('gameboy');
     useStudioStore.getState().setStyle('halftone');
     expect(useStudioStore.getState().presetId).toBe('ht-poster');
     // 应用 Dither 预设时参数里带着 style.kind，风格跟着回去
     useStudioStore.getState().replaceParams(builtinPresetParams(findBuiltinPreset('zine')!), 'zine');
-    expect(useStudioStore.getState().params['style.kind']).toBe('dither');
+    expect(useStudioStore.getState().params['style.type']).toBe('dither');
     expect(defaultPresetIdFor('halftone')).toBe(HALFTONE_DEFAULT_PRESET_ID);
   });
 
@@ -185,34 +185,32 @@ describe('预设与设置', () => {
     expect(new Set(BUILTIN_PRESETS.map((p) => p.id)).size).toBe(BUILTIN_PRESETS.length);
   });
 
-  it('每个内置预设覆盖的参数都在它自己露出的范围内；两种风格的「默认」合起来露出全部分组', () => {
+  it('每个内置预设覆盖的参数都在它自己露出的范围内；「默认」露出全部分组，每种风格各有自己的「默认」', () => {
     expect(BUILTIN_PRESETS[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('dither')[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
-    const ditherDefault = findBuiltinPreset(DEFAULT_PRESET_ID)!;
+    expect(builtinPresetsOf('halftone').length).toBe(11);
+    for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
+    // 网点的默认露出自己的全部分组与共用分组，不露出抖动 / 排线专属的
     const halftoneDefault = findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!;
-    for (const def of PARAM_SCHEMA) {
-      // 风格本身是页签，不在任何一套方案的参数范围里
-      if (def.group === 'style') {
-        expect(isParamExposed(def, ditherDefault.exposes)).toBe(false);
-        expect(isParamExposed(def, halftoneDefault.exposes)).toBe(false);
-        continue;
-      }
-      expect(isParamExposed(def, ditherDefault.exposes) || isParamExposed(def, halftoneDefault.exposes), `两套默认预设都没露出 ${def.id}`).toBe(true);
+    for (const id of ['halftone.shape', 'screen.pitchX', 'ink.mode', 'tone.brightness', 'canvas.width', 'effects.stack']) {
+      expect(isParamExposed(getParamDef(id), halftoneDefault.exposes), `网点默认应露出 ${id}`).toBe(true);
     }
-    // Dither 的默认不露出 Halftone 专属分组，反之亦然
-    expect(isParamExposed(getParamDef('halftone.shape'), ditherDefault.exposes)).toBe(false);
     expect(isParamExposed(getParamDef('dither.family'), halftoneDefault.exposes)).toBe(false);
+    expect(isParamExposed(getParamDef('hatch.angle'), halftoneDefault.exposes)).toBe(false);
     for (const preset of BUILTIN_PRESETS) {
       expect(preset.exposes.length).toBeGreaterThan(0);
       for (const id of Object.keys(preset.params)) {
-        if (id === 'style.kind') continue;
         expect(isParamExposed(getParamDef(id), preset.exposes), `${preset.id} 设置了 ${id} 却没有露出它`).toBe(true);
       }
-      // 预设的参数与它声明的风格一致
-      expect(styleOfParams(builtinPresetParams(preset)), `${preset.id} 的风格`).toBe(preset.style);
       // 每套方案都能改自己风格的主参数与画布尺寸
-      const must = preset.style === 'dither' ? ['dither.family', 'color.mode', 'pixel.size', 'canvas.width'] : ['halftone.shape', 'screen.pitchX', 'ink.mode', 'canvas.width'];
+      const style = presetStyle(preset.params);
+      const must =
+        style === 'dither'
+          ? ['dither.family', 'color.mode', 'pixel.size', 'canvas.width']
+          : style === 'hatch'
+            ? ['hatch.angle', 'hatch.spacingX', 'canvas.width']
+            : ['halftone.shape', 'screen.pitchX', 'ink.mode', 'canvas.width'];
       for (const id of must) {
         expect(isParamExposed(getParamDef(id), preset.exposes), `${preset.id} 应露出 ${id}`).toBe(true);
       }
@@ -237,20 +235,26 @@ describe('预设与设置', () => {
     // Halftone 的用户预设没写来源时退回 Halftone 的「默认」，摘要按网点写
     const ht = { id: 'u3', name: 'C', params: builtinPresetParams(findBuiltinPreset('ht-lines')!), createdAt: 1 };
     expect(resolveBase('u3', [ht]).id).toBe(HALFTONE_DEFAULT_PRESET_ID);
-    expect(presetStyle('u3', [ht])).toBe('halftone');
-    expect(presetStyle('ht-poster', [])).toBe('halftone');
-    expect(presetStyle('gameboy', [])).toBe('dither');
-    expect(presetStyle('nope', [])).toBeNull();
-    expect(summarizeParams(ht.params)).toBe('Halftone · 线条 · 4×7px · 双色');
-    expect(summarizeParams(builtinPresetParams(findBuiltinPreset('ht-cmyk')!))).toBe('Halftone · 圆形 · 10px · CMYK 分色');
+    expect(presetStyleById('u3', [ht])).toBe('halftone');
+    expect(presetStyleById('ht-poster', [])).toBe('halftone');
+    expect(presetStyleById('hatch-pencil', [])).toBe('hatch');
+    expect(presetStyleById('gameboy', [])).toBe('dither');
+    expect(presetStyleById('nope', [])).toBeNull();
+    expect(summarizeParams(ht.params)).toBe('网点 · 线条 · 4×7px · 双色');
+    expect(summarizeParams(builtinPresetParams(findBuiltinPreset('ht-cmyk')!))).toBe('网点 · 圆形 · 10px · CMYK 分色');
   });
 
-  it('「已微调」只看方案露出的参数', () => {
+  it('「已微调」只看当前风格看得见的参数', () => {
     const a = defaultParams();
     const b = { ...a, 'halftone.size': 50 };
-    expect(paramsDiffer(a, b, findBuiltinPreset(DEFAULT_PRESET_ID)!.exposes)).toBe(false);
-    expect(paramsDiffer(a, b, findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!.exposes)).toBe(true);
-    expect(paramsDiffer(a, { ...a, 'style.kind': 'halftone' }, findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!.exposes)).toBe(false);
+    expect(paramsDiffer(a, b, 'dither')).toBe(false);
+    expect(paramsDiffer(a, b, 'hatch')).toBe(false);
+    expect(paramsDiffer(a, b, 'halftone')).toBe(true);
+    // 风格本身不算；共用的影调两边都算
+    expect(paramsDiffer(a, { ...a, 'style.type': 'halftone' }, 'halftone')).toBe(false);
+    expect(paramsDiffer(a, { ...a, 'tone.brightness': 5 }, 'dither')).toBe(true);
+    expect(paramsDiffer(a, { ...a, 'tone.brightness': 5 }, 'halftone')).toBe(true);
+    expect(paramsDiffer(a, { ...a, 'hatch.angle': 5 }, 'halftone')).toBe(false);
   });
 
   it('用户预设与设置的存储校验', () => {

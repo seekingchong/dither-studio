@@ -6,6 +6,7 @@ import { usePlaybackStore } from '@/ui/media/playback';
 import { useToast } from '@/ui/primitives/Toast';
 import { useFrameStore, useRenderClient } from '@/ui/renderer/RendererContext';
 import { exportFileName, frameToPngBlob } from './png';
+import { frameToSvg } from './svg';
 
 /** 等全分辨率那一帧回来的上限；超时就用手头的 */
 const FULL_FRAME_SETTLE_MS = 2000;
@@ -55,15 +56,20 @@ export function useExport() {
   }, [platform, rendered, media, activeSlot, show]);
 
   /**
-   * SVG 由 Worker 出：它手里有流水线缓存，Halftone 还能直接拿网点几何出真矢量（圆就是 <circle>），
-   * 不用把光栅结果再切成矩形。播放中先停下来，免得预览的降分辨率参数把缓存冲掉。
+   * 矢量版由 Worker 按全分辨率参数直接算：抖动把成品帧的实色块并成 path，排线出真正的笔画（圆角矩形），
+   * 不用等预览补回全分辨率帧。播放中先停下，Worker 里的源帧就是停下那一帧。没有渲染器时退回主线程从当前帧出。
    */
   const exportSvg = useCallback(async () => {
-    if (!rendered || !media || !client) return;
+    if (!rendered || !media) return;
     try {
-      usePlaybackStore.getState().update(activeSlot, { playing: false });
-      const { params, settings } = useStudioStore.getState();
-      const svg = await client.exportSvg(activeSlot, params, { gpu: settings.gpu, previewScale: 1 });
+      let svg: string;
+      if (client) {
+        if (rendered.scale !== 1) usePlaybackStore.getState().update(activeSlot, { playing: false });
+        const state = useStudioStore.getState();
+        svg = await client.exportSvg(activeSlot, state.params, { gpu: state.settings.gpu });
+      } else {
+        svg = frameToSvg(await fullFrame(activeSlot, rendered.frame, rendered.scale));
+      }
       const bytes = new TextEncoder().encode(svg);
       const saved = await platform.files.save(bytes, exportFileName(media.name, 'svg'), 'image/svg+xml');
       if (saved) show(`已导出 ${saved.path}`);

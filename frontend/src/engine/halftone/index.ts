@@ -4,7 +4,6 @@ export {
   coverageToSize,
   gridTransform,
   cellCenter,
-  rowShift,
   baseRadius,
   lineHalfWidth,
   countDots,

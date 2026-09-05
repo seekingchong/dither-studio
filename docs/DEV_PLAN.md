@@ -92,16 +92,18 @@ Electron 实现走 preload 的 `contextBridge`，web 实现走 File System Acces
      → 像素化 (降采样倍率、方法、网格偏移)
      → 影调预处理 (自动、亮度、对比度、中间调/高光/阴影、饱和度、模糊、锐化、去噪、噪点、描边、反相)
      → 色彩空间 (按颜色模式：灰度公式 或 保留 RGB/CMYK 分通道)
-     → 量化与抖动 (阈值 / 噪声 / 有序 / 半调 / 误差扩散 / 曲线 / 点扩散与 DBS / 图案)
-     → 颜色映射 (单色 / 灰阶 / Tint / Palette / Channels，深度错配，Accent 层)
-     → 网格渲染 (点融合、网点形状、网格间距、连线或网格点背景)
+     → 按风格分岔（style.type）
+        抖动：量化与抖动 (阈值 / 噪声 / 有序 / 半调 / 误差扩散 / 曲线 / 点扩散与 DBS / 图案)
+              → 颜色映射 (单色 / 灰阶 / Tint / Palette / Channels，深度错配，Accent 层)
+              → 网格渲染 (点融合、网点形状、网格间距、连线或网格点背景)
+        排线：明暗分档 → 笔画渲染 (角度 / 间距 / 长度 / 粗细档 / 圆角 / 交叉 / 错行 / 连线，距离场抗锯齿)
      → 特效栈 (扫描线 CRT、胶片颗粒、JPEG glitch、位移与像素排序、几何扭曲)
      → 输出 (最近邻上采样到画布或导出尺寸)
 ```
 
 每个阶段是 `(buffer, params) => buffer` 的纯函数。Worker 收到参数后按阶段执行，参数没变的阶段复用缓存。
 
-Halftone 风格（`style.kind = halftone`）在「适配画布」之后分叉，走 `engine/halftone/`：
+网点风格（`style.type = halftone`）在「适配画布」之后就分叉，走 `engine/halftone/`（排线在强制背景之后分叉，见上）：
 
 ```
 适配画布 → 按网格间距缩小 (格子短边上留 4 个采样点)
@@ -111,7 +113,7 @@ Halftone 风格（`style.kind = halftone`）在「适配画布」之后分叉，
          → 特效栈 (共用)
 ```
 
-两条路各自一套缓存键，切风格来回不互相冲掉。SVG 导出由 Worker 出（`svg` 消息）：Halftone 直接拿网点几何出 `<circle>` / `<polygon>`，Dither 把色块并成矩形。
+几条路各自一套缓存键，切风格来回不互相冲掉。SVG 导出由 Worker 出（`svg` 消息）：网点直接拿网点几何出 `<circle>` / `<polygon>`，排线出笔画，抖动把色块并成矩形。
 
 抖动只在最终输出分辨率上计算，禁止"大图渲染再缩小"。预览缩放是引擎入参而不是 canvas/CSS 变换：
 预览要算 `dither(W×z, H×z)`，不是 `resize(dither(W,H), z)`；预览路径只允许整数最近邻放大，任何情况下不得降采样。
@@ -125,7 +127,7 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 
 界面分节与 schema 分组是两回事：`group` 是数据归属（预设的 `exposes` 按它生效），左栏的分节在 `ui/panel/sections.ts` 里定义，一节可以收多个分组（「基础」= `dither` + `pixel`），个别参数还能按名单跨节提前（`color.mode` 归到「基础」）。改界面分组不动 schema，也不影响已存的用户预设。
 
-风格是 schema 里的一个参数（`style.kind`，分组 `style`），左栏的风格页签就是它：`sectionsFor(style)` 决定分节，`BuiltinPreset.style` 决定预设归哪个页签，`exposes` 只列本风格的分组。新增一种风格 = 加一个 `StyleKind`、一组参数分组、一份分节表、一批预设、流水线里一条分支。
+风格是 schema 里的一个参数（`style.type`，分组 `style`），左栏的风格页签就是它：`GROUP_STYLE` 说明哪些分组只属于哪种风格（切走整组隐藏），分节表里按 `styleOf(params)` 换说明与摘要，`presetStyle(params)` 决定预设归哪个页签，`setStyle` 切页签时记住每种风格上次用的方案，「已微调」只比当前风格看得见的参数（`paramsDiffer`）。新增一种风格 = 加一个 `StyleKind`、一组参数分组（登记进 `GROUP_STYLE`）、领头参数与分节文案、一批预设、流水线里一条分支。
 
 ### 4.4 状态与渲染
 
@@ -238,5 +240,6 @@ PRD 里的每个参数是一条记录：`{ id, group, label, type, min, max, ste
 | 导出帧 SVG（2026-09） | 已完成：预览头「导出视频 / 导出图片」左边加「导出帧」，把当前帧存成 SVG。抖动结果本来就是一格一格的实色块，`ui/export/svg.ts` 先按行做游程、再把上下对齐且同色的游程并成矩形，同色矩形并进一条 `<path>`，面积最大的那色铺成底色（有透明像素时不铺），所以是真矢量而不是把 PNG 塞进 SVG；图形数超过 30 万就报错让人调大「像素尺寸」，免得出个打不开的文件。顺带修掉导出拿到降分辨率帧的问题：播放中预览是 `scale < 1` 的，PNG / SVG 导出前先暂停并等一张全分辨率帧。UI 用例把导出的 SVG 栅格化回来跟画布逐像素比，差异 < 1% |
 | 粘贴与清空坑位（2026-09） | 已完成：⌘/Ctrl + V 把剪贴板里的图片 / 视频粘进当前选中的坑位（`ui/media/usePasteMedia.ts`），走 `paste` 事件不走 `navigator.clipboard.read()`（免权限、Electron 里也不用额外配），`clipboardData.files` 与 `items` 两条都认，网页复制来的无名 blob 按 MIME 补文件名，焦点在输入框里时不接管，剪贴板里没素材就提示一句；快捷键一览里加了这一条。坑位右上角加清空按钮，hover / 键盘聚焦才显形（藏着时 `pointer-events: none`，不留看不见却能点的按钮），点一下 `setSlotMedia(i, null)` + `releaseMedia`，Worker 源帧与最后一帧由 `RendererProvider` 原有的空媒体分支跟着撤 |
 | 界面预览 / 裁剪窗口 4 秒（2026-09） | 已完成：双击坑位弹出「界面预览」窗口——Figma 画板 `tdc home`（45:3223）的静态复刻，1728×1080 原尺寸画好再整体缩放，当前坑位的预览画面逐帧贴进界面的 `video cover` 容器（45:3247），视频 / GIF 在那儿跟着主窗口循环播。同一份前端按 `#interface-preview?slot=N` 路由（`ui/interface-preview/route.ts`，主进程放行新窗口时共用这份判断），帧走 `postMessage` + 可转移 `ImageBitmap`，由预览窗口按 rAF 节奏拉、主窗口按需缩好回传（反向推会被 Chromium 的后台节流卡住），两扇窗都关掉 `backgroundThrottling`；一个坑位复用一扇窗，Esc 关窗。图标因构建环境访问不到 Figma 资源域名，按项目图标画法重画。顺带把视频裁剪窗长从 3 秒改成 4 秒（`TRIM_SECONDS`，不足 4 秒仍是整段，导出 4 × 60 = 240 帧） |
-| Halftone 网点风格（2026-09） | 已完成：左栏页签从「参数 / 历史」改成「Dither / Halftone / 历史」，风格是参数 `style.kind`（进预设、进撤销栈），`setStyle` 切页签时记住每种风格上次用的方案。Halftone 参数 19 条分三组：网点 `halftone.*`（8 种形状的 SDF、大小 / 最小网点、面积或直径正比、增益、分级、smooth-min 融合、抗锯齿）、网格 `screen.*`（横纵中心距、角度、方格 / 交错、偏移）、颜色 `ink.*`（双色 / 原图色 / CMYK 分色）；影调 / 画布 / 特效共用。引擎 `engine/halftone/`：`shapes.ts`（距离场 + SVG 用的顶点）、`geometry.ts`（网格变换绕画布中心、每格 4×4 超采样、CMYK 四张网格）、`render.ts`（逐像素距离 + 1px 抗锯齿 + 融合，按网点最大尺寸与融合半径决定看几圈邻格）、`svg.ts`（真矢量，融合用 goo 滤镜近似）；流水线在适配画布后分叉，自己一套缓存；Worker 加 `svg` 消息，「导出帧」改由 Worker 出图。内置预设 10 套 + 默认；用户预设按风格分列，「已微调」只看本风格露出的参数。单测 34 个（`tests/engine/halftone.test.ts`），UI 用例 `tests/ui/halftone.spec.ts`。CPU 渲染，未做 WebGL 路径 |
+| 网点风格（2026-09） | 已完成：第三种艺术风格，左栏页签「抖动 | 排线 | 网点 | 历史」；与排线那套骨架合并——风格沿用参数 `style.type`，`setStyle` 切页签时进撤销栈并记住每种风格上次用的方案，「已微调」只比当前风格看得见的参数。网点参数 19 条分三组：网点 `halftone.*`（8 种形状的 SDF、大小 / 最小网点、面积或直径正比、增益、分级、smooth-min 融合、抗锯齿）、网格 `screen.*`（横纵中心距、角度、方格 / 交错、偏移）、颜色 `ink.*`（双色 / 原图色 / CMYK 分色）；影调 / 画布 / 特效共用。引擎 `engine/halftone/`：`shapes.ts`（距离场 + SVG 用的顶点）、`geometry.ts`（网格变换绕画布中心、每格 4×4 超采样、CMYK 四张网格）、`render.ts`（逐像素距离 + 1px 抗锯齿 + 融合，按网点最大尺寸与融合半径决定看几圈邻格）、`svg.ts`（真矢量，融合用 goo 滤镜近似）；流水线在适配画布后分叉，自己一套缓存；Worker 加 `svg` 消息，「导出帧」改由 Worker 出图。分节是基础（形状 + 网格）→ 网点 → 颜色（色板两块）→ 影调 → 特效；内置预设 10 套 + 默认；用户预设按风格分列。单测 34 个（`tests/engine/halftone.test.ts`），UI 用例 `tests/ui/halftone.spec.ts`。CPU 渲染，未做 WebGL 路径 |
 | 强制背景（2026-09） | 已完成：影调分节新增「强制背景」——从画面边缘洪泛（相邻格子色差 ≤ 渐变容差、与参考色色差 ≤ 容差）得到背景蒙版，主体上与背景同色的高光因不连通而保留；蒙版内的亮度在阈值偏置之后换成目标亮度（亮底 1 − 密度、暗底为密度，多级时点用相邻一级），再交给现有抖动算法，所以规则的点由算法自己长出来，GPU 有序路径不改；极性按抖动输入的亮度自动判断，可锁定；强度、边缘留白（蒙版可分离方窗收缩）、自动 / 手动参考色、连通 / 全图两种范围；Palette / Channels 路径把背景换成同亮度中性灰；蒙版单独缓存（`background` 阶段），改密度只重算抖动及下游；单测 20 个（`tests/engine/background.test.ts`） |
+| 排线风格（2026-09） | 已完成：第二种艺术风格「排线 Hatching」——左栏页签改成「抖动 \| 排线 \| 历史」，页签即 `style.type`，分组按风格互斥显示（`GROUP_STYLE`），预设模块按风格分页、各有自己的「默认」。流水线在强制背景之后分岔：排线走明暗分档（gamma 空间取灰，均分 2–16 档，错行时奇数行插值）→ 笔画渲染（`render/hatch.ts`：每笔是圆角矩形的距离场，长度以贯穿格子的弦为 1、粗细以相邻平行线间距为 1，交叉层垂直于主层、暗度过起点才出现，连线沿斜线 / 横 / 纵 / 横纵画在笔画之下，边缘 1px 抗锯齿），`gpu/hatchGpu.ts` 是同语义的片元着色器（片元向外看 ≤3 格，超出交给 CPU）；像素化阶段支持长方格（横纵间距）；预览降分辨率按间距缩。矢量导出改由 Worker 按全分辨率算（`svg` 请求）：抖动仍是实色块并 path，排线出 `<defs><rect rx>` + `<use>` 的真笔画，`render/svg.ts` 从 ui 挪进引擎。参数 17 条（`hatch.*` 16 + `style.type`）全部带解读，内置排线预设 9 个，单测 31 个（`tests/engine/hatch.test.ts`） |

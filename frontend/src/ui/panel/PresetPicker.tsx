@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { builtinPresetsOf, defaultPresetIdFor, findBuiltinPreset, styleOfParams, userPresetStyle, useStudioStore } from '@/state';
+import { styleOf } from '@/params';
+import { BUILTIN_PRESETS, defaultPresetIdFor, findBuiltinPreset, presetStyle, useStudioStore } from '@/state';
 import { Icon, IconButton } from '@/ui/primitives';
 import { usePresets } from '@/ui/state/usePresets';
 
@@ -30,22 +31,22 @@ function useGridColumns(ref: React.RefObject<HTMLElement | null>): number {
 /**
  * 预设模块（参数面板最上方）：内置方案 + 我的预设排成一组卡片，选中的那套就是当前方案的来源；
  * 下面的参数在它基础上微调。存成我的预设走左栏操作行的「保存预设」，这里只负责挑。
- * 只列当前风格页签（Dither / Halftone）的预设，另一种风格的在它自己的页签里。
+ * 只列当前页签这种风格的方案（抖动页看抖动的，排线页看排线的），「重置」也退回这种风格的「默认」。
  * 卡片多于三行就折起来，选中的那张要是被折在下面则整组展开——总得看得见当前用的是哪套。
  */
 export function PresetPicker() {
   const { presets, activeId, activeName, dirty, applyBuiltin, applyUser } = usePresets();
-  const style = useStudioStore((s) => styleOfParams(s.params));
+  const style = useStudioStore((s) => styleOf(s.params));
+  const defaultId = defaultPresetIdFor(style);
   const gridRef = useRef<HTMLDivElement>(null);
   const columns = useGridColumns(gridRef);
   const [expanded, setExpanded] = useState(false);
-  const defaultId = defaultPresetIdFor(style);
 
-  // 我的预设排在内置方案前面：内置有 11 套，排在后面的话存下来的方案总是落在折叠线以下
+  // 我的预设排在内置方案前面：内置有十来套，排在后面的话存下来的方案总是落在折叠线以下
   const cards = useMemo(
     () => [
       ...presets
-        .filter((preset) => userPresetStyle(preset) === style)
+        .filter((preset) => presetStyle(preset.params) === style)
         .map((preset) => ({
           id: preset.id,
           name: preset.name,
@@ -53,7 +54,13 @@ export function PresetPicker() {
           user: true,
           apply: () => applyUser(preset),
         })),
-      ...builtinPresetsOf(style).map((preset) => ({ id: preset.id, name: preset.name, hint: preset.hint, user: false, apply: () => applyBuiltin(preset) })),
+      ...BUILTIN_PRESETS.filter((preset) => presetStyle(preset.params) === style).map((preset) => ({
+        id: preset.id,
+        name: preset.name,
+        hint: preset.hint,
+        user: false,
+        apply: () => applyBuiltin(preset),
+      })),
     ],
     [presets, style, applyBuiltin, applyUser],
   );
