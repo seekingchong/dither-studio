@@ -73,10 +73,13 @@ test('网点页签：自己的预设与分节，来回切换不丢参数，保�
   // 「基础」领头的是形状、横纵间距、角度、排列；「网点」里是大小、最小网点…；「颜色」里是网点色 / 背景色（色板也只有这两块）
   const basic = page.locator('[data-section="basic"] .param-grid').first().locator('.tda-select, .tda-field');
   await expect(basic.nth(0)).toHaveAttribute('data-param', 'halftone.shape');
-  await expect(basic.nth(1)).toHaveAttribute('data-param', 'screen.pitchX');
-  await expect(basic.nth(2)).toHaveAttribute('data-param', 'screen.pitchY');
+  // 横纵间距合成一个「像素尺寸」+「横纵分开」开关，横 / 纵各自的滑杆只在开关打开后出现
+  await expect(basic.nth(1)).toHaveAttribute('data-param', 'screen.cell');
+  await expect(basic.nth(2)).toHaveAttribute('data-param', 'screen.cell.split');
   await expect(basic.nth(3)).toHaveAttribute('data-param', 'screen.angle');
   await expect(basic.nth(4)).toHaveAttribute('data-param', 'screen.lattice');
+  await expect(page.locator('[data-param="screen.pitchX"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="screen.cell"] input[type="range"]')).toHaveValue('12');
   await expect(page.locator('[data-param="dither.family"]')).toHaveCount(0);
   await expect(page.locator('[data-param="pixel.size"]')).toHaveCount(0);
   await expect(page.locator('[data-param="pixel.method"]')).toHaveCount(0);

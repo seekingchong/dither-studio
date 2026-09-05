@@ -5,13 +5,14 @@ import { PARAM_SCHEMA, isParamVisible, styleOf, type ParamDef, type Params, type
 import { isParamExposed, presetReferenceParams, resolveBase, useStudioStore } from '@/state';
 import { Icon, IconButton, Tabs } from '@/ui/primitives';
 import { SettingsMenu } from '@/ui/SettingsMenu';
+import { CellSizeControl } from './CellSizeControl';
 import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
 import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
 import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
-import { leadParamIds, SECTIONS, sectionHint, sectionOf, type SectionMeta } from './sections';
+import { cellPairOf, leadParamIds, SECTIONS, sectionHint, sectionOf, type SectionMeta } from './sections';
 
 /** 左栏页签：三种艺术风格各一页（页签本身就是 `style.type`），再加「历史」 */
 type PaneTab = StyleKind | 'history';
@@ -55,6 +56,8 @@ export function ParamPane() {
   const style = styleOf(params);
   const family = String(params['dither.family']) as DitherFamily;
   const algorithmId = style === 'dither' ? FAMILY_PARAM[family] : undefined;
+  // 排线 / 网点：横纵间距在面板上合成一个「像素尺寸」，两个参数都在的时候才合
+  const pair = cellPairOf(style);
   // 领头参数只随风格与算法族变；用拼起来的键做依赖，免得每改一个滑块都重排
   const leadsKey = leadParamIds(params).join('|');
   const leads = useMemo(() => leadsKey.split('|'), [leadsKey]);
@@ -139,6 +142,8 @@ export function ParamPane() {
             <div className="sections" data-testid="params-module">
               {sections.map(({ meta, basic, advanced }) => {
                 const open = openSections[meta.id] ?? true;
+                // 横纵两个间距都在这一节里才合成「像素尺寸」
+                const merged = !!pair && basic.some((d) => d.id === pair.x) && basic.some((d) => d.id === pair.y);
                 return (
                   <section key={meta.id} className="section section--fold" data-section={meta.id} data-group={meta.id} data-open={open}>
                     <h3 className="section__head">
@@ -169,9 +174,13 @@ export function ParamPane() {
                         {meta.id === 'effects' && <EffectsEditor />}
                         {meta.id !== 'effects' && basic.length > 0 && (
                           <div className="param-grid">
-                            {basic.map((def) => (
-                              <ParamControl key={def.id} def={def} label={def.id === algorithmId ? '算法' : undefined} />
-                            ))}
+                            {basic.map((def) => {
+                              if (merged) {
+                                if (def.id === pair.x) return <CellSizeControl key={pair.id} pair={pair} />;
+                                if (def.id === pair.y) return null;
+                              }
+                              return <ParamControl key={def.id} def={def} label={def.id === algorithmId ? '算法' : undefined} />;
+                            })}
                           </div>
                         )}
                         {advanced.length > 0 && (

@@ -19,7 +19,8 @@ export interface StudioState {
   /** 当前方案所基于的预设（内置或用户预设 id）；微调参数不改变它，重新选预设才改变 */
   presetId: string;
   setParam(id: string, value: ParamValue): void;
-  setParams(patch: Partial<Params>): void;
+  /** 一次改几个参数；传 editId 时同一来源的连续变化合并成一条撤销记录（同时写横纵两个值的合成滑杆） */
+  setParams(patch: Partial<Params>, editId?: string): void;
   /** 整体替换参数；传 presetId 表示这是在应用某个预设 */
   replaceParams(next: unknown, presetId?: string): void;
   resetParams(): void;
@@ -79,7 +80,7 @@ export const useStudioStore = create<StudioState>((set) => ({
       if (state.params[id] === next) return state;
       return { params: { ...state.params, [id]: next }, history: pushHistory(state.history, snapshot(state), id, now()) };
     }),
-  setParams: (patch) =>
+  setParams: (patch, editId) =>
     set((state) => {
       const params = { ...state.params };
       let changed = false;
@@ -92,7 +93,7 @@ export const useStudioStore = create<StudioState>((set) => ({
         }
       }
       if (!changed) return state;
-      return { params, history: pushHistory(state.history, snapshot(state), null, now()) };
+      return { params, history: pushHistory(state.history, snapshot(state), editId ?? null, now()) };
     }),
   replaceParams: (next, presetId) =>
     set((state) => {

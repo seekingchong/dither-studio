@@ -359,6 +359,6 @@ describe('风格与参数可见性', () => {
     expect(defaultPresetIdFor('hatch')).toBe(HATCH_DEFAULT_PRESET_ID);
     expect(defaultPresetIdFor('dither')).toBe(DEFAULT_PRESET_ID);
     expect(presetStyle(findBuiltinPreset('gameboy')!.params)).toBe('dither');
-    expect(summarizeParams(classic)).toBe('排线 · 45° · 间距 14×14 · 6 级');
+    expect(summarizeParams(classic)).toBe('排线 · 45° · 像素 14 · 6 级');
   });
 });
