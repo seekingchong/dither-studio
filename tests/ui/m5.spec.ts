@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openSection } from './helpers';
+import { openSection, setZoom } from './helpers';
 
 async function dropImage(page: Page) {
   await page.locator('[data-slot="0"]').waitFor();
@@ -18,6 +18,8 @@ async function dropImage(page: Page) {
     document.querySelector('[data-slot="0"]')!.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
   });
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+  // 下面按亮度统计墨区像素：只有 100% 时画布后备存储才是原样的帧，缩小后的预览是平滑缩小出来的混合色
+  await setZoom(page, '100%');
 }
 
 async function pick(page: Page, paramId: string, optionLabel: string) {

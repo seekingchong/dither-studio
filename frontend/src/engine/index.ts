@@ -60,4 +60,15 @@ export { GpuContext, orderedDitherGpu, renderGridGpu, renderHatchGpu } from './g
 export { RenderClient, type RenderedFrame } from './client';
 export type { WorkerRequest, WorkerResponse, RenderOptions } from './protocol';
 export * from './halftone';
-export { scaleParamsForPreview, captureSizeFor, pacePreview, PREVIEW_SCALES, PREVIEW_BUDGET_MS, INITIAL_PACER, type PreviewPacer } from './preview';
+export {
+  scaleParamsForPreview,
+  captureSizeFor,
+  pacePreview,
+  displayGeometry,
+  resampleForDisplay,
+  PREVIEW_SCALES,
+  PREVIEW_BUDGET_MS,
+  INITIAL_PACER,
+  type PreviewPacer,
+  type DisplayGeometry,
+} from './preview';

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { setZoom } from './helpers';
 
 const GIF_B64 = readFileSync(fileURLToPath(new URL('./fixtures/anim.gif', import.meta.url))).toString('base64');
 
@@ -52,13 +53,6 @@ async function dropGif(page: Page, slot: number) {
 async function pick(page: Page, paramId: string, optionLabel: string) {
   await page.locator(`[data-param="${paramId}"]`).click();
   await page.getByRole('option', { name: optionLabel, exact: true }).click();
-}
-
-/** 缩放在「画布」菜单里：没开就先打开 */
-async function setZoom(page: Page, label: string) {
-  if ((await page.getByTestId('canvas-menu').count()) === 0) await page.getByTestId('canvas-menu-button').click();
-  await page.locator('.preview-zoom').click();
-  await page.getByRole('option', { name: label, exact: true }).click();
 }
 
 async function useFourSlots(page: Page) {
@@ -182,4 +176,49 @@ test('4 坑位：顶部只有一个播放 / 暂停按钮控制全部动图，不
   await page.keyboard.press('Escape');
   await expect(page.locator('.slot')).toHaveCount(1);
   await expect(page.getByTestId('transport-group')).toHaveCount(0);
+});
+
+/** 画布后备存储的尺寸 */
+const backingSize = (page: Page) => page.locator('.slot__canvas').evaluate((el) => [(el as HTMLCanvasElement).width, (el as HTMLCanvasElement).height]);
+
+/** 画布上「既不接近黑也不接近白」的像素占比：缩小时混出来的中间色 */
+const blendedRatio = (page: Page) =>
+  page.locator('.slot__canvas').evaluate((el) => {
+    const canvas = el as HTMLCanvasElement;
+    const { data } = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height);
+    let mixed = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 16 && data[i] < 239) mixed++;
+    return mixed / (data.length / 4);
+  });
+
+test('缩到 100% 以下的预览照浏览器显示大图的方式缩到屏幕物理像素，与导出图在浏览器 / 设计软件里缩到同样大小一致', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page, 0);
+  const canvas = page.locator('.slot__canvas');
+
+  // 10%：1000×600 的画布在 DPR 1 的屏幕上只有 100×60 个像素，后备存储就开这么大，不再让 CSS 抽样
+  await setZoom(page, '10%');
+  await expect(canvas).toHaveAttribute('data-resample', 'area');
+  await expect.poll(() => backingSize(page)).toEqual([100, 60]);
+  await expect(canvas).toHaveCSS('image-rendering', 'auto');
+  const box = (await canvas.boundingBox())!;
+  expect(Math.round(box.width)).toBe(100);
+  expect(Math.round(box.height)).toBe(60);
+  // 默认 Bayer 2×2 单色只有黑白两色；渐变图缩到 10% 后每个屏幕像素盖住 10×10 个画布像素，颗粒融成灰——
+  // 这就是导出图缩小后「糊到一起」的真实样子，最近邻抽样出来的是黑白分明的假图
+  await expect.poll(() => blendedRatio(page)).toBeGreaterThan(0.3);
+
+  // 100%：屏幕像素不少于画布像素，后备存储回到画布尺寸，帧原样贴上、只有两种颜色
+  await setZoom(page, '100%');
+  await expect(canvas).toHaveAttribute('data-resample', 'nearest');
+  await expect.poll(() => backingSize(page)).toEqual([1000, 600]);
+  await expect(canvas).toHaveCSS('image-rendering', 'pixelated');
+  await expect.poll(() => blendedRatio(page)).toBe(0);
+
+  // 适应窗口：1920 宽的视口放不下 1000px 的画布，也是缩到屏幕像素
+  await setZoom(page, '适应窗口');
+  await expect(canvas).toHaveAttribute('data-resample', 'area');
+  const fitBox = (await canvas.boundingBox())!;
+  await expect.poll(() => backingSize(page)).toEqual([Math.round(fitBox.width), Math.round(fitBox.height)]);
+  await expect(page.locator('.tda-toast--error')).toHaveCount(0);
 });

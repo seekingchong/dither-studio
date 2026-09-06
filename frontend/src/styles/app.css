@@ -1020,7 +1020,13 @@ body.is-resizing * {
 .slot__canvas {
   display: block;
   flex: none;
+  /* 后备存储是画布全尺寸、屏幕像素只多不少：放大用最近邻，每个像素都是实的 */
   image-rendering: pixelated;
+}
+
+/* 缩到屏幕像素比画布像素少时，帧已平滑缩到物理像素、后备存储与屏幕一比一，不再让浏览器抽样 */
+.slot__canvas[data-resample='area'] {
+  image-rendering: auto;
 }
 
 .dropzone {
