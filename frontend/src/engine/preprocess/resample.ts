@@ -1,6 +1,10 @@
 import type { RGBAFrame } from '../types';
 
-export type ResampleMethod = 'nearest' | 'bilinear' | 'box' | 'lanczos';
+/**
+ * `bilinear` 缩小时滤波器按倍率展宽（抗混叠），`linear` 则永远只取最近的两个采样点——
+ * 这是 GPU / 浏览器贴纹理时的双线性采样，用来模拟它们显示大图的效果。
+ */
+export type ResampleMethod = 'nearest' | 'bilinear' | 'linear' | 'box' | 'lanczos';
 
 interface AxisWeights {
   /** 每个目标索引的首个源索引 */
@@ -25,6 +29,7 @@ function kernel(method: ResampleMethod, t: number): number {
     case 'box':
       return a < 0.5 ? 1 : a === 0.5 ? 0.5 : 0;
     case 'bilinear':
+    case 'linear':
       return a < 1 ? 1 - a : 0;
     case 'lanczos':
       return a < 3 ? sinc(a) * sinc(a / 3) : 0;
@@ -38,6 +43,7 @@ function support(method: ResampleMethod): number {
     case 'box':
       return 0.5;
     case 'bilinear':
+    case 'linear':
       return 1;
     case 'lanczos':
       return 3;
@@ -56,7 +62,8 @@ export function axisWeights(srcLen: number, dstLen: number, scale: number, offse
   const count = new Int32Array(dstLen);
   const offsetArr = new Int32Array(dstLen);
   const chunks: number[] = [];
-  const filterScale = Math.max(scale, 1);
+  // linear 不展宽：GPU 采样一个纹理坐标永远只看最近的两个纹素
+  const filterScale = method === 'linear' ? 1 : Math.max(scale, 1);
   const radius = support(method) * filterScale;
 
   for (let i = 0; i < dstLen; i++) {

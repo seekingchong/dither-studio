@@ -1,5 +1,7 @@
 import type { Params } from '@/params';
 import { computeFit, type FitMode } from './preprocess/fit';
+import { resample } from './preprocess/resample';
+import type { RGBAFrame } from './types';
 
 /**
  * 预览降分辨率：优先把画布与格子尺寸（像素尺寸 / 排线间距）同比缩小，格子数不变，
@@ -47,6 +49,59 @@ export function scaleParamsForPreview(params: Params, scale: number): { params: 
     scaled['pixel.size'] = newSize;
   }
   return { scale: effective, params: scaled };
+}
+
+/** 预览画布在屏幕上怎么摆：CSS 尺寸、canvas 后备存储尺寸，以及帧怎么落到后备存储上 */
+export interface DisplayGeometry {
+  /** 画布元素的 CSS 尺寸 */
+  shownWidth: number;
+  shownHeight: number;
+  /** canvas 后备存储（`canvas.width / height`）的尺寸 */
+  backingWidth: number;
+  backingHeight: number;
+  /**
+   * `area`：屏幕物理像素比画布像素少，后备存储就开成物理像素，帧照浏览器 / GPU 显示大图的方式
+   * （mipmap 逐级 2×2 平均 + 双线性，见 `resampleForDisplay`）缩进去，看到的就是导出图缩到这么大的样子；
+   * `nearest`：后备存储就是画布尺寸，屏幕像素只多不少，放大交给 CSS 最近邻，每个像素都还是实的。
+   */
+  mode: 'area' | 'nearest';
+}
+
+/**
+ * 按画布尺寸、缩放档位与 devicePixelRatio 算预览画布的显示几何。
+ *
+ * 关键是「缩小时绝不抽样」：以前后备存储永远是画布全尺寸、缩小全靠 CSS，
+ * 而 `image-rendering: pixelated` 让浏览器用最近邻做降采样——10% 时每 10 个像素只挑 1 个，
+ * 抖动颗粒被挑得整整齐齐、看起来又脆又干净，跟把导出图放进设计软件缩到 10% 时那种「糊到一起」完全两回事。
+ * 现在屏幕像素少于画布像素就照它们的方式缩到物理像素，预览与真实观感一致。
+ */
+export function displayGeometry(width: number, height: number, scale: number, dpr: number): DisplayGeometry {
+  const shownWidth = Math.max(1, Math.round(width * scale));
+  const shownHeight = Math.max(1, Math.round(height * scale));
+  const ratio = dpr > 0 && Number.isFinite(dpr) ? dpr : 1;
+  const physicalWidth = Math.max(1, Math.round(shownWidth * ratio));
+  const physicalHeight = Math.max(1, Math.round(shownHeight * ratio));
+  if (physicalWidth >= width && physicalHeight >= height) {
+    return { shownWidth, shownHeight, backingWidth: width, backingHeight: height, mode: 'nearest' };
+  }
+  return { shownWidth, shownHeight, backingWidth: physicalWidth, backingHeight: physicalHeight, mode: 'area' };
+}
+
+/**
+ * 把一帧缩到屏幕物理像素，照着浏览器 / GPU 显示一张大图的路子走：
+ * 先按 2×2 平均逐级缩到「不小于目标」的那一级 mipmap，再用不展宽的双线性（GPU 那种，只看最近两个纹素）采样到目标尺寸。
+ * Chrome 显示 `<img>`、Figma 贴纹理都是这么做的，所以缩出来的灰度与残留的纹理跟它们一致
+ * （对着 Chrome `<img>` 实测：10%/DPR 1 逐像素平均差 3.4/255；精确的面积平均反而更平滑，差 11）。
+ * 目标比帧还大（播放中的降分辨率帧）时按最近邻铺开，保持像素感。
+ */
+export function resampleForDisplay(frame: RGBAFrame, width: number, height: number): RGBAFrame {
+  let level = frame;
+  while (level.width >= width * 2 && level.height >= height * 2) {
+    level = resample(level, Math.floor(level.width / 2), Math.floor(level.height / 2), 'box');
+  }
+  if (level.width === width && level.height === height) return level;
+  const upscale = level.width <= width && level.height <= height;
+  return resample(level, width, height, upscale ? 'nearest' : 'linear');
 }
 
 /** 预览倍率档位，从清晰到粗糙 */

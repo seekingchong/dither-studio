@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { setZoom } from './helpers';
 
 /** 在页面里合成一张 800×500 的测试图并以拖拽方式放进坑位 0 */
 async function dropSyntheticImage(page: Page) {
@@ -175,6 +176,8 @@ test('导出图片出 PNG、导出帧出 SVG，Ctrl+C 复制当前帧 PNG 到剪
   expect(svg.startsWith('<svg xmlns=')).toBe(true);
   expect(svg).toContain('viewBox="0 0 1000 600"');
   expect(svg).toContain('<path fill=');
+  // 逐像素比要拿原样的帧：100% 时画布后备存储就是 1000×600 的帧，缩小后的预览是平滑缩小过的
+  await setZoom(page, '100%');
   const mismatch = await page.evaluate(async (text) => {
     const canvas = document.querySelector('.slot__canvas') as HTMLCanvasElement;
     const { width: w, height: h } = canvas;

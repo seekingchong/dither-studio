@@ -1,9 +1,10 @@
 import { useEffect, useRef, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
-import { computeFit, type FitMode, type RenderedFrame } from '@/engine';
+import { computeFit, displayGeometry, resampleForDisplay, type FitMode, type RenderedFrame, type RGBAFrame } from '@/engine';
 import type { LoadedMedia, PreviewTab } from '@/state';
 import { usePlaybackStore } from '@/ui/media/playback';
-import { IDENTITY_EDIT, drawEditedInto, editGeometry, editedSize, useSourceEditStore } from '@/ui/media/sourceEdit';
+import { IDENTITY_EDIT, drawEditedInto, editGeometry, editedSize, useSourceEditStore, type SourceEdit } from '@/ui/media/sourceEdit';
 import { registerSlotCanvas } from './slotCanvasRegistry';
+import { useDevicePixelRatio } from './useDevicePixelRatio';
 
 interface SlotCanvasProps {
   slot: number;
@@ -22,65 +23,173 @@ interface SlotCanvasProps {
  */
 export const PREVIEW_RADIUS_RATIO = 0.072;
 
-/** 预览画布：结果视图贴 Worker 返回的帧（降分辨率帧按最近邻放大），原图视图按适配矩形绘制当前源帧 */
+/** 一次绘制要用到的全部输入：屏幕上的画布和给界面预览窗口的全尺寸副本都照它画 */
+interface PaintInput {
+  tab: PreviewTab;
+  media: LoadedMedia;
+  rendered: RenderedFrame | undefined;
+  width: number;
+  height: number;
+  fit: FitMode;
+  frameIndex: number;
+  edit: SourceEdit;
+}
+
+/** 「原图」页此刻该画的源：视频取 <video>，GIF 取当前帧，图片取位图 */
+function sourceOf(media: LoadedMedia, frameIndex: number): CanvasImageSource {
+  if (media.kind === 'video' && media.video) return media.video;
+  if (media.kind === 'gif' && media.frames) return media.frames[frameIndex % media.frames.length];
+  return media.bitmap;
+}
+
+const toImageData = (frame: RGBAFrame) => new ImageData(frame.data as Uint8ClampedArray<ArrayBuffer>, frame.width, frame.height);
+
+/**
+ * 把当前视图按画布全尺寸画进 canvas：结果视图贴 Worker 返回的帧（播放中的降分辨率帧按最近邻放大），
+ * 原图视图按适配矩形绘制当前源帧。canvas 的后备存储不是画布尺寸时先改过来。
+ */
+function paintFull(canvas: HTMLCanvasElement, input: PaintInput, scratch: { current: HTMLCanvasElement | null }): void {
+  const { tab, media, rendered, width, height, fit, frameIndex, edit } = input;
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (tab === 'source') {
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
+    // 「原图」页看的是编辑之后的素材：按变换后的尺寸算适配矩形，再把旋转 / 镜像 / 裁剪画进去
+    const size = editedSize(media.width, media.height, edit);
+    const rect = computeFit(size.width, size.height, width, height, fit);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    drawEditedInto(ctx, sourceOf(media, frameIndex), edit, rect);
+    return;
+  }
+  if (!rendered) {
+    ctx.clearRect(0, 0, width, height);
+    return;
+  }
+  const { frame } = rendered;
+  if (frame.width === width && frame.height === height) {
+    ctx.putImageData(toImageData(frame), 0, 0);
+    return;
+  }
+  // 降分辨率预览：先贴到暂存画布再最近邻放大
+  if (!scratch.current) scratch.current = document.createElement('canvas');
+  const tmp = scratch.current;
+  if (tmp.width !== frame.width || tmp.height !== frame.height) {
+    tmp.width = frame.width;
+    tmp.height = frame.height;
+  }
+  tmp.getContext('2d')!.putImageData(toImageData(frame), 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, width, height);
+  ctx.drawImage(tmp, 0, 0, frame.width, frame.height, 0, 0, width, height);
+}
+
+/** 缩到屏幕物理像素的帧缓存：同一帧、同一目标尺寸只算一次 */
+interface AreaCache {
+  frame: RGBAFrame;
+  width: number;
+  height: number;
+  image: ImageData;
+}
+
+/**
+ * 预览画布。
+ *
+ * 屏幕物理像素不少于画布像素时（100%、或高分屏上的 50%），后备存储就是画布尺寸，
+ * 放大交给 CSS 的 `image-rendering: pixelated`，每个像素都是实的。
+ *
+ * 屏幕物理像素少于画布像素时（10%、25%、适应窗口……），后备存储只开屏幕物理像素那么大，
+ * 帧照浏览器 / GPU 显示大图的方式（mipmap 逐级平均 + 双线性）缩进去。这跟浏览器、Figma 把一张导出图显示成这么大时做的是同一件事，
+ * 所以预览里看到的「糊」就是导出图真的会有的糊；以前让 CSS 用最近邻抽样，10% 时每 10 个像素只挑 1 个，
+ * 抖动颗粒被挑得整整齐齐、又脆又干净，是一张根本不存在的图。
+ */
 export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, scale }: SlotCanvasProps) {
   const ref = useRef<HTMLCanvasElement>(null);
   const scratch = useRef<HTMLCanvasElement | null>(null);
+  const areaCache = useRef<AreaCache | null>(null);
   const frameIndex = usePlaybackStore((s) => s.slots[slot]?.frameIndex ?? 0);
   const edit = useSourceEditStore((s) => s.slots[slot] ?? IDENTITY_EDIT);
+  const dpr = useDevicePixelRatio();
 
-  // 界面预览窗口要帧时按坑位号来取这块画布
-  useEffect(() => {
-    const canvas = ref.current;
-    return canvas ? registerSlotCanvas(slot, canvas) : undefined;
-  }, [slot]);
+  const geometry = displayGeometry(width, height, scale, dpr);
+  const { shownWidth, shownHeight, backingWidth, backingHeight, mode } = geometry;
+
+  /**
+   * 最近一次绘制的输入与序号。界面预览窗口要帧时按它补一份全尺寸副本：
+   * 屏幕上那块画布在 area 模式下只有物理像素那么大，直接拿去当帧源会糊。
+   */
+  const lastPaint = useRef<{ input: PaintInput; mode: 'area' | 'nearest'; seq: number } | null>(null);
+  const paintSeq = useRef(0);
+  const fullCopy = useRef<HTMLCanvasElement | null>(null);
+  const fullCopySeq = useRef(-1);
+
+  useEffect(
+    () =>
+      registerSlotCanvas(slot, () => {
+        const last = lastPaint.current;
+        if (!last || last.mode === 'nearest') return ref.current;
+        if (!fullCopy.current) fullCopy.current = document.createElement('canvas');
+        if (fullCopySeq.current !== last.seq) {
+          paintFull(fullCopy.current, last.input, scratch);
+          fullCopySeq.current = last.seq;
+        }
+        return fullCopy.current;
+      }),
+    [slot],
+  );
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
+    const input: PaintInput = { tab, media, rendered, width, height, fit, frameIndex, edit };
+    lastPaint.current = { input, mode, seq: ++paintSeq.current };
+    if (mode === 'nearest') {
+      paintFull(canvas, input, scratch);
+      return;
+    }
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     if (tab === 'source') {
+      // 源帧是照片，浏览器自己的平滑缩放就是它在网页里显示时的样子
+      ctx.setTransform(backingWidth / width, 0, 0, backingHeight / height, 0, 0);
       ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(0, 0, width, height);
-      // 「原图」页看的是编辑之后的素材：按变换后的尺寸算适配矩形，再把旋转 / 镜像 / 裁剪画进去
       const size = editedSize(media.width, media.height, edit);
       const rect = computeFit(size.width, size.height, width, height, fit);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'high';
-      const source: CanvasImageSource =
-        media.kind === 'video' && media.video ? media.video : media.kind === 'gif' && media.frames ? media.frames[frameIndex % media.frames.length] : media.bitmap;
-      drawEditedInto(ctx, source, edit, rect);
+      drawEditedInto(ctx, sourceOf(media, frameIndex), edit, rect);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
       return;
     }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     if (!rendered) {
-      ctx.clearRect(0, 0, width, height);
+      ctx.clearRect(0, 0, backingWidth, backingHeight);
       return;
     }
+    // 抖动结果照浏览器 / GPU 显示大图的路子缩到屏幕物理像素（mipmap 逐级 2×2 平均 + 双线性），一个像素都不抽掉
     const { frame } = rendered;
-    const image = new ImageData(frame.data as Uint8ClampedArray<ArrayBuffer>, frame.width, frame.height);
-    if (frame.width === width && frame.height === height) {
-      ctx.putImageData(image, 0, 0);
-      return;
+    const cached = areaCache.current;
+    let image: ImageData;
+    if (cached && cached.frame === frame && cached.width === backingWidth && cached.height === backingHeight) {
+      image = cached.image;
+    } else {
+      image = toImageData(resampleForDisplay(frame, backingWidth, backingHeight));
+      areaCache.current = { frame, width: backingWidth, height: backingHeight, image };
     }
-    // 降分辨率预览：先贴到暂存画布再最近邻放大
-    if (!scratch.current) scratch.current = document.createElement('canvas');
-    const tmp = scratch.current;
-    if (tmp.width !== frame.width || tmp.height !== frame.height) {
-      tmp.width = frame.width;
-      tmp.height = frame.height;
-    }
-    tmp.getContext('2d')!.putImageData(image, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.clearRect(0, 0, width, height);
-    ctx.drawImage(tmp, 0, 0, frame.width, frame.height, 0, 0, width, height);
-  }, [tab, rendered, media, width, height, fit, frameIndex, edit]);
+    ctx.putImageData(image, 0, 0);
+  }, [tab, rendered, media, width, height, fit, frameIndex, edit, mode, backingWidth, backingHeight]);
 
   // 圆角按屏幕上的实际宽度算，缩放档位变了也保持同一个比例
-  const shownWidth = Math.round(width * scale);
   const style: CSSProperties = {
     width: shownWidth,
-    height: Math.round(height * scale),
+    height: shownHeight,
     borderRadius: `${(shownWidth * PREVIEW_RADIUS_RATIO).toFixed(2)}px`,
   };
 
@@ -122,11 +231,12 @@ export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, sca
     <canvas
       ref={ref}
       className="slot__canvas"
-      width={width}
-      height={height}
+      width={backingWidth}
+      height={backingHeight}
       style={style}
       data-tab={tab}
       data-scale={rendered?.scale ?? 1}
+      data-resample={mode}
       data-pannable={pannable ? 'true' : 'false'}
       onPointerDown={onPointerDown}
     />
