@@ -15,6 +15,7 @@ import type { FitMode } from './preprocess/fit';
 import type { BgPolarity, BgReference, BgScope, ForcedBackgroundOptions } from './preprocess/background';
 import type { NoiseType, ToneOptions } from './preprocess/tone';
 import type { ResampleMethod } from './preprocess/resample';
+import type { GridUnit } from './effects/types';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
@@ -228,6 +229,27 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       bgDotSize: num(params, 'grid.bgDotSize') / 100,
     },
   };
+}
+
+/**
+ * 当前风格的「格子」在成品里有多大、网格从哪里起，给特效栈用（叠加随机方块按它对齐、以它为单位）。
+ * 抖动是像素尺寸的方格，排线是横纵间距；网点 / 符号的间距是点心到点心，格线取在两点正中间，块正好盖住整颗点。
+ */
+export function gridUnitOf(opts: PipelineOptions): GridUnit {
+  switch (opts.style) {
+    case 'hatch':
+      return { cellW: opts.hatch.spacingX, cellH: opts.hatch.spacingY, offsetX: opts.pixel.offsetX, offsetY: opts.pixel.offsetY };
+    case 'halftone': {
+      const { pitchX, pitchY, offsetX, offsetY } = opts.halftone;
+      return { cellW: pitchX, cellH: pitchY, offsetX: Math.round(offsetX - pitchX / 2), offsetY: Math.round(offsetY - pitchY / 2) };
+    }
+    case 'glyph': {
+      const { pitchX, pitchY, offsetX, offsetY } = opts.glyph;
+      return { cellW: pitchX, cellH: pitchY, offsetX: Math.round(offsetX - pitchX / 2), offsetY: Math.round(offsetY - pitchY / 2) };
+    }
+    default:
+      return { cellW: opts.pixel.size, cellH: opts.pixel.size, offsetX: opts.pixel.offsetX, offsetY: opts.pixel.offsetY };
+  }
 }
 
 /** 取某个前缀下的全部参数，序列化成缓存键 */

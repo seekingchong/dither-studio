@@ -1620,6 +1620,18 @@ body.is-resizing * {
   border-radius: var(--tda-radius-sm);
 }
 
+/* 特效卡片里的一排色块（叠加随机方块的「每块颜色」）：块多了换行，框随之长高 */
+.tda-swatch-field {
+  height: auto;
+  min-height: var(--tda-control-height);
+  padding-block: var(--tda-spacing-2xs);
+}
+
+.tda-swatch-field .swatches {
+  flex: 1;
+  min-width: 0;
+}
+
 .tda-iconbtn--sm svg {
   width: 16px;
   height: 16px;

@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { appendSvgFragment, effectsSvgFragment } from './effects/stack';
 import { halftoneToSvg } from './halftone/svg';
 import { Pipeline } from './pipeline';
 import { scaleParamsForPreview } from './preview';
@@ -112,11 +113,15 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const out = entry.pipeline.run(entry.frame, entry.id, msg.params);
         const hatch = entry.pipeline.currentHatch;
         const halftone = entry.pipeline.currentHalftone;
-        const svg = halftone
-          ? halftoneToSvg(halftone)
-          : hatch
-            ? hatchToSvg(hatch.levels, hatch.width, hatch.height, hatch.sx, hatch.sy, hatch.offsetX, hatch.offsetY, hatch.opts)
-            : frameToSvg(out);
+        let svg: string;
+        if (halftone || hatch) {
+          svg = halftone ? halftoneToSvg(halftone) : hatchToSvg(hatch!.levels, hatch!.width, hatch!.height, hatch!.sx, hatch!.sy, hatch!.offsetX, hatch!.offsetY, hatch!.opts);
+          // 从几何出的图形没经过特效栈，能出矢量的特效（叠加随机方块）在这里补上；抖动那条路成品帧里已经带着了
+          const fx = entry.pipeline.currentEffects;
+          if (fx) svg = appendSvgFragment(svg, effectsSvgFragment(fx.stack, out.width, out.height, fx.grid));
+        } else {
+          svg = frameToSvg(out);
+        }
         post({ type: 'svg', jobId: msg.jobId, slot: msg.slot, svg });
       } catch (err) {
         post({ type: 'error', jobId: msg.jobId, slot: msg.slot, message: (err as Error).message });

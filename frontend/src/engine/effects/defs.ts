@@ -1,6 +1,7 @@
 import { blueNoise128, BLUE_NOISE_SIZE } from '../dither/bluenoise128';
 import type { RGBAFrame } from '../types';
 import { hash2, mulberry32 } from '../util/random';
+import { blocks } from './blocks';
 import { levelOutline } from './outline';
 import { sourceOverlay } from './overlay';
 import type { EffectDef, EffectParamValues } from './types';
@@ -432,7 +433,7 @@ const scatter: EffectDef = {
   },
 };
 
-export const EFFECT_DEFS: EffectDef[] = [scanlines, grain, jpeg, blockShift, rowShift, pixelSort, wave, barrel, scatter, sourceOverlay, levelOutline];
+export const EFFECT_DEFS: EffectDef[] = [scanlines, grain, jpeg, blockShift, rowShift, pixelSort, wave, barrel, scatter, sourceOverlay, levelOutline, blocks];
 
 export function getEffectDef(id: string): EffectDef | undefined {
   return EFFECT_DEFS.find((d) => d.id === id);

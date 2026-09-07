@@ -53,8 +53,8 @@ export {
 } from './render/hatch';
 export { hatchToSvg } from './render/hatchSvg';
 export { frameToRects, frameToSvg, MAX_RECTS, type SvgRect } from './render/svg';
-export { toPipelineOptions, keyOf, keyOfExcept, type PipelineOptions } from './options';
-export { Pipeline, renderImage, halftoneSampleSize, type PipelineStats, type HatchState } from './pipeline';
+export { toPipelineOptions, gridUnitOf, keyOf, keyOfExcept, type PipelineOptions } from './options';
+export { Pipeline, renderImage, halftoneSampleSize, type PipelineStats, type HatchState, type EffectsState } from './pipeline';
 export * from './effects';
 export { GpuContext, orderedDitherGpu, renderGridGpu, renderHatchGpu } from './gpu';
 export { RenderClient, type RenderedFrame } from './client';

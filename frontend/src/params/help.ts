@@ -945,6 +945,10 @@ export const EFFECT_HELP: Readonly<Record<string, ParamHelp>> = {
     summary: '把画面按明暗分成几阶（默认跟随风格的灰阶数），同一阶连成的色块沿格子边缘描一圈线，每阶能单独开关。',
     tip: '一条边两侧的阶都关了才不描；排在波形、桶形这类扭曲前面，线才跟着画面变形。',
   },
+  blocks: {
+    summary: '在成品上按网格随机撒几块色块，可带字母，像界面出错时掉出来的碎片。',
+    tip: '尺寸以当前像素尺寸（格子）为单位，块永远对齐网格；每块颜色都能单独改。',
+  },
 };
 
 export function getParamHelp(id: string): ParamHelp | undefined {

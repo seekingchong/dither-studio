@@ -1,20 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import { defaultParams } from '@/params';
 import {
+  BLOCK_MAX_COUNT,
+  BLOCK_PALETTES,
+  BLOCK_RATIOS,
   EFFECT_DEFS,
+  FONT_COLS,
+  FONT_ROWS,
   LEVEL_OUTLINE_ID,
   Pipeline,
+  appendSvgFragment,
   applyEffects,
   coerceEffectParams,
   defaultEffectInstance,
+  drawableChars,
+  editBlockColor,
+  effectsSvgFragment,
   getEffectDef,
+  glyphOf,
+  gridUnitOf,
+  hasGlyph,
+  isEffectParamVisible,
+  layoutBlocks,
   levelEnabled,
   outlineMask,
   parseStack,
+  renderImage,
+  resolveBlockColors,
   serializeStack,
   styleLevelCount,
+  toPipelineOptions,
   toneLevel,
   toneMapOf,
+  type EffectParamValues,
   type RGBAFrame,
 } from '@/engine';
 import { makeFrame } from './helpers';
@@ -463,5 +481,268 @@ describe('叠加原图', () => {
     const next = p.run(b2, 'b', params);
     expect(p.lastStats.recomputed).toContain('effects');
     expect(differs(fx, next)).toBe(true);
+  });
+});
+
+describe('叠加随机方块', () => {
+  const def = getEffectDef('blocks')!;
+  const base = (): EffectParamValues => coerceEffectParams(def, {});
+  const black = () => makeFrame(64, 48, () => [0, 0, 0]);
+  const ctx = { cellW: 4, cellH: 6, offsetX: 0, offsetY: 0 };
+
+  it('点阵字体：每个字 7 行 5 列，大小写同形，没有的字符不画', () => {
+    for (const ch of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?#%&*+-=.:/@<>[]()^_$~"\',;|') {
+      const g = glyphOf(ch);
+      expect(g, ch).not.toBeNull();
+      expect(g!.length).toBe(FONT_ROWS);
+      for (const row of g!) expect(row.length).toBe(FONT_COLS);
+      // 每个字至少有一格墨，且不全是墨
+      const inked = g!.flat().filter(Boolean).length;
+      expect(inked, ch).toBeGreaterThan(0);
+      expect(inked, ch).toBeLessThan(FONT_COLS * FONT_ROWS);
+    }
+    expect(glyphOf('a')).toEqual(glyphOf('A'));
+    expect(hasGlyph('中')).toBe(false);
+    expect(drawableChars('ab 中 3!')).toEqual(['A', 'B', '3', '!']);
+  });
+
+  it('数量：撒几块就是几块，0–16，0 块时画面不变', () => {
+    expect(layoutBlocks(64, 48, { ...base(), count: 5 }, ctx).length).toBe(5);
+    expect(layoutBlocks(64, 48, { ...base(), count: 99 }, ctx).length).toBe(BLOCK_MAX_COUNT);
+    expect(layoutBlocks(64, 48, { ...base(), count: 0 }, ctx)).toEqual([]);
+    const src = black();
+    const out = def.apply(src, { ...base(), count: 0 }, { grid: ctx });
+    expect(out.data).toEqual(src.data);
+    expect(out).not.toBe(src);
+  });
+
+  it('尺寸以格子为单位：块的宽高是格子的整数倍，位置落在网格线上、整个在画布内', () => {
+    for (const ratio of BLOCK_RATIOS) {
+      for (const size of [1, 2, 3]) {
+        const rects = layoutBlocks(400, 300, { ...base(), count: 16, size, ratio: ratio.value, seed: 7 }, { cellW: 5, cellH: 3, offsetX: 2, offsetY: 1 });
+        expect(rects.length).toBe(16);
+        for (const r of rects) {
+          expect(r.w).toBe(size * ratio.w * 5);
+          expect(r.h).toBe(size * ratio.h * 3);
+          // 网格线在 x = k·cellW − offsetX 上
+          expect((r.x + 2) % 5).toBe(0);
+          expect((r.y + 1) % 3).toBe(0);
+          expect(r.x).toBeGreaterThanOrEqual(0);
+          expect(r.y).toBeGreaterThanOrEqual(0);
+          expect(r.x + r.w).toBeLessThanOrEqual(400);
+          expect(r.y + r.h).toBeLessThanOrEqual(300);
+        }
+      }
+    }
+    // 偏移对齐：偏移取模格子
+    const shifted = layoutBlocks(400, 300, { ...base(), count: 8, size: 1, seed: 3 }, { cellW: 8, cellH: 8, offsetX: 11, offsetY: -5 });
+    for (const r of shifted) {
+      expect((r.x + 3) % 8).toBe(0);
+      expect((r.y + 3) % 8).toBe(0);
+    }
+  });
+
+  it('块比画布还大时贴左上角放、超出裁掉，不会崩', () => {
+    const rects = layoutBlocks(20, 20, { ...base(), count: 2, size: 8, ratio: '16:9' }, ctx);
+    expect(rects[0].x).toBe(0);
+    expect(rects[0].y).toBe(0);
+    const out = def.apply(black(), { ...base(), count: 2, size: 8, ratio: '16:9' }, { grid: { cellW: 4, cellH: 4, offsetX: 0, offsetY: 0 } });
+    expect(out.width).toBe(64);
+    for (let i = 0; i < out.data.length; i += 4) expect(out.data[i]).toBe(255);
+  });
+
+  it('大小随机：每块在 1 格到尺寸之间取，且位置不因此洗牌', () => {
+    const p = { ...base(), count: 16, size: 4, jitter: true, seed: 11 };
+    const rects = layoutBlocks(400, 300, p, ctx);
+    const sizes = new Set(rects.map((r) => r.w / ctx.cellW));
+    expect(sizes.size).toBeGreaterThan(1);
+    for (const m of sizes) {
+      expect(m).toBeGreaterThanOrEqual(1);
+      expect(m).toBeLessThanOrEqual(4);
+    }
+    // 同一种子换尺寸，每块的随机数序列不变（位置只是重新夹紧）
+    const a = layoutBlocks(400, 300, { ...p, jitter: false, size: 1 }, ctx);
+    const b = layoutBlocks(400, 300, { ...p, jitter: false, size: 2 }, ctx);
+    let same = 0;
+    for (let i = 0; i < a.length; i++) if (Math.abs(a[i].x - b[i].x) <= ctx.cellW * 2 && Math.abs(a[i].y - b[i].y) <= ctx.cellH * 2) same++;
+    expect(same).toBeGreaterThan(a.length / 2);
+  });
+
+  it('种子：换种子换位置，同种子确定', () => {
+    const a = layoutBlocks(400, 300, { ...base(), seed: 1 }, ctx);
+    const b = layoutBlocks(400, 300, { ...base(), seed: 2 }, ctx);
+    const c = layoutBlocks(400, 300, { ...base(), seed: 1 }, ctx);
+    expect(a).toEqual(c);
+    expect(a.some((r, i) => r.x !== b[i].x || r.y !== b[i].y)).toBe(true);
+  });
+
+  it('纯色块：块内每个像素都是块的颜色，块外不动', () => {
+    const p = { ...base(), count: 3, size: 2, palette: 'lime', seed: 5 };
+    const rects = layoutBlocks(64, 48, p, ctx);
+    const out = def.apply(black(), p, { grid: ctx });
+    const inside = (x: number, y: number) => rects.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
+    for (let y = 0; y < 48; y++) {
+      for (let x = 0; x < 64; x++) {
+        const o = (y * 64 + x) * 4;
+        const expected = inside(x, y) ? [0xe5, 0xf5, 0x6e] : [0, 0, 0];
+        expect([out.data[o], out.data[o + 1], out.data[o + 2]]).toEqual(expected);
+        expect(out.data[o + 3]).toBe(255);
+      }
+    }
+  });
+
+  it('色块 + 字母：字在块中间、颜色自动对比；块太小放不下就只画色块；字母串按顺序轮流', () => {
+    const p = { ...base(), count: 2, size: 4, style: 'letter', letters: 'AB', letterSize: 60, seed: 9 };
+    const big = { cellW: 8, cellH: 8, offsetX: 0, offsetY: 0 };
+    const rects = layoutBlocks(400, 300, p, big);
+    expect(rects.map((r) => r.letter)).toEqual(['A', 'B']);
+    const out = def.apply(makeFrame(400, 300, () => [0, 0, 0]), p, { grid: big });
+    const r = rects[0];
+    // 白块上的黑字：块内既有白也有黑，且黑的都在块的中间区域
+    let white = 0;
+    let dark = 0;
+    for (let y = r.y; y < r.y + r.h; y++) {
+      for (let x = r.x; x < r.x + r.w; x++) {
+        const o = (y * 400 + x) * 4;
+        if (out.data[o] === 255) white++;
+        else if (out.data[o] === 0) {
+          dark++;
+          expect(x).toBeGreaterThanOrEqual(r.x + r.w * 0.1);
+          expect(x).toBeLessThan(r.x + r.w * 0.9);
+          expect(y).toBeGreaterThanOrEqual(r.y + r.h * 0.1);
+          expect(y).toBeLessThan(r.y + r.h * 0.9);
+        }
+      }
+    }
+    expect(white).toBeGreaterThan(0);
+    expect(dark).toBeGreaterThan(0);
+    // 黑块配白字；自定义字母色照用
+    const onBlack = def.apply(makeFrame(400, 300, () => [128, 128, 128]), { ...p, palette: 'black' }, { grid: big });
+    const pxOf = (frame: RGBAFrame) => {
+      const set = new Set<string>();
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) set.add(String(frame.data.slice((y * 400 + x) * 4, (y * 400 + x) * 4 + 3)));
+      return set;
+    };
+    expect([...pxOf(onBlack)].sort()).toEqual(['0,0,0', '255,255,255']);
+    const custom = def.apply(makeFrame(400, 300, () => [0, 0, 0]), { ...p, letterColor: 'custom', letterHex: '#FF0000' }, { grid: big });
+    expect(pxOf(custom).has('255,0,0')).toBe(true);
+    // 一格 4px 的 1 格块放不下字，只有色块
+    const tiny = { ...p, size: 1 };
+    const tinyRects = layoutBlocks(64, 48, tiny, ctx);
+    const tinyOut = def.apply(black(), tiny, { grid: ctx });
+    const tr = tinyRects[0];
+    for (let y = tr.y; y < tr.y + tr.h; y++) for (let x = tr.x; x < tr.x + tr.w; x++) expect(tinyOut.data[(y * 64 + x) * 4]).toBe(255);
+  });
+
+  it('配色：按方案轮流取色，每块可单独改，改了转为自定义；自定义列表按 count 轮流', () => {
+    const bw = resolveBlockColors({ ...base(), count: 5, palette: 'bw' });
+    expect(bw).toEqual(['#FFFFFF', '#000000', '#FFFFFF', '#000000', '#FFFFFF']);
+    for (const p of BLOCK_PALETTES) {
+      if (p.value === 'custom') continue;
+      expect(resolveBlockColors({ ...base(), count: 3, palette: p.value })).toEqual([0, 1, 2].map((i) => p.colors[i % p.colors.length]));
+    }
+    const edited = editBlockColor({ ...base(), count: 3, palette: 'bw' }, 1, '#ff00ff');
+    expect(edited.palette).toBe('custom');
+    expect(edited.colors).toBe('#FFFFFF #FF00FF #FFFFFF');
+    expect(resolveBlockColors(edited)).toEqual(['#FFFFFF', '#FF00FF', '#FFFFFF']);
+    // 数量增加后沿着自定义列表轮流；越界的编辑不改参数
+    expect(resolveBlockColors({ ...edited, count: 5 })).toEqual(['#FFFFFF', '#FF00FF', '#FFFFFF', '#FFFFFF', '#FF00FF']);
+    expect(editBlockColor(edited, 7, '#000000')).toBe(edited);
+    // 自定义但列表为空时退回白
+    expect(resolveBlockColors({ ...base(), count: 2, palette: 'custom', colors: '' })).toEqual(['#FFFFFF', '#FFFFFF']);
+    // 块上画的就是这些颜色
+    const p = { ...edited, count: 3, size: 1, seed: 4 };
+    const rects = layoutBlocks(64, 48, p, ctx);
+    expect(rects.map((r) => r.color)).toEqual(['#FFFFFF', '#FF00FF', '#FFFFFF']);
+  });
+
+  it('参数收敛：文本截断、颜色校验、色列表清洗、可见性条件', () => {
+    const c = coerceEffectParams(def, { letters: 'x'.repeat(100), letterHex: 'nope', colors: '#fff junk 123456 #ABCDEF', ratio: '5:7', palette: 'rainbow', count: -3 });
+    expect((c.letters as string).length).toBe(32);
+    expect(c.letterHex).toBe('#000000');
+    expect(c.colors).toBe('#FFFFFF #123456 #ABCDEF');
+    expect(c.ratio).toBe('1:1');
+    expect(c.palette).toBe('white');
+    expect(c.count).toBe(0);
+    expect(coerceEffectParams(def, { letterHex: '#abcdef' }).letterHex).toBe('#ABCDEF');
+    const letters = def.params.find((x) => x.id === 'letters')!;
+    const hex = def.params.find((x) => x.id === 'letterHex')!;
+    expect(isEffectParamVisible(letters, { style: 'solid' })).toBe(false);
+    expect(isEffectParamVisible(letters, { style: 'letter' })).toBe(true);
+    expect(isEffectParamVisible(hex, { style: 'letter', letterColor: 'auto' })).toBe(false);
+    expect(isEffectParamVisible(hex, { style: 'letter', letterColor: 'custom' })).toBe(true);
+    expect(isEffectParamVisible(hex, { style: 'solid', letterColor: 'custom' })).toBe(false);
+    expect(isEffectParamVisible(def.params[0], {})).toBe(true);
+    // 栈往返带着新类型的值
+    const stack = parseStack(serializeStack([{ type: 'blocks', enabled: true, params: { ...base(), letters: 'OK', colors: '#FF0000' } }]));
+    expect(stack[0].params.letters).toBe('OK');
+    expect(stack[0].params.colors).toBe('#FF0000');
+  });
+
+  it('网格单位：抖动是像素尺寸，排线是横纵间距，网点 / 符号是间距且格线取在两点正中', () => {
+    const p = { ...defaultParams(), 'pixel.size': 6, 'pixel.offsetX': 2, 'pixel.offsetY': 3, 'hatch.spacingX': 7, 'hatch.spacingY': 9 };
+    expect(gridUnitOf(toPipelineOptions(p))).toEqual({ cellW: 6, cellH: 6, offsetX: 2, offsetY: 3 });
+    expect(gridUnitOf(toPipelineOptions({ ...p, 'style.type': 'hatch' }))).toEqual({ cellW: 7, cellH: 9, offsetX: 2, offsetY: 3 });
+    const ht = gridUnitOf(toPipelineOptions({ ...p, 'style.type': 'halftone', 'screen.pitchX': 12, 'screen.pitchY': 10, 'screen.offsetX': 4, 'screen.offsetY': 0 }));
+    expect(ht).toEqual({ cellW: 12, cellH: 10, offsetX: -2, offsetY: -5 });
+    const gl = gridUnitOf(toPipelineOptions({ ...p, 'style.type': 'glyph', 'tile.pitchX': 8, 'tile.pitchY': 8, 'tile.offsetX': 0, 'tile.offsetY': 0 }));
+    expect(gl).toEqual({ cellW: 8, cellH: 8, offsetX: -4, offsetY: -4 });
+  });
+
+  it('流水线里方块按当前风格的格子对齐：抖动 5px 像素、排线 7×9 间距', () => {
+    const source = makeFrame(80, 60, () => [0, 0, 0]);
+    const stack = serializeStack([{ type: 'blocks', enabled: true, params: { ...base(), count: 1, size: 1, palette: 'custom', colors: '#FF00FF', seed: 2 } }]);
+    const bbox = (frame: RGBAFrame) => {
+      let x0 = Infinity;
+      let y0 = Infinity;
+      let x1 = -1;
+      let y1 = -1;
+      for (let y = 0; y < frame.height; y++) {
+        for (let x = 0; x < frame.width; x++) {
+          const o = (y * frame.width + x) * 4;
+          if (frame.data[o] === 255 && frame.data[o + 1] === 0 && frame.data[o + 2] === 255) {
+            x0 = Math.min(x0, x);
+            y0 = Math.min(y0, y);
+            x1 = Math.max(x1, x);
+            y1 = Math.max(y1, y);
+          }
+        }
+      }
+      return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+    };
+    const dither = bbox(renderImage(source, { ...defaultParams(), 'canvas.width': 80, 'canvas.height': 60, 'pixel.size': 5, 'effects.stack': stack }));
+    expect([dither.w, dither.h]).toEqual([5, 5]);
+    expect(dither.x % 5).toBe(0);
+    expect(dither.y % 5).toBe(0);
+    const hatch = bbox(
+      renderImage(source, { ...defaultParams(), 'style.type': 'hatch', 'canvas.width': 80, 'canvas.height': 60, 'hatch.spacingX': 7, 'hatch.spacingY': 9, 'effects.stack': stack }),
+    );
+    expect([hatch.w, hatch.h]).toEqual([7, 9]);
+    expect(hatch.x % 7).toBe(0);
+    expect(hatch.y % 9).toBe(0);
+    // 网点：格线在两点正中，块边落在 (k + 0.5)·pitch
+    const ht = bbox(
+      renderImage(source, { ...defaultParams(), 'style.type': 'halftone', 'canvas.width': 80, 'canvas.height': 60, 'screen.pitchX': 8, 'screen.pitchY': 8, 'effects.stack': stack }),
+    );
+    expect([ht.w, ht.h]).toEqual([8, 8]);
+    expect((ht.x + 4) % 8).toBe(0);
+  });
+
+  it('矢量片段：一块一个 rect，字母并成 path，塞进 </svg> 前；其它特效不出矢量', () => {
+    const stack = [
+      { type: 'grain', enabled: true, params: coerceEffectParams(getEffectDef('grain')!, {}) },
+      { type: 'blocks', enabled: true, params: { ...base(), count: 3, size: 4, style: 'letter', letters: 'Z', palette: 'black' } },
+      { type: 'blocks', enabled: false, params: { ...base(), count: 3 } },
+    ];
+    const fragment = effectsSvgFragment(stack, 400, 300, { cellW: 8, cellH: 8, offsetX: 0, offsetY: 0 });
+    expect(fragment.startsWith('<g data-effect="blocks">')).toBe(true);
+    expect((fragment.match(/<rect /g) ?? []).length).toBe(3);
+    expect((fragment.match(/<path /g) ?? []).length).toBe(3);
+    expect(fragment).toContain('fill="#000000"');
+    expect(fragment).toContain('fill="#FFFFFF"');
+    const svg = appendSvgFragment('<svg><rect/></svg>', fragment);
+    expect(svg.endsWith(`${fragment}</svg>`)).toBe(true);
+    expect(appendSvgFragment('<svg></svg>', '')).toBe('<svg></svg>');
+    expect(effectsSvgFragment([stack[0]], 400, 300)).toBe('');
   });
 });
