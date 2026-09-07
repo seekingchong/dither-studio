@@ -936,6 +936,10 @@ export const EFFECT_HELP: Readonly<Record<string, ParamHelp>> = {
   scatter: {
     summary: '像素随机小幅位移，边缘变毛，颗粒更松散。',
   },
+  sourceOverlay: {
+    summary: '把原图（视频就是当前帧）垫在成品下面当背景：正片叠底让亮部透出原图、墨色不动，滤色反过来。',
+    tip: '深底浅点的成品选「滤色」；不透明度定原图露出多少，缩放绕画布中心，偏移按画布尺寸的百分比。',
+  },
 };
 
 export function getParamHelp(id: string): ParamHelp | undefined {

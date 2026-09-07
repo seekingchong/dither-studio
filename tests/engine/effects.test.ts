@@ -166,3 +166,109 @@ describe('流水线特效阶段', () => {
     expect(p.lastStats.recomputed).toEqual([]);
   });
 });
+
+describe('叠加原图', () => {
+  const overlay = getEffectDef('sourceOverlay')!;
+  const defaults = () => defaultEffectInstance('sourceOverlay')!.params;
+  // 成品：左半墨（黑）右半纸（白）；原图：纯色
+  const result = () => makeFrame(40, 20, (x) => (x < 20 ? [0, 0, 0] : [255, 255, 255]));
+  const photo = () => makeFrame(40, 20, () => [200, 100, 50]);
+  const px = (f: RGBAFrame, x: number, y: number) => Array.from(f.data.subarray((y * f.width + x) * 4, (y * f.width + x) * 4 + 3));
+  // Uint8ClampedArray 半数向偶数舍入，比对时留 1 的余量
+  const near = (actual: number[], expected: number[]) => actual.forEach((v, i) => expect(Math.abs(v - expected[i])).toBeLessThanOrEqual(1));
+
+  it('没有原图时原样返回；不透明度 0 也不动', () => {
+    const src = result();
+    expect(overlay.apply(src, defaults())).toBe(src);
+    expect(applyEffects(src, [defaultEffectInstance('sourceOverlay')!])).toBe(src);
+    expect(overlay.apply(src, { ...defaults(), opacity: 0 }, { source: photo() })).toBe(src);
+  });
+
+  it('正片叠底：纸透出原图、墨色不动，不透明度减半只走一半', () => {
+    const src = result();
+    const bg = photo();
+    const full = overlay.apply(src, defaults(), { source: bg });
+    expect(px(full, 30, 10)).toEqual([200, 100, 50]);
+    expect(px(full, 10, 10)).toEqual([0, 0, 0]);
+    const half = overlay.apply(src, { ...defaults(), opacity: 50 }, { source: bg });
+    near(px(half, 30, 10), [227.5, 177.5, 152.5]);
+    expect(px(half, 10, 10)).toEqual([0, 0, 0]);
+    // 成品与原图都不被改
+    expect(src.data).toEqual(result().data);
+    expect(bg.data).toEqual(photo().data);
+    for (let i = 3; i < full.data.length; i += 4) expect(full.data[i]).toBe(255);
+  });
+
+  it('滤色：墨透出原图、纸不动；正常：两边都按不透明度直接混合', () => {
+    const screen = overlay.apply(result(), { ...defaults(), blend: 'screen' }, { source: photo() });
+    expect(px(screen, 10, 10)).toEqual([200, 100, 50]);
+    expect(px(screen, 30, 10)).toEqual([255, 255, 255]);
+    const normal = overlay.apply(result(), { ...defaults(), blend: 'normal' }, { source: photo() });
+    expect(px(normal, 10, 10)).toEqual([200, 100, 50]);
+    expect(px(normal, 30, 10)).toEqual([200, 100, 50]);
+    const faint = overlay.apply(result(), { ...defaults(), blend: 'normal', opacity: 25 }, { source: photo() });
+    near(px(faint, 10, 10), [50, 25, 12.5]);
+  });
+
+  it('缩放绕画布中心、偏移按画布百分比，没盖到的地方成品原样', () => {
+    // 50%：20×10 的块摆在 (10, 5)
+    const small = overlay.apply(result(), { ...defaults(), scale: 50 }, { source: photo() });
+    expect(px(small, 25, 7)).toEqual([200, 100, 50]);
+    expect(px(small, 35, 10)).toEqual([255, 255, 255]);
+    expect(px(small, 25, 2)).toEqual([255, 255, 255]);
+    // 再往右推 50%（20px）：块到了 (30, 5)，只剩右边 10 列在画布内
+    const shifted = overlay.apply(result(), { ...defaults(), scale: 50, offsetX: 50 }, { source: photo() });
+    expect(px(shifted, 25, 7)).toEqual([255, 255, 255]);
+    expect(px(shifted, 35, 7)).toEqual([200, 100, 50]);
+    // 推出画布外：什么都不画
+    const gone = overlay.apply(result(), { ...defaults(), scale: 50, offsetY: 100 }, { source: photo() });
+    expect(gone.data).toEqual(result().data);
+    // 放大 200%：画布只看到原图中间那一块——四条竖带里外侧的绿、黄被裁掉，蓝、红各占半边画布
+    const bands = makeFrame(40, 20, (x) => (x < 10 ? [0, 255, 0] : x < 20 ? [0, 0, 255] : x < 30 ? [255, 0, 0] : [255, 255, 0]));
+    const paper = makeFrame(40, 20, () => [255, 255, 255]);
+    const big = overlay.apply(paper, { ...defaults(), scale: 200 }, { source: bands });
+    near(px(big, 2, 10), [0, 0, 255]);
+    near(px(big, 18, 10), [0, 0, 255]);
+    near(px(big, 22, 10), [255, 0, 0]);
+    near(px(big, 37, 10), [255, 0, 0]);
+    for (let x = 0; x < 40; x++) {
+      const [r, g, b] = px(big, 10, x % 20);
+      expect(g === 255 && r === 0 && b === 0).toBe(false);
+      expect(r === 255 && g === 255 && b === 0).toBe(false);
+    }
+  });
+
+  it('亮度 / 对比度 / 饱和度 / 模糊作用在背景上', () => {
+    const paper = makeFrame(40, 20, () => [255, 255, 255]);
+    const bg = makeFrame(40, 20, (x, y) => ((x + y) % 2 === 0 ? [220, 60, 60] : [40, 40, 120]));
+    const plain = overlay.apply(paper, defaults(), { source: bg });
+    const bright = overlay.apply(paper, { ...defaults(), brightness: 50 }, { source: bg });
+    expect(mean(bright)).toBeGreaterThan(mean(plain) + 20);
+    const flat = overlay.apply(paper, { ...defaults(), contrast: -100 }, { source: bg });
+    expect(variance(flat)).toBeLessThan(variance(plain));
+    const gray = overlay.apply(paper, { ...defaults(), saturation: -100 }, { source: bg });
+    for (let i = 0; i < gray.data.length; i += 4) expect(Math.abs(gray.data[i] - gray.data[i + 2])).toBeLessThanOrEqual(1);
+    const soft = overlay.apply(paper, { ...defaults(), blur: true, blurRadius: 4 }, { source: bg });
+    expect(variance(soft)).toBeLessThan(variance(plain) * 0.2);
+    // 半径只在开了模糊时生效
+    const off = overlay.apply(paper, { ...defaults(), blur: false, blurRadius: 4 }, { source: bg });
+    expect(off.data).toEqual(plain.data);
+  });
+
+  it('走流水线：拿到适配画布的原图，换帧重算、参数不变命中缓存', () => {
+    const p = new Pipeline();
+    const params = { ...defaultParams(), 'canvas.width': 32, 'canvas.height': 20, 'pixel.size': 2, 'effects.stack': serializeStack([defaultEffectInstance('sourceOverlay')!]) };
+    const a = makeFrame(64, 40, (x) => [x * 4, 60, 200]);
+    const plain = p.run(a, 'a', { ...params, 'effects.stack': '' });
+    const fx = p.run(a, 'a', params);
+    expect(p.lastStats.recomputed).toEqual(['effects']);
+    expect(differs(plain, fx)).toBe(true);
+    p.run(a, 'a', params);
+    expect(p.lastStats.recomputed).toEqual([]);
+    // 视频下一帧：源帧换了，特效跟着重算
+    const b2 = makeFrame(64, 40, (x) => [200, 60, x * 4]);
+    const next = p.run(b2, 'b', params);
+    expect(p.lastStats.recomputed).toContain('effects');
+    expect(differs(fx, next)).toBe(true);
+  });
+});

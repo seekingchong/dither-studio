@@ -93,9 +93,11 @@ export function EffectsEditor() {
               <IconButton icon="trash" label="删除" className="tda-iconbtn--sm" onClick={() => remove(index)} />
             </header>
             <div className="param-grid">
-              {def.params.map((p) => (
-                <EffectParamControl key={p.id} def={p} value={inst.params[p.id]} onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })} />
-              ))}
+              {def.params
+                .filter((p) => !p.visibleWhen || inst.params[p.visibleWhen.id] === p.visibleWhen.equals)
+                .map((p) => (
+                  <EffectParamControl key={p.id} def={p} value={inst.params[p.id]} onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })} />
+                ))}
             </div>
           </section>
         );
