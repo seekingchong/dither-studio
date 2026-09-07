@@ -10,14 +10,15 @@ import type { RGBAFrame } from './types';
  */
 export function scaleParamsForPreview(params: Params, scale: number): { params: Params; scale: number } {
   if (scale >= 1) return { params, scale: 1 };
-  // 排线 / 网点风格的"格子"是横纵间距，按短的那边缩
+  // 排线 / 网点 / 符号风格的"格子"是横纵间距，按短的那边缩
   const hatch = params['style.type'] === 'hatch';
   const halftone = params['style.type'] === 'halftone';
+  const glyph = params['style.type'] === 'glyph';
   const spacingX = Number(params['hatch.spacingX']) || 1;
   const spacingY = Number(params['hatch.spacingY']) || 1;
-  const pitchX = Number(params['screen.pitchX']) || 1;
-  const pitchY = Number(params['screen.pitchY']) || 1;
-  const size = hatch ? Math.min(spacingX, spacingY) : halftone ? Math.min(pitchX, pitchY) : Number(params['pixel.size']) || 1;
+  const pitchX = Number(params[glyph ? 'tile.pitchX' : 'screen.pitchX']) || 1;
+  const pitchY = Number(params[glyph ? 'tile.pitchY' : 'screen.pitchY']) || 1;
+  const size = hatch ? Math.min(spacingX, spacingY) : halftone || glyph ? Math.min(pitchX, pitchY) : Number(params['pixel.size']) || 1;
   const newSize = Math.max(1, Math.round(size * scale));
   // 格子一点都没缩小 → 这一档只能靠减少格子数拿到
   const effective = newSize === size ? scale : newSize / size;
@@ -45,6 +46,11 @@ export function scaleParamsForPreview(params: Params, scale: number): { params: 
     scaled['screen.pitchY'] = Math.max(2, Math.round(pitchY * effective));
     scaled['screen.offsetX'] = px('screen.offsetX');
     scaled['screen.offsetY'] = px('screen.offsetY');
+  } else if (glyph) {
+    scaled['tile.pitchX'] = Math.max(2, Math.round(pitchX * effective));
+    scaled['tile.pitchY'] = Math.max(2, Math.round(pitchY * effective));
+    scaled['tile.offsetX'] = px('tile.offsetX');
+    scaled['tile.offsetY'] = px('tile.offsetY');
   } else {
     scaled['pixel.size'] = newSize;
   }

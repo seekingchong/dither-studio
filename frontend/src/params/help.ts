@@ -1,4 +1,6 @@
-import { PARAM_SCHEMA } from './schema';
+import { GLYPHS } from '@/engine/halftone/glyphs';
+import { GLYPH_MAX_LEVELS } from '@/engine/halftone/glyphScreen';
+import { PARAM_SCHEMA, glyphColorId, glyphShapeId } from './schema';
 
 /**
  * 参数解读：鼠标停在参数标签上弹出的浮层内容。
@@ -10,8 +12,9 @@ import { PARAM_SCHEMA } from './schema';
  * - tip 可选，一条，写默认值、常见坑或要和谁一起调。
  * - 不讲数学。可以说"高质量重采样"，不要说"加窗 sinc 卷积"。
  * - 文案可以随标签改，id 不能改：它是 schema 主键，也是 docs/PARAM_HELP.md 的锚点。
- * - 少数键不是 schema 参数而是面板上合成的控件（排线 / 网点的「像素尺寸」`hatch.cell` / `screen.cell`
+ * - 少数键不是 schema 参数而是面板上合成的控件（排线 / 网点 / 符号的「像素尺寸」`hatch.cell` / `screen.cell` / `tile.cell`
  *   与它们的「横纵分开」`*.split`，见 `ui/panel/sections.ts` 的 CELL_PAIRS），由 `helpForId` 取用。
+ * - 符号风格每一阶的形状 / 颜色（`glyph.shapeN` / `glyph.colorN`）八条一个样，文案在文件末尾按阶生成。
  */
 export interface ParamHelp {
   summary: string;
@@ -23,7 +26,25 @@ export interface ParamHelp {
 /** 选项多于这个数就不在属性浮层里列表，改由下拉的选项行逐条解读 */
 export const INLINE_OPTIONS_MAX = 8;
 
+/** 符号库里每个符号的一句话，`glyph.shapeN` 八条共用 */
+const GLYPH_SHAPE_OPTIONS_HELP: Readonly<Record<string, string>> = Object.fromEntries(GLYPHS.map((g) => [g.id, g.desc]));
+
+/** 符号风格每一阶的形状与颜色：八阶各一条，除了阶数其余一样 */
+const GLYPH_LEVEL_HELP: Record<string, ParamHelp> = {};
+for (let k = 1; k <= GLYPH_MAX_LEVELS; k++) {
+  const tone = k === 1 ? '最亮的那一阶' : k === GLYPH_MAX_LEVELS ? '最暗的那一阶' : `从亮往暗数第 ${k} 阶`;
+  GLYPH_LEVEL_HELP[glyphShapeId(k)] = {
+    summary: `${tone}画什么符号。亮处宜选墨少的（小点、短线），暗处宜选墨多的（网格、实心块）。`,
+    options: GLYPH_SHAPE_OPTIONS_HELP,
+    tip: '改了任何一阶，序列就变成「自定义」；选择器里的符号按墨量从少到多排。',
+  };
+  GLYPH_LEVEL_HELP[glyphColorId(k)] = {
+    summary: `${tone}的符号颜色，只在「分级配色」下生效。`,
+  };
+}
+
 export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
+  ...GLYPH_LEVEL_HELP,
   // ---------- 画布 ----------
   'canvas.width': {
     summary: '画布宽度，也是导出宽度，与原图分辨率无关。16–8192px，默认 1000。',
@@ -468,11 +489,12 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
 
   // ---------- 风格 ----------
   'style.type': {
-    summary: '整张图用哪种手法表现明暗：抖动是颗粒点阵，排线是一格一笔，网点是一格一颗大小不同的点。',
+    summary: '整张图用哪种手法表现明暗：抖动是颗粒点阵，排线是一格一笔，网点是一格一颗大小不同的点，符号是一格一个按明暗换的形状。',
     options: {
       dither: '像素颗粒点阵，复古电脑与印刷味',
       hatch: '斜线排线，一格一笔，越暗越粗，像素描与铜版画',
       halftone: '规则网格上按明暗放大缩小的点，海报与丝网感',
+      glyph: '同样的网格，但用形状区分明暗：小点、斜线到网格，像图例与字符画',
     },
     tip: '左栏页签「抖动 / 排线 / 网点」切的就是它，影调调整三边共用。',
   },
@@ -664,38 +686,8 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
       hexagon: '六边形，配交错排列就是蜂窝',
       line: '横条，粗细随明暗变化的线网',
       cross: '十字，像刺绣与织物',
-      glyph: '按明暗换符号：点、斜线、十字、网格，像图例',
     },
-    tip: '形状跟着网格角度一起转；选「符号」后下面多出符号序列、线粗等参数。',
-  },
-  'halftone.glyphRamp': {
-    summary: '从亮到暗依次用哪些符号，一档一种；亮处的小点、中间调的斜线、暗处的网格都从这里来。',
-    options: {
-      sketch: '点 → 斜线 → 十字 → 网格 → 斜线上的大点',
-      typewriter: '留白 → 横线 → 4 → 6 → % → 实心点 → 三角',
-      mesh: '留白 → 斜线 → 交叉线 → 网格',
-      marks: '留白 → 点 → 圆圈 → 三角框 → 实心三角',
-      custom: '自己排，见「自定义序列」',
-    },
-    tip: '序列有几个符号明暗就分几档；「网点大小」仍管符号大小。',
-  },
-  'halftone.glyphCustom': {
-    summary: '自己排一串符号，从亮到暗，空格分隔；也可写全名 dot slash plus，认不出的跳过。',
-    tip: '简写：_空 .点 o圈 -横 |竖 /斜 x叉 +十字 #网格 ^三角 a三角框 4 6 % *点线',
-  },
-  'halftone.glyphStroke': {
-    summary: '线条类符号（斜线、十字、圆圈、数字）的粗细，占格子短边的比例。4–40%，默认 12。',
-    tip: '格子小的时候至少留一像素粗，免得线消失。',
-  },
-  'halftone.glyphMix': {
-    summary: '两档交界处互相掺一点对方的符号，边界变毛、更像手画。0 是齐整的硬边。0–100%，默认 35。',
-  },
-  'halftone.glyphAccent': {
-    summary: '随机撒一些圆圈与三角框做点缀，多落在明暗交界的格子上。0 不撒。0–100%，默认 5。',
-    tip: '点缀会比周围的小点大一圈，亮处才看得出是个圈。',
-  },
-  'halftone.glyphSeed': {
-    summary: '决定交界混合与点缀的具体落点，同一个种子结果可复现。',
+    tip: '形状跟着网格角度一起转。想按明暗换符号（点、斜线、网格），去「符号」页签。',
   },
   'halftone.size': {
     summary: '最暗处的点占格子多大。100 刚好占满，超过就相连成片。10–150%，默认 100。',
@@ -780,6 +772,120 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
     summary: '网格横向挪多少，用来让某个细节落在点的中心。0–63px，默认 0。',
   },
   'screen.offsetY': {
+    summary: '网格纵向挪多少。0–63px，默认 0。',
+  },
+
+  // ---------- 符号：序列与阶梯 ----------
+  'glyph.ramp': {
+    summary: '一套风格统一的符号，按墨量从少到多排好，选了几阶就等距挑几个：亮处配墨少的，暗处配墨多的。',
+    options: {
+      sketch: '手绘排线：短竖、斜线、十字、网格、密网',
+      typewriter: '打字机字符：横线、7、6、4、%、三角、圆点',
+      mesh: '线格：短横、斜线、十字、网格、叉、密网',
+      marks: '记号：小点、圆圈、三角框、三角、靶心、方、圆点',
+      geometric: '几何：菱框、方框、实心菱、田、叉框、六边、实心方',
+      ascii: '字符画梯度：小点、双点、十字、双横、网格、星号',
+      letters: '字母：1、T、V、Z、N、E、M，笔画越多越暗',
+      dots: '点阵：小点、双点、四点、圆圈、靶心、圆点、点线',
+      custom: '每一阶自己挑，下面「符号」节的阶梯表里改',
+    },
+    tip: '在阶梯表里改任何一阶的形状，序列就变成「自定义」。',
+  },
+  'glyph.levels': {
+    summary: '画面按明暗均分成几阶，一阶一种符号（和颜色）。阶越少画面越硬、越像版画。2–8，默认 5。',
+    tip: '换阶数时推荐序列会重新挑符号；自定义序列只增减末尾几阶。',
+  },
+  'glyph.size': {
+    summary: '每个符号占格子多大。100 刚好占满格子，超过就互相碰上。10–150%，默认 80。',
+    tip: '贯穿格子的线（横线、斜线、网格）总是铺满格子，不受它影响。',
+  },
+  'glyph.taper': {
+    summary: '亮的阶用更小的符号：最亮一阶缩到这个比例，往暗处逐阶放大到「符号大小」。0 所有阶一样大。0–90%，默认 0。',
+    tip: '草图那种"点阵天空"就是圆点在亮处缩小；打字机字符画应保持 0。',
+  },
+  'glyph.stroke': {
+    summary: '线条类符号（斜线、十字、圆圈、字母）的粗细，占格子短边的比例。4–40%，默认 12。',
+    tip: '格子小的时候至少留一像素粗，免得线消失。',
+  },
+  'glyph.mix': {
+    summary: '两阶交界处互相掺一点对方的符号，边界变毛、更像手画。0 是齐整的硬边。0–100%，默认 35。',
+  },
+  'glyph.accent': {
+    summary: '随机撒一些圆圈与三角框做点缀，多落在明暗交界的格子上。0 不撒。0–100%，默认 5。',
+    tip: '点缀会比周围的小符号大一圈，亮处才看得出是个圈。',
+  },
+  'glyph.seed': {
+    summary: '决定交界混合与点缀的具体落点，同一个种子结果可复现。',
+  },
+  'glyph.antialias': {
+    summary: '符号的边缘做柔化，圆弧和斜线不出锯齿。关掉后只剩符号色和背景色。',
+  },
+  'glyph.colorMode': {
+    summary: '符号用什么颜色。',
+    options: {
+      mono: '所有阶同一种符号颜色',
+      levels: '每一阶各配一种颜色，阶梯表与色板里改',
+      source: '每个符号取原图那一块的颜色',
+    },
+    tip: '统一色下在阶梯表里点某一阶的颜色，会自动转成分级配色。',
+  },
+  'glyph.ink': {
+    summary: '所有符号共用的颜色。想要亮符号配深底，把它和背景色对调再打开影调里的反相。',
+  },
+  'glyph.paper': {
+    summary: '符号之间的底色，相当于纸。',
+  },
+
+  // ---------- 符号：网格 ----------
+  'tile.cell': {
+    summary: '相邻两个符号的中心距，也就是符号的粗细：越大符号越大越稀。3–96px，默认 12。',
+    tip: '和抖动的像素尺寸一个意思，符号大小只是格子里的占比。',
+  },
+  'tile.cell.split': {
+    summary: '横向、纵向分开定中心距，做长方形格子；关掉时纵向跟着横向走。',
+    tip: '打字机那种竖长的字符格就靠它，选中方案本身横纵不等时自动打开。',
+  },
+  'tile.pitchX': {
+    summary: '相邻两个符号在横向上的中心距，也是格子的宽。3–96px，默认 12。',
+    tip: '「横纵分开」打开才露出；这是符号粗细的来源，符号大小只是格子里的占比。',
+  },
+  'tile.pitchY': {
+    summary: '纵向的中心距，也是格子的高。和横向不同时格子是长方形。3–96px，默认 12。',
+  },
+  'tile.angle': {
+    summary: '整张网格转多少度，符号跟着一起转。0 横平竖直。0–180°，默认 0。',
+  },
+  'tile.lattice': {
+    summary: '符号怎么排。',
+    options: {
+      square: '横平竖直的方格',
+      hex: '隔行错开半格，像砌砖',
+    },
+  },
+  'tile.warp': {
+    summary: '把每个符号从格心推开一点，齐整的网格变成被水波推歪的网，符号排成弯弯的弧线。',
+    options: {
+      none: '符号都在格心，规则网格',
+      ripple: '几处中心荡开的圆形波，叠出干涉弧线',
+      wave: '几道斜向平面波，符号疏密成条纹',
+      noise: '平滑的噪声场，符号跟着一股流走，有机',
+      jitter: '每个符号独立随机挪位，像手抖',
+    },
+    tip: '只挪位置，符号与颜色不变；符号挪到哪就采哪一块画面。',
+  },
+  'tile.warpAmount': {
+    summary: '符号最多离开格心多远，以格为单位。100 就是最多挪一格，会互相碰上。0–100%，默认 40。',
+  },
+  'tile.warpScale': {
+    summary: '波的长度或噪声的粗细，以格为单位：越大弧线越舒缓，越小越密。2–64 格，默认 12。',
+  },
+  'tile.warpSeed': {
+    summary: '决定波源位置、波的方向或随机落点，同一个种子结果可复现。',
+  },
+  'tile.offsetX': {
+    summary: '网格横向挪多少，用来让某个细节落在符号的中心。0–63px，默认 0。',
+  },
+  'tile.offsetY': {
     summary: '网格纵向挪多少。0–63px，默认 0。',
   },
 

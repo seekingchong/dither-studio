@@ -8,19 +8,21 @@ import { SettingsMenu } from '@/ui/SettingsMenu';
 import { CellSizeControl } from './CellSizeControl';
 import { ColorSwatches } from './ColorSwatches';
 import { EffectsEditor } from './EffectsEditor';
+import { GlyphLevelsEditor } from './GlyphLevelsEditor';
 import { HistoryPane } from './HistoryPane';
 import { ParamControl } from './ParamControl';
 import { PresetActions } from './PresetActions';
 import { PresetPicker } from './PresetPicker';
 import { cellPairOf, leadParamIds, SECTIONS, sectionHint, sectionOf, type SectionMeta } from './sections';
 
-/** 左栏页签：三种艺术风格各一页（页签本身就是 `style.type`），再加「历史」 */
+/** 左栏页签：四种艺术风格各一页（页签本身就是 `style.type`），再加「历史」 */
 type PaneTab = StyleKind | 'history';
 
 const TABS: { id: PaneTab; label: string }[] = [
   { id: 'dither', label: '抖动' },
   { id: 'hatch', label: '排线' },
   { id: 'halftone', label: '网点' },
+  { id: 'glyph', label: '符号' },
   { id: 'history', label: '历史' },
 ];
 
@@ -31,7 +33,7 @@ interface SectionContent {
 }
 
 /**
- * 左栏。「抖动」「排线」「网点」三页 = 预设模块（选一套该风格的方案）+ 在这套方案范围内微调的参数，
+ * 左栏。「抖动」「排线」「网点」「符号」四页 = 预设模块（选一套该风格的方案）+ 在这套方案范围内微调的参数，
  * 切页签就是切 `style.type`（`setStyle`：进撤销栈，并换到那种风格上次用的方案），各风格的参数都留在同一份参数表里；
  * 「历史」页 = 保存过的所有方案。
  *
@@ -100,6 +102,8 @@ export function ParamPane() {
     const bySection = new Map<string, { basic: ParamDef[]; advanced: ParamDef[] }>();
     for (const def of PARAM_SCHEMA) {
       if (!isParamExposed(def, exposes) || !isParamVisible(def, params)) continue;
+      // 专用编辑器管的参数（符号每一阶的形状 / 颜色）不在栅格里单独出现
+      if (def.custom) continue;
       // 领头的那几个不管属于哪个分组，一律归「基础」；没有对应分节的分组（画布、风格）不在左栏出现
       const id = sectionOf(def, leadSet);
       if (!id) continue;
@@ -171,6 +175,7 @@ export function ParamPane() {
                       <div className="section__body">
                         <p className="section__hint">{sectionHint(meta, params)}</p>
                         {meta.id === 'color' && <ColorSwatches />}
+                        {meta.id === 'glyphs' && <GlyphLevelsEditor />}
                         {meta.id === 'effects' && <EffectsEditor />}
                         {meta.id !== 'effects' && basic.length > 0 && (
                           <div className="param-grid">

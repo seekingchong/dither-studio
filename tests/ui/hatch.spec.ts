@@ -41,7 +41,7 @@ test.beforeEach(async ({ page }) => {
 test('左栏页签「抖动 | 排线 | 网点 | 历史」：切页签就是切风格，分节与预设跟着换', async ({ page }) => {
   test.setTimeout(45_000);
   const tabs = page.locator('.pane--params .pane-actions [role="tab"]');
-  await expect(tabs).toHaveText(['抖动', '排线', '网点', '历史']);
+  await expect(tabs).toHaveText(['抖动', '排线', '网点', '符号', '历史']);
   await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
   await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'dither');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);

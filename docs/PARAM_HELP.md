@@ -16,7 +16,7 @@ interface ParamHelp {
 }
 ```
 
-`PARAM_HELP` 的键是 schema 的参数 `id`，`EFFECT_HELP` 的键是 `EffectDef.id`。
+`PARAM_HELP` 的键是 schema 的参数 `id`，`EFFECT_HELP` 的键是 `EffectDef.id`。符号风格每一阶的形状 / 颜色（`glyph.shape1`–`8` / `glyph.color1`–`8`）八条一个样，在 `help.ts` 里按阶生成；形状的选项解读直接取符号库（`engine/halftone/glyphs.ts` 的 `GLYPHS[].desc`），加符号不用另写文案。
 
 浮层内容由 `helpForParam(def)` / `helpForOption(id, value)` / `helpForEffect(id)` 组装（`frontend/src/ui/state/helpStore.ts`），标签本身由 `HelpLabel` 渲染成热区。
 
@@ -41,7 +41,7 @@ interface ParamHelp {
 
 | 范围 | 状态 |
 |---|---|
-| `PARAM_SCHEMA` 全部参数（152 条，含排线 17 条、网点 29 条） | 全覆盖，CI 断言不许有漏 |
+| `PARAM_SCHEMA` 全部参数（184 条，含排线 16 条、网点 22 条、符号 38 条） | 全覆盖，CI 断言不许有漏 |
 | 枚举参数的每一个选项 | 全覆盖，多写少写都会让测试失败 |
 | 9 种特效本身 | 全覆盖（特效卡片标题、「添加」下拉的选项行） |
 | 特效实例的子参数（线间距、种子…） | 不写。标签具体、带单位，浮层只在 `EffectParamDef.hint` 存在时退回显示 |

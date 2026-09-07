@@ -5,6 +5,8 @@ import {
   PARAM_SCHEMA,
   defaultParams,
   getParamDef,
+  glyphColorId,
+  glyphShapeId,
   hasParam,
   sanitizeParams,
   styleOf,
@@ -48,8 +50,10 @@ export const DEFAULT_PRESET_ID = 'default';
 export const HATCH_DEFAULT_PRESET_ID = 'hatch-classic';
 /** 网点风格的「默认」 */
 export const HALFTONE_DEFAULT_PRESET_ID = 'halftone-default';
+/** 符号风格的「默认」 */
+export const GLYPH_DEFAULT_PRESET_ID = 'glyph-default';
 
-export const ALL_GROUPS: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'halftone', 'screen', 'ink', 'canvas', 'grid', 'effects'];
+export const ALL_GROUPS: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'halftone', 'screen', 'ink', 'glyph', 'tile', 'canvas', 'grid', 'effects'];
 /**
  * 大多数风格预设具备的分组：像素化、影调、算法自身参数、颜色、排线、画布尺寸。
  * 抖动与排线的分组都在里面——两种风格的参数本来就按页签互斥显示，一起露出才能在任一预设上切换页签。
@@ -57,6 +61,12 @@ export const ALL_GROUPS: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dit
 const CORE: readonly ParamGroup[] = ['style', 'pixel', 'tone', 'dither', 'color', 'hatch', 'canvas'];
 /** 网点预设一律露出自己的全部分组：参数本来就不多，藏起来反而找不到；影调 / 画布 / 特效共用 */
 const HT: readonly ParamGroup[] = ['style', 'halftone', 'screen', 'ink', 'tone', 'canvas', 'effects'];
+/** 符号预设同理 */
+const GL: readonly ParamGroup[] = ['style', 'glyph', 'tile', 'tone', 'canvas', 'effects'];
+
+/** 符号风格里从亮到暗每一阶的形状 / 颜色，写成一批参数覆盖 */
+const glyphShapes = (ids: string[]): Partial<Params> => Object.fromEntries(ids.map((id, k) => [glyphShapeId(k + 1), id]));
+const glyphColors = (hexes: string[]): Partial<Params> => Object.fromEntries(hexes.map((hex, k) => [glyphColorId(k + 1), hex]));
 
 /** 内置预设：一键风格。参数是相对默认值的覆盖。第一项「默认」就是全部默认值、全部参数可调。 */
 export const BUILTIN_PRESETS: BuiltinPreset[] = [
@@ -576,57 +586,6 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: HT,
   },
-  // 符号网点：每格按明暗从一串符号里挑。参考图一：点阵天空 → 斜线 → 十字 → 网格 → 斜线上的大圆点，交界处掺杂、点缀圆圈三角
-  {
-    id: 'ht-symbols',
-    name: 'Symbol Sketch',
-    hint: '亮处小点、中间调斜线、暗处十字与网格，点缀圆圈三角',
-    params: {
-      'style.type': 'halftone',
-      'halftone.shape': 'glyph',
-      'halftone.glyphRamp': 'sketch',
-      'halftone.glyphStroke': 12,
-      'halftone.glyphMix': 35,
-      'halftone.glyphAccent': 5,
-      // 最大网点留一点缝，暗部大圆点之间的斜线才露得出来
-      'halftone.size': 88,
-      'halftone.minSize': 28,
-      'halftone.mapping': 'linear',
-      'halftone.stepped': true,
-      'halftone.levels': 5,
-      'screen.pitchX': 13,
-      'screen.pitchY': 13,
-      'screen.angle': 0,
-      'ink.dot': '#111111',
-      'ink.paper': '#FFFFFF',
-      'tone.contrast': 10,
-    },
-    exposes: HT,
-  },
-  // 参考图二：打字机字符画——留白 → 横线 → 4 → 6 → % → 实心点 → 实心三角，字符一样大，米色纸，交界处大量掺杂
-  {
-    id: 'ht-typewriter',
-    name: 'Typewriter',
-    hint: '打字机字符：横线、4、6、%、实心点、三角，米色纸',
-    params: {
-      'style.type': 'halftone',
-      'halftone.shape': 'glyph',
-      'halftone.glyphRamp': 'typewriter',
-      'halftone.glyphStroke': 14,
-      'halftone.glyphMix': 60,
-      'halftone.glyphAccent': 0,
-      'halftone.size': 72,
-      'halftone.minSize': 72,
-      'halftone.mapping': 'linear',
-      'screen.pitchX': 11,
-      'screen.pitchY': 13,
-      'screen.angle': 0,
-      'ink.dot': '#1A1A1A',
-      'ink.paper': '#F6F1E3',
-      'tone.contrast': 20,
-    },
-    exposes: HT,
-  },
   // 参考图三：音乐节海报——黑色圆点配亮黄底，点不在齐整的方格上：网格被几处圆形波推歪，亮部的小点沿干涉弧线排开，
   // 主体处大点相接读成一块；亮处只剩针尖小点
   {
@@ -652,6 +611,236 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
       'tone.contrast': 20,
     },
     exposes: HT,
+  },
+
+  // ---------- 符号 ----------
+  // schema 默认值就是这一套：草图序列 5 阶、12px 方格、墨色配白纸
+  {
+    id: GLYPH_DEFAULT_PRESET_ID,
+    name: '默认',
+    hint: '草图序列 5 阶，12px 方格，墨色配白纸',
+    params: { 'style.type': 'glyph' },
+    exposes: GL,
+  },
+  // 从网点风格挪过来的两套：参考图一——点阵天空 → 斜线 → 十字 → 网格 → 斜线上的大圆点，交界处掺杂、点缀圆圈三角。
+  // 顺序按参考图排，不是墨量序（圆点靠亮部缩小才排在最前），所以存成自定义序列
+  {
+    id: 'glyph-sketch',
+    name: 'Symbol Sketch',
+    hint: '亮处小点、中间调斜线、暗处十字与网格，点缀圆圈三角',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 5,
+      ...glyphShapes(['dot', 'slash', 'plus', 'hash', 'dotslash']),
+      // 最大符号留一点缝，暗部大圆点之间的斜线才露得出来；最亮一阶的点缩到 28%
+      'glyph.size': 88,
+      'glyph.taper': 68,
+      'glyph.stroke': 12,
+      'glyph.mix': 35,
+      'glyph.accent': 5,
+      'tile.pitchX': 13,
+      'tile.pitchY': 13,
+      'glyph.ink': '#111111',
+      'glyph.paper': '#FFFFFF',
+      'tone.contrast': 10,
+    },
+    exposes: GL,
+  },
+  // 参考图二：打字机字符画——留白 → 横线 → 4 → 6 → % → 实心点 → 实心三角，字符一样大，米色纸，交界处大量掺杂
+  {
+    id: 'glyph-typewriter',
+    name: 'Typewriter',
+    hint: '打字机字符：横线、4、6、%、实心点、三角，米色纸',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'dash', 'four', 'six', 'percent', 'dot', 'tri']),
+      'glyph.size': 72,
+      'glyph.taper': 0,
+      'glyph.stroke': 14,
+      'glyph.mix': 60,
+      'glyph.accent': 0,
+      'tile.pitchX': 11,
+      'tile.pitchY': 13,
+      'glyph.ink': '#1A1A1A',
+      'glyph.paper': '#F6F1E3',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-terminal',
+    name: 'Terminal',
+    hint: '字符画 8 阶，荧光绿配黑底，竖长的等宽字符格',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'ascii',
+      'glyph.levels': 8,
+      'glyph.size': 85,
+      'glyph.stroke': 14,
+      'glyph.mix': 20,
+      'glyph.accent': 0,
+      'tile.pitchX': 9,
+      'tile.pitchY': 14,
+      'glyph.ink': '#3DF56B',
+      'glyph.paper': '#06110A',
+      'tone.invert': true,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-mesh',
+    name: 'Line Mesh',
+    hint: '短横、斜线、十字到密网，线条越密越暗，蓝黑线配米纸',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'mesh',
+      'glyph.levels': 6,
+      'glyph.size': 90,
+      'glyph.stroke': 10,
+      'glyph.mix': 25,
+      'glyph.accent': 0,
+      'tile.pitchX': 10,
+      'tile.pitchY': 10,
+      'glyph.ink': '#1B2A41',
+      'glyph.paper': '#F4F1EA',
+      'tone.contrast': 10,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-geo',
+    name: 'Geo Poster',
+    hint: '菱框到实心方 6 阶，每阶一色：黄、橙、红、紫到藏青',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'geometric',
+      'glyph.levels': 6,
+      'glyph.size': 92,
+      'glyph.stroke': 16,
+      'glyph.mix': 0,
+      'glyph.accent': 0,
+      'tile.pitchX': 16,
+      'tile.pitchY': 16,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#F2C14E', '#F58F29', '#E4572E', '#C8354D', '#7B2D8B', '#29335C']),
+      'glyph.paper': '#F7F3EA',
+      'tone.contrast': 10,
+    },
+    exposes: GL,
+  },
+  // 深底亮符号：反相之后亮部落在暗的阶，配色从最亮一阶的暗紫排到最暗一阶的亮黄，暗底上越亮的地方符号越密越亮
+  {
+    id: 'glyph-neon',
+    name: 'Neon Levels',
+    hint: '点阵序列 7 阶，深紫底上从暗紫到亮黄，越亮越密',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'dots',
+      'glyph.levels': 7,
+      'glyph.size': 85,
+      'glyph.stroke': 14,
+      'glyph.mix': 30,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'tile.lattice': 'hex',
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#3A2A5E', '#5B3B9E', '#8A4DCF', '#C45BE0', '#FF6FB5', '#FFB86B', '#FFF6C8']),
+      'glyph.paper': '#0E0B16',
+      'tone.invert': true,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-confetti',
+    name: 'Confetti',
+    hint: '记号序列取原图色，交错排列、交界掺杂，像撒了彩纸',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'marks',
+      'glyph.levels': 6,
+      'glyph.size': 90,
+      'glyph.stroke': 14,
+      'glyph.mix': 50,
+      'glyph.accent': 10,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'tile.lattice': 'hex',
+      'glyph.colorMode': 'source',
+      'glyph.paper': '#FFFFFF',
+      'tone.saturation': 25,
+      'tone.contrast': 10,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-letterpress',
+    name: 'Letterpress',
+    hint: '字母 1、T、Z、N、M 五阶，红墨配牛皮纸，活版印刷',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'letters',
+      'glyph.levels': 5,
+      'glyph.size': 84,
+      'glyph.stroke': 16,
+      'glyph.mix': 15,
+      'glyph.accent': 0,
+      'tile.pitchX': 14,
+      'tile.pitchY': 14,
+      'glyph.ink': '#B0302A',
+      'glyph.paper': '#F3E9D2',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-ripple',
+    name: 'Ripple Type',
+    hint: '打字机序列 6 阶，网格被涟漪推歪，字符沿弧线排开',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'typewriter',
+      'glyph.levels': 6,
+      'glyph.size': 78,
+      'glyph.stroke': 13,
+      'glyph.mix': 40,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'tile.warp': 'ripple',
+      'tile.warpAmount': 50,
+      'tile.warpScale': 10,
+      'glyph.ink': '#1A1A1A',
+      'glyph.paper': '#FFFFFF',
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
+  {
+    id: 'glyph-blueprint',
+    name: 'Blueprint Marks',
+    hint: '记号序列 6 阶，蓝底白线，反相',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'marks',
+      'glyph.levels': 6,
+      'glyph.size': 82,
+      'glyph.stroke': 12,
+      'glyph.mix': 20,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'glyph.ink': '#DCE8FF',
+      'glyph.paper': '#0D3B8C',
+      'tone.invert': true,
+      'tone.contrast': 10,
+    },
+    exposes: GL,
   },
 ];
 
@@ -684,7 +873,7 @@ export function builtinPresetsOf(style: StyleKind): BuiltinPreset[] {
 
 /** 某种风格的「默认」预设：预设模块的「重置」按当前页签退回它 */
 export function defaultPresetIdFor(style: StyleKind): string {
-  return style === 'hatch' ? HATCH_DEFAULT_PRESET_ID : style === 'halftone' ? HALFTONE_DEFAULT_PRESET_ID : DEFAULT_PRESET_ID;
+  return style === 'hatch' ? HATCH_DEFAULT_PRESET_ID : style === 'halftone' ? HALFTONE_DEFAULT_PRESET_ID : style === 'glyph' ? GLYPH_DEFAULT_PRESET_ID : DEFAULT_PRESET_ID;
 }
 
 /**
@@ -735,9 +924,14 @@ const optionLabel = (id: string, value: unknown): string => {
 
 /**
  * 方案摘要，用于历史列表与卡片说明：抖动是 算法族 · 算法 · 颜色模式 · 像素尺寸，
- * 排线是 角度 · 像素尺寸 · 色阶，网点是 形状 · 间距 · 颜色模式。横纵不等时像素尺寸写成 7×16。
+ * 排线是 角度 · 像素尺寸 · 色阶，网点是 形状 · 间距 · 颜色模式，符号是 序列 · 阶数 · 间距。横纵不等时像素尺寸写成 7×16。
  */
 export function summarizeParams(params: Params): string {
+  if (styleOf(params) === 'glyph') {
+    const px = params['tile.pitchX'];
+    const py = params['tile.pitchY'];
+    return ['符号', optionLabel('glyph.ramp', params['glyph.ramp']), `${params['glyph.levels']} 阶`, px === py ? `${px}px` : `${px}×${py}px`].join(' · ');
+  }
   if (styleOf(params) === 'halftone') {
     const px = params['screen.pitchX'];
     const py = params['screen.pitchY'];

@@ -70,6 +70,25 @@ describe('参数 schema', () => {
     expect(isParamVisible(getParamDef('ink.dot'), params)).toBe(true);
     params['ink.mode'] = 'cmyk';
     expect(isParamVisible(getParamDef('ink.dot'), params)).toBe(false);
+    // 符号风格：自己的分组只在符号页签下可见；每一阶的形状随阶数露出，每一阶的颜色还要分级配色；符号颜色只在统一色下
+    expect(isParamVisible(getParamDef('glyph.ramp'), params)).toBe(false);
+    params['style.type'] = 'glyph';
+    expect(isParamVisible(getParamDef('glyph.ramp'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('halftone.shape'), params)).toBe(false);
+    expect(isParamVisible(getParamDef('tone.linear'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('glyph.shape5'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('glyph.shape6'), params)).toBe(false);
+    expect(isParamVisible(getParamDef('glyph.ink'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('glyph.color3'), params)).toBe(false);
+    params['glyph.colorMode'] = 'levels';
+    params['glyph.levels'] = 8;
+    expect(isParamVisible(getParamDef('glyph.ink'), params)).toBe(false);
+    expect(isParamVisible(getParamDef('glyph.color8'), params)).toBe(true);
+    expect(isParamVisible(getParamDef('glyph.shape8'), params)).toBe(true);
+    // 每一阶的形状 / 颜色由阶梯表编辑，标了 custom
+    expect(getParamDef('glyph.shape1').custom).toBe(true);
+    expect(getParamDef('glyph.color1').custom).toBe(true);
+    expect(getParamDef('glyph.ramp').custom).toBeUndefined();
   });
 });
 

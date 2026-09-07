@@ -1,3 +1,5 @@
+import { GLYPHS } from '@/engine/halftone/glyphs';
+import { DEFAULT_LEVEL_COLORS, GLYPH_MAX_LEVELS, GLYPH_MIN_LEVELS, GLYPH_RAMP_KINDS, rampFor } from '@/engine/halftone/glyphScreen';
 import type { ParamDef, ParamGroup, ParamOption, StyleKind } from './types';
 
 /**
@@ -18,7 +20,7 @@ export const DITHER_FAMILIES: ParamOption[] = [
   opt('pattern', '图案'),
 ];
 
-export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线'), opt('halftone', '网点')];
+export const STYLE_KINDS: ParamOption[] = [opt('dither', '抖动'), opt('hatch', '排线'), opt('halftone', '网点'), opt('glyph', '符号')];
 
 /** 网点风格的形状（`halftone.shape`），与 `engine/halftone/shapes.ts` 的距离场一一对应 */
 export const HALFTONE_SHAPES: ParamOption[] = [
@@ -30,20 +32,24 @@ export const HALFTONE_SHAPES: ParamOption[] = [
   opt('hexagon', '六边形'),
   opt('line', '线条'),
   opt('cross', '十字'),
-  opt('glyph', '符号'),
 ];
 
-/** 符号网点的序列（`halftone.glyphRamp`），与 `engine/halftone/glyphs.ts` 的 GLYPH_RAMPS 一一对应 */
-export const GLYPH_RAMP_OPTIONS: ParamOption[] = [
-  opt('sketch', '草图'),
-  opt('typewriter', '打字机'),
-  opt('mesh', '线格'),
-  opt('marks', '记号'),
-  opt('custom', '自定义'),
-];
+/** 符号风格的推荐序列（`glyph.ramp`），与 `engine/halftone/glyphScreen.ts` 的 GLYPH_RAMPS 一一对应 */
+export const GLYPH_RAMP_OPTIONS: ParamOption[] = GLYPH_RAMP_KINDS.map((k) => opt(k.id, k.label));
+/** 每一阶可选的符号（`glyph.shapeN`），整个符号库 */
+export const GLYPH_SHAPE_OPTIONS: ParamOption[] = GLYPHS.map((g) => opt(g.id, g.label));
+export const GLYPH_COLOR_MODES: ParamOption[] = [opt('mono', '统一色'), opt('levels', '分级配色'), opt('source', '原图色')];
+/** 第 k 阶（1 起）的形状 / 颜色参数 id */
+export const glyphShapeId = (k: number) => `glyph.shape${k}`;
+export const glyphColorId = (k: number) => `glyph.color${k}`;
+const LEVELS = Array.from({ length: GLYPH_MAX_LEVELS }, (_, i) => i + 1);
+/** 自定义序列的初始值：8 阶的草图；分级配色的初始值：浅灰蓝到墨蓝 */
+const DEFAULT_SHAPES = rampFor('sketch', GLYPH_MAX_LEVELS);
+const hex = ([r, g, b]: readonly number[]) => `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('').toUpperCase()}`;
 
-const onGlyph = { id: 'halftone.shape', equals: 'glyph' };
 const warpOn = { id: 'screen.warp', in: ['ripple', 'wave', 'noise', 'jitter'] };
+const tileWarpOn = { id: 'tile.warp', in: ['ripple', 'wave', 'noise', 'jitter'] };
+const WARP_OPTIONS = [opt('none', '无'), opt('ripple', '涟漪'), opt('wave', '波浪'), opt('noise', '流动'), opt('jitter', '随机')];
 
 /**
  * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
@@ -57,10 +63,12 @@ export const GROUP_STYLE: Partial<Record<ParamGroup, StyleKind>> = {
   halftone: 'halftone',
   screen: 'halftone',
   ink: 'halftone',
+  glyph: 'glyph',
+  tile: 'glyph',
 };
 
 const onDither = { id: 'style.type', equals: 'dither' };
-/** 网点风格自己按网格间距缩小画面，像素化的方法与偏移只有抖动与排线用 */
+/** 网点 / 符号风格自己按网格间距缩小画面，像素化的方法与偏移只有抖动与排线用 */
 const notHalftone = { id: 'style.type', in: ['dither', 'hatch'] };
 const fam = (family: string) => ({ id: 'dither.family', equals: family });
 const bgOn = { id: 'tone.bg.enabled', equals: true };
@@ -173,8 +181,8 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     type: 'boolean',
     default: true,
     advanced: true,
-    // 排线按"看起来多亮"定粗细，固定在 gamma 空间；抖动与网点（面积正比的墨量）都用得上
-    visibleWhen: { id: 'style.type', in: ['dither', 'halftone'] },
+    // 排线按"看起来多亮"定粗细，固定在 gamma 空间；抖动、网点（面积正比的墨量）与符号（按墨量分阶）都用得上
+    visibleWhen: { id: 'style.type', in: ['dither', 'halftone', 'glyph'] },
     hint: '在线性光里量化，抖动后的平均亮度与原图一致；关闭后在 gamma 空间量化，中间调更亮。',
   },
   {
@@ -475,23 +483,6 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
   { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
   { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
-  // 符号网点（形状选「符号」）：格子里画的不是同一种形状，而是按明暗从一串符号里挑——亮处小点、中间调斜线、暗处十字与网格。
-  // 线粗按格子短边的比例定，换间距不用重调；交界混合让两档交界处互相掺一点，点缀在交界处撒圆圈 / 三角框。
-  { id: 'halftone.glyphRamp', group: 'halftone', label: '符号序列', type: 'select', default: 'sketch', options: GLYPH_RAMP_OPTIONS, visibleWhen: onGlyph },
-  {
-    id: 'halftone.glyphCustom',
-    group: 'halftone',
-    label: '自定义序列',
-    type: 'text',
-    default: '. / + # *',
-    placeholder: '从亮到暗，空格分隔：. / + # * 或 dot slash plus',
-    visibleWhen: [onGlyph, { id: 'halftone.glyphRamp', equals: 'custom' }],
-  },
-  { id: 'halftone.glyphStroke', group: 'halftone', label: '线粗', type: 'number', min: 4, max: 40, step: 1, default: 12, unit: '%', visibleWhen: onGlyph },
-  { id: 'halftone.glyphMix', group: 'halftone', label: '交界混合', type: 'number', min: 0, max: 100, step: 1, default: 35, unit: '%', visibleWhen: onGlyph },
-  { id: 'halftone.glyphAccent', group: 'halftone', label: '点缀符号', type: 'number', min: 0, max: 100, step: 1, default: 5, unit: '%', visibleWhen: onGlyph },
-  { id: 'halftone.glyphSeed', group: 'halftone', label: '符号种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: onGlyph, advanced: true },
-
   // ---------- 网点：网格 ----------
   // 间距是相邻点的中心距，也是格子的宽 / 高；网格绕画布中心转，画布中心永远是一颗点的中心
   { id: 'screen.pitchX', group: 'screen', label: '横向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
@@ -507,14 +498,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
   // 网格扰动：把每颗点从格心推开一点，规则网格成了被水波推歪的网。位移以格为单位（强度 100% 最多挪一格），换间距不用重调；
   // 采样跟着点走，光栅与 SVG 用同一份位移。涟漪是几处中心的圆形波（干涉出弧线，海报那种），波浪是几道平面波，流动是噪声场，随机是每点独立挪位。
-  {
-    id: 'screen.warp',
-    group: 'screen',
-    label: '网格扰动',
-    type: 'select',
-    default: 'none',
-    options: [opt('none', '无'), opt('ripple', '涟漪'), opt('wave', '波浪'), opt('noise', '流动'), opt('jitter', '随机')],
-  },
+  { id: 'screen.warp', group: 'screen', label: '网格扰动', type: 'select', default: 'none', options: WARP_OPTIONS },
   { id: 'screen.warpAmount', group: 'screen', label: '扰动强度', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%', visibleWhen: warpOn },
   { id: 'screen.warpScale', group: 'screen', label: '波长', type: 'number', min: 2, max: 64, step: 1, default: 12, unit: '格', visibleWhen: { id: 'screen.warp', in: ['ripple', 'wave', 'noise'] } },
   { id: 'screen.warpSeed', group: 'screen', label: '扰动种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: warpOn, advanced: true },
@@ -533,6 +517,64 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   },
   { id: 'ink.dot', group: 'ink', label: '网点颜色', type: 'color', default: '#11192D', visibleWhen: { id: 'ink.mode', equals: 'mono' } },
   { id: 'ink.paper', group: 'ink', label: '背景色', type: 'color', default: '#FFFFFF' },
+
+  // ---------- 符号：序列与阶梯 ----------
+  // 网点用点的大小区分灰度，符号风格用格子里画的形状区分：画面按明暗均分成几阶，每一阶配一种符号和一种颜色。
+  // 推荐序列是一套风格统一的 8 个符号，按墨量排好后按阶数等距抽取（亮的阶配墨少的、暗的配墨多的）；
+  // 改动任一阶的形状就转成「自定义」，每一阶存在 `glyph.shapeN` 里，由「符号」分节的阶梯表编辑，不在参数栅格里单独出现。
+  { id: 'glyph.ramp', group: 'glyph', label: '符号序列', type: 'select', default: 'sketch', options: GLYPH_RAMP_OPTIONS },
+  { id: 'glyph.levels', group: 'glyph', label: '灰阶', type: 'number', min: GLYPH_MIN_LEVELS, max: GLYPH_MAX_LEVELS, step: 1, default: 5, unit: '阶' },
+  ...LEVELS.map(
+    (k): ParamDef => ({
+      id: glyphShapeId(k),
+      group: 'glyph',
+      label: `第 ${k} 阶形状`,
+      type: 'select',
+      default: DEFAULT_SHAPES[k - 1],
+      options: GLYPH_SHAPE_OPTIONS,
+      custom: true,
+      visibleWhen: { id: 'glyph.levels', gt: k - 1 },
+    }),
+  ),
+  // 大小以「100% 刚好占满自己的格子」定义；亮部缩小让亮的阶用小符号、暗的阶用大符号（草图那种点阵天空）
+  { id: 'glyph.size', group: 'glyph', label: '符号大小', type: 'number', min: 10, max: 150, step: 1, default: 80, unit: '%' },
+  { id: 'glyph.taper', group: 'glyph', label: '亮部缩小', type: 'number', min: 0, max: 90, step: 1, default: 0, unit: '%' },
+  { id: 'glyph.stroke', group: 'glyph', label: '线粗', type: 'number', min: 4, max: 40, step: 1, default: 12, unit: '%' },
+  { id: 'glyph.mix', group: 'glyph', label: '交界混合', type: 'number', min: 0, max: 100, step: 1, default: 35, unit: '%' },
+  { id: 'glyph.accent', group: 'glyph', label: '点缀符号', type: 'number', min: 0, max: 100, step: 1, default: 5, unit: '%' },
+  { id: 'glyph.seed', group: 'glyph', label: '符号种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, advanced: true },
+  { id: 'glyph.antialias', group: 'glyph', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
+  // 颜色：面板上归「颜色」一节（sections.ts 的 PINNED），统一色一种颜色，分级配色每一阶各一种（阶梯表与色板都能改），原图色取画面
+  { id: 'glyph.colorMode', group: 'glyph', label: '颜色模式', type: 'select', default: 'mono', options: GLYPH_COLOR_MODES },
+  { id: 'glyph.ink', group: 'glyph', label: '符号颜色', type: 'color', default: '#111111', visibleWhen: { id: 'glyph.colorMode', equals: 'mono' } },
+  ...LEVELS.map(
+    (k): ParamDef => ({
+      id: glyphColorId(k),
+      group: 'glyph',
+      label: `第 ${k} 阶颜色`,
+      type: 'color',
+      default: hex(DEFAULT_LEVEL_COLORS[k - 1]),
+      custom: true,
+      visibleWhen: [
+        { id: 'glyph.colorMode', equals: 'levels' },
+        { id: 'glyph.levels', gt: k - 1 },
+      ],
+    }),
+  ),
+  { id: 'glyph.paper', group: 'glyph', label: '背景色', type: 'color', default: '#FFFFFF' },
+
+  // ---------- 符号：网格 ----------
+  // 与网点的网格同一套定义，各存各的，切页签互不影响
+  { id: 'tile.pitchX', group: 'tile', label: '横向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'tile.pitchY', group: 'tile', label: '纵向间距', type: 'number', min: 3, max: 96, step: 1, default: 12, unit: 'px' },
+  { id: 'tile.angle', group: 'tile', label: '网格角度', type: 'number', min: 0, max: 180, step: 1, default: 0, unit: '°' },
+  { id: 'tile.lattice', group: 'tile', label: '排列', type: 'select', default: 'square', options: [opt('square', '方格'), opt('hex', '交错')] },
+  { id: 'tile.warp', group: 'tile', label: '网格扰动', type: 'select', default: 'none', options: WARP_OPTIONS },
+  { id: 'tile.warpAmount', group: 'tile', label: '扰动强度', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%', visibleWhen: tileWarpOn },
+  { id: 'tile.warpScale', group: 'tile', label: '波长', type: 'number', min: 2, max: 64, step: 1, default: 12, unit: '格', visibleWhen: { id: 'tile.warp', in: ['ripple', 'wave', 'noise'] } },
+  { id: 'tile.warpSeed', group: 'tile', label: '扰动种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: tileWarpOn, advanced: true },
+  { id: 'tile.offsetX', group: 'tile', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
+  { id: 'tile.offsetY', group: 'tile', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
 
   // ---------- 特效栈 ----------
   { id: 'effects.stack', group: 'effects', label: '特效栈', type: 'effects', default: '' },
