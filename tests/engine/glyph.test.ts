@@ -139,6 +139,132 @@ describe('符号库', () => {
   });
 });
 
+describe('新增符号：荧光电路与棋盘', () => {
+  const NEW: GlyphId[] = ['slashshort', 'xmark', 'rings', 'clover', 'roundbox', 'boxdot', 'hexline', 'flower', 'zigzag', 'stripes', 'checker', 'rook'];
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('12 种都在符号库里且排在老的 50 个后面，编码不变；墨量关系：不出格的比贯穿的少，描边比实心少', () => {
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    expect(GLYPH_IDS.length).toBe(62);
+    expect(c('slashshort')).toBeLessThan(c('slash'));
+    expect(c('xmark')).toBeLessThan(c('x'));
+    expect(c('rings')).toBeGreaterThan(c('ring'));
+    expect(c('rings')).toBeLessThan(c('dot'));
+    expect(c('roundbox')).toBeLessThan(c('square'));
+    expect(c('boxdot')).toBeGreaterThan(c('roundbox'));
+    expect(c('hexline')).toBeLessThan(c('hex'));
+    expect(c('clover')).toBeGreaterThan(c('quad'));
+    expect(c('flower')).toBeGreaterThan(c('asterisk'));
+    expect(c('stripes')).toBeGreaterThan(c('bar'));
+    // 棋盘格：两个象限实心，默认 80% 大小下盖住 0.8² / 2 ≈ 32%
+    expect(c('checker')).toBeGreaterThan(0.28);
+    expect(c('checker')).toBeLessThan(0.36);
+    expect(c('rook')).toBeGreaterThan(c('checker'));
+  });
+
+  it('渲染：棋盘格 100% 时与邻格拼成棋盘，折线上下接成锯齿，竖纹整列铺满，城堡平底、顶上开豁口', () => {
+    // 12px 格、三格并排（格心在 6 / 18 / 30）：左上与右下象限实心 → 6px 的棋盘格，跨格也对得上
+    const checker = renderHalftone(buildGlyphScreen(flatSource(36, 12, 0.5), custom(['checker', 'checker'])));
+    expect(px(checker, 3, 3)).toEqual([0, 0, 0]);
+    expect(px(checker, 9, 3)).toEqual([255, 255, 255]);
+    expect(px(checker, 9, 9)).toEqual([0, 0, 0]);
+    expect(px(checker, 3, 9)).toEqual([255, 255, 255]);
+    expect(px(checker, 15, 3)).toEqual([0, 0, 0]);
+    expect(px(checker, 21, 3)).toEqual([255, 255, 255]);
+    expect(px(checker, 27, 3)).toEqual([0, 0, 0]);
+    // 折线：三格竖排（格心在 6 / 18 / 30）：< 的尖在左边格线中点 (0, 18)，两头落在右边格线上，上下两格在 (12, 12) 附近接上；格心是空的
+    const zigzag = renderHalftone(buildGlyphScreen(flatSource(12, 36, 0.5), custom(['zigzag', 'zigzag'])));
+    expect(px(zigzag, 0, 18)).toEqual([0, 0, 0]);
+    expect(px(zigzag, 11, 12)).toEqual([0, 0, 0]);
+    expect(px(zigzag, 6, 18)).toEqual([255, 255, 255]);
+    expect(px(zigzag, 1, 12)).toEqual([255, 255, 255]);
+    // 竖纹：中间那道从上到下整列是墨，两道之间是纸
+    const stripes = renderHalftone(buildGlyphScreen(flatSource(12, 24, 0.5), custom(['stripes', 'stripes'])));
+    for (let y = 0; y < 24; y++) expect(px(stripes, 6, y), `y=${y}`).toEqual([0, 0, 0]);
+    expect(px(stripes, 4, 6)).toEqual([255, 255, 255]);
+    expect(px(stripes, 8, 6)).toEqual([255, 255, 255]);
+    // 城堡：底边与身体实心，顶上中间的豁口是纸、两侧的齿是墨
+    const rook = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['rook', 'rook'])));
+    expect(px(rook, 6, 11)).toEqual([0, 0, 0]);
+    expect(px(rook, 6, 6)).toEqual([0, 0, 0]);
+    expect(px(rook, 6, 1)).toEqual([255, 255, 255]);
+    expect(px(rook, 2, 1)).toEqual([0, 0, 0]);
+    expect(px(rook, 9, 1)).toEqual([0, 0, 0]);
+    // 双圈：中心是纸，外圈与内圈是墨，两圈之间是纸；圆角框中心是纸，框点中心是墨
+    const r = 6;
+    const hw = 0.72;
+    expect(glyphDistance(GLYPH_CODE.rings, 0, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings, r - hw, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings, r / 2 - hw, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings, r * 0.75, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.roundbox, 0, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.boxdot, 0, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    // 六边框：外缘落在外接圆半径上（平边在上下：顶边在 y = −r·√3/2），中心是纸
+    expect(glyphDistance(GLYPH_CODE.hexline, 0, -r * 0.866 + 0.3, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.hexline, 0, -r * 0.866 - 0.3, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.hexline, 0, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+  });
+
+  it('SVG：圆角框是带 rx 的描边 <rect>，六边框是描边 <polygon>，城堡是 8 个顶点的实心 <polygon>，棋盘是两个 <rect>', () => {
+    const roundbox = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['roundbox', 'roundbox'])));
+    expect(roundbox).toMatch(/<rect [^>]*rx="[\d.]+" fill="none" stroke=/);
+    const hexline = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['hexline', 'hexline'])));
+    expect(hexline).toMatch(/<polygon points="[^"]*" fill="none" stroke=/);
+    const rook = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['rook', 'rook'])));
+    const poly = rook.match(/<polygon points="([^"]*)"\/>/);
+    expect(poly).not.toBeNull();
+    expect(poly![1].split(' ').length).toBe(8);
+    const checker = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['checker', 'checker'])));
+    // 铺底一个 + 两个象限
+    expect((checker.match(/<rect /g) ?? []).length).toBe(3);
+    const zigzag = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['zigzag', 'zigzag'])));
+    expect((zigzag.match(/<line /g) ?? []).length).toBe(2);
+  });
+
+  it('Lime Circuit / Checkmate 预设：自定义序列用上新符号，深底反相；Checkmate 分级配色薄荷绿与淡紫', () => {
+    const circuit = builtinPresetParams(findBuiltinPreset('glyph-circuit')!);
+    expect(circuit['style.type']).toBe('glyph');
+    expect(circuit['glyph.ramp']).toBe('custom');
+    expect(circuit['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => circuit[glyphShapeId(k)])).toEqual(['blank', 'pip', 'slashshort', 'plus', 'xmark', 'rings', 'roundbox', 'clover']);
+    expect(circuit['tone.invert']).toBe(true);
+    expect(circuit['glyph.colorMode']).toBe('mono');
+    expect(circuit['glyph.ink']).toBe('#C8FF1A');
+    expect(circuit['glyph.paper']).toBe('#0A0A0A');
+    expect(Number(circuit['glyph.taper'])).toBeGreaterThan(0);
+    const checkmate = builtinPresetParams(findBuiltinPreset('glyph-checkmate')!);
+    expect(checkmate['glyph.ramp']).toBe('custom');
+    expect(checkmate['glyph.levels']).toBe(7);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => checkmate[glyphShapeId(k)])).toEqual(['blank', 'pip', 'flower', 'zigzag', 'stripes', 'checker', 'rook']);
+    expect(checkmate['glyph.colorMode']).toBe('levels');
+    expect(checkmate['glyph.color2']).toBe('#9C9FE9');
+    expect(checkmate['glyph.color7']).toBe('#5EE6A2');
+    expect(checkmate['glyph.paper']).toBe('#0F5C3F');
+    // 棋盘格与竖纹要在邻格之间接上，符号大小是 100%
+    expect(checkmate['glyph.size']).toBe(100);
+    expect(checkmate['tone.invert']).toBe(true);
+    for (const p of [circuit, checkmate]) {
+      const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), { ...p, 'canvas.width': 72, 'canvas.height': 36 });
+      expect(out.width).toBe(72);
+      // 深底：左（黑）边基本是纸色，右（白）边有符号
+      let leftInk = 0;
+      let rightInk = 0;
+      const paper = px(out, 0, 0);
+      for (let y = 0; y < 36; y++) {
+        for (let x = 0; x < 72; x++) {
+          const same = px(out, x, y).every((v, i) => Math.abs(v - paper[i]) < 8);
+          if (x < 18 && !same) leftInk++;
+          if (x >= 54 && !same) rightInk++;
+        }
+      }
+      expect(rightInk).toBeGreaterThan(leftInk);
+    }
+  });
+});
+
 describe('推荐序列', () => {
   it('每套 8 个不重复的符号；任意阶数抽出来的都按墨量从少到多，两端总是最亮与最暗的那两个', () => {
     for (const kind of RAMP_KINDS) {

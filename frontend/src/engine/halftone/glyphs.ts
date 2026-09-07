@@ -1,11 +1,11 @@
 import { hash2 } from '../util/random';
-import { shapeDistance } from './shapes';
+import { ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
 
 /**
  * 符号库：「符号」风格（`style.type = glyph`）每个格子里画的图元。
  * 格子里画的不是同一种形状的放大缩小，而是按明暗从一串符号里挑一个——亮处是小点、中间调是斜线、暗处是十字与网格，
  * 像手绘的图例或打字机敲出来的字符画。
- * 每个符号由几条基本图元拼成（实心圆、圆圈、线段、三角、方、菱、六边），图元只有两种尺寸参照：
+ * 每个符号由几条基本图元拼成（实心圆、圆圈、线段、三角、方、圆角框、菱、六边、多边形），图元只有两种尺寸参照：
  * `r` 是这一格的符号半径（随灰阶变化），"跨格"线段则以半格为单位、两头各多出半像素，让相邻格子的线连成一条。
  * 所有图元都给出有符号距离，渲染与融合沿用网点那一套；SVG 导出用同一张表出 <circle> / <line> / <polygon>。
  */
@@ -19,6 +19,9 @@ export type GlyphId =
   | 'quad'
   | 'ring'
   | 'ringdot'
+  | 'rings'
+  | 'clover'
+  | 'flower'
   // 线
   | 'tick'
   | 'minus'
@@ -35,6 +38,10 @@ export type GlyphId =
   | 'hash'
   | 'hashx'
   | 'dotslash'
+  | 'slashshort'
+  | 'xmark'
+  | 'zigzag'
+  | 'stripes'
   // 几何
   | 'tri'
   | 'triline'
@@ -48,6 +55,11 @@ export type GlyphId =
   | 'boxplus'
   | 'circlex'
   | 'circleplus'
+  | 'roundbox'
+  | 'boxdot'
+  | 'hexline'
+  | 'checker'
+  | 'rook'
   // 字符
   | 'one'
   | 'four'
@@ -129,6 +141,20 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'aitch', label: 'H', group: 'chars', desc: '字母 H' },
   { id: 'ee', label: 'E', group: 'chars', desc: '字母 E' },
   { id: 'wye', label: 'Y', group: 'chars', desc: '字母 Y' },
+  // 荧光电路（参考图一：黑底荧光绿的 · 、+ × ◎ ▢ ✤ ⬡）
+  { id: 'slashshort', label: '短斜线', group: 'lines', desc: '格子里一小段斜线，不出格、不与邻格相连' },
+  { id: 'xmark', label: '叉号', group: 'lines', desc: '格子里的一个小叉，不出格' },
+  { id: 'rings', label: '双圈', group: 'dots', desc: '大圈套小圈的同心圆' },
+  { id: 'clover', label: '四叶', group: 'dots', desc: '四个圆叠成的四叶草' },
+  { id: 'roundbox', label: '圆角框', group: 'geometry', desc: '空心的圆角方块' },
+  { id: 'boxdot', label: '框点', group: 'geometry', desc: '圆角方框中间一个实心点' },
+  { id: 'hexline', label: '六边框', group: 'geometry', desc: '空心正六边形' },
+  // 棋盘（参考图二：墨绿底上薄荷绿与淡紫的棋盘格、花、折线、竖纹、城堡）
+  { id: 'flower', label: '花', group: 'dots', desc: '六瓣小花，花心留空' },
+  { id: 'zigzag', label: '折线', group: 'lines', desc: '贯穿格子的 < 形折线，上下邻格接成一条锯齿' },
+  { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
+  { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
+  { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -153,9 +179,10 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
 ];
 
 /**
- * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `d` / `D` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
+ * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
- * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形。
+ * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
+ * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -167,9 +194,13 @@ type Prim =
   | { k: 'v' }
   | { k: 'q'; h: number }
   | { k: 'Q'; h: number }
+  | { k: 'b'; x: number; y: number; h: number }
+  | { k: 'R'; h: number }
   | { k: 'd' }
   | { k: 'D' }
-  | { k: 'g' };
+  | { k: 'g' }
+  | { k: 'G' }
+  | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
 const BACKSLASH: Prim = { k: 'S', x1: -1, y1: -1, x2: 1, y2: 1 };
@@ -182,6 +213,11 @@ const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
+/** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
+const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
+  const a = (Math.PI / 3) * k + Math.PI / 6;
+  return { k: 'c', x: 0.62 * Math.cos(a), y: 0.62 * Math.sin(a), r: 0.36 } as const;
+});
 
 const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   blank: [],
@@ -256,6 +292,60 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   aitch: [seg(-0.7, -1, -0.7, 1), seg(0.7, -1, 0.7, 1), seg(-0.7, 0, 0.7, 0)],
   ee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.7, -1), seg(-0.7, 0, 0.5, 0), seg(-0.7, 1, 0.7, 1)],
   wye: [seg(-0.8, -1, 0, 0), seg(0.8, -1, 0, 0), seg(0, 0, 0, 1)],
+  // 荧光电路：短斜线与叉号都不出格，邻格之间断开
+  slashshort: [DIAG],
+  xmark: [DIAG, ANTI],
+  rings: [
+    { k: 'o', x: 0, y: 0, r: 1 },
+    { k: 'o', x: 0, y: 0, r: 0.5 },
+  ],
+  // 四叶草：四个圆两两相切多一点，中间只留一个小孔
+  clover: [
+    { k: 'c', x: -0.47, y: -0.47, r: 0.53 },
+    { k: 'c', x: 0.47, y: -0.47, r: 0.53 },
+    { k: 'c', x: -0.47, y: 0.47, r: 0.53 },
+    { k: 'c', x: 0.47, y: 0.47, r: 0.53 },
+  ],
+  roundbox: [{ k: 'R', h: BOX }],
+  boxdot: [
+    { k: 'R', h: BOX },
+    { k: 'c', x: 0, y: 0, r: 0.3 },
+  ],
+  hexline: [{ k: 'G' }],
+  // 棋盘：六瓣花绕着花心一圈，相邻花瓣略叠
+  flower: FLOWER,
+  // 折线：右上 → 左中 → 右下，两头都落在右边格线上，上下邻格接成一条锯齿
+  zigzag: [
+    { k: 'S', x1: 1, y1: -1, x2: -1, y2: 0 },
+    { k: 'S', x1: -1, y1: 0, x2: 1, y2: 1 },
+  ],
+  // 竖纹：三道等距的贯穿竖线，间距是格宽的三分之二，邻格接上后整片等距
+  stripes: [
+    { k: 'S', x1: -2 / 3, y1: -1, x2: -2 / 3, y2: 1 },
+    BAR,
+    { k: 'S', x1: 2 / 3, y1: -1, x2: 2 / 3, y2: 1 },
+  ],
+  // 棋盘格：左上与右下两个象限实心，100% 大小时正好与邻格拼成棋盘
+  checker: [
+    { k: 'b', x: -0.5, y: -0.5, h: 0.5 },
+    { k: 'b', x: 0.5, y: 0.5, h: 0.5 },
+  ],
+  // 城堡：平底、直边，顶上中间开一个豁口分成两个齿
+  rook: [
+    {
+      k: 'P',
+      pts: [
+        [-0.8, 0.95],
+        [-0.8, -0.95],
+        [-0.3, -0.95],
+        [-0.3, -0.45],
+        [0.3, -0.45],
+        [0.3, -0.95],
+        [0.8, -0.95],
+        [0.8, 0.95],
+      ],
+    },
+  ],
 };
 
 /** 按编码取图元表 */
@@ -275,11 +365,42 @@ function segmentDistance(px: number, py: number, ax: number, ay: number, bx: num
   return Math.sqrt(dx * dx + dy * dy);
 }
 
+/** 点到实心多边形的有符号距离（iq 的写法）：顶点按顺序给，里面为负 */
+function polygonDistance(px: number, py: number, pts: ReadonlyArray<readonly [number, number]>, scale: number): number {
+  const n = pts.length;
+  let d = Infinity;
+  let sign = 1;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const ax = pts[i][0] * scale;
+    const ay = pts[i][1] * scale;
+    const bx = pts[j][0] * scale;
+    const by = pts[j][1] * scale;
+    const ex = bx - ax;
+    const ey = by - ay;
+    const wx = px - ax;
+    const wy = py - ay;
+    const len2 = ex * ex + ey * ey;
+    let h = len2 > 0 ? (wx * ex + wy * ey) / len2 : 0;
+    h = h < 0 ? 0 : h > 1 ? 1 : h;
+    const dx = wx - ex * h;
+    const dy = wy - ey * h;
+    const dd = dx * dx + dy * dy;
+    if (dd < d) d = dd;
+    const c1 = py >= ay;
+    const c2 = py < by;
+    const c3 = ex * wy > ey * wx;
+    if ((c1 && c2 && c3) || (!c1 && !c2 && !c3)) sign = -sign;
+  }
+  return sign * Math.sqrt(d);
+}
+
 /** 圆圈的中线半径：外缘落在 r 上，太细时至少留一点 */
 const ringRadius = (r: number, hw: number) => Math.max(r - hw, 0.25);
 /** 方框 / 菱框 / 三角框的中线尺寸：往里缩一个半粗，外缘正好落在实心版的边上，描边版总比实心版墨少 */
 const frameHalf = (h: number, hw: number) => Math.max(h - hw, 0.25);
 const SQRT3 = 1.7320508075688772;
+/** 六边框往里缩多少才让外缘落在外接圆半径 r 上：边到中心的距离是 r·√3/2，缩 hw 相当于外接圆半径缩 hw·2/√3 */
+const HEX_INSET = 2 / SQRT3;
 
 /**
  * 符号距离场。(x, y) 是相对格子中心、沿网格坐标轴的画布像素；r 是这一格的符号半径；
@@ -325,6 +446,12 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'Q':
         dd = Math.abs(shapeDistance('square', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
+      case 'b':
+        dd = shapeDistance('square', x - p.x * r, y - p.y * r, p.h * r, 0);
+        break;
+      case 'R':
+        dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
+        break;
       case 'd':
         dd = shapeDistance('diamond', x, y, r, 0);
         break;
@@ -333,6 +460,12 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
         break;
       case 'g':
         dd = shapeDistance('hexagon', x, y, r, 0);
+        break;
+      case 'G':
+        dd = Math.abs(shapeDistance('hexagon', x, y, frameHalf(r, hw * HEX_INSET), 0)) - hw;
+        break;
+      case 'P':
+        dd = polygonDistance(x, y, p.pts, r);
         break;
     }
     if (dd < d) d = dd;
@@ -404,6 +537,16 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" fill="none"${stroke}/>`);
         break;
       }
+      case 'b': {
+        const h = p.h * r;
+        out.push(`<rect x="${f(cx + p.x * r - h)}" y="${f(cy + p.y * r - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
+        break;
+      }
+      case 'R': {
+        const h = frameHalf(p.h * r, hw);
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);
+        break;
+      }
       case 'd':
         out.push(`<polygon points="${diamondPoints(cx, cy, r)}"${fill}/>`);
         break;
@@ -412,6 +555,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         break;
       case 'g':
         out.push(`<polygon points="${hexagonPoints(cx, cy, r)}"${fill}/>`);
+        break;
+      case 'G':
+        out.push(`<polygon points="${hexagonPoints(cx, cy, frameHalf(r, hw * HEX_INSET))}" fill="none"${stroke}/>`);
+        break;
+      case 'P':
+        out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
         break;
     }
   }
