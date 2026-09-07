@@ -756,6 +756,26 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
       hex: '隔行错开半格，像蜂窝一样密',
     },
   },
+  'screen.warp': {
+    summary: '把每颗点从格心推开一点，齐整的网格变成被水波推歪的网，点排成弯弯的弧线。',
+    options: {
+      none: '点都在格心，规则网格',
+      ripple: '几处中心荡开的圆形波，叠出干涉弧线，海报那种',
+      wave: '几道斜向平面波，点疏密成条纹',
+      noise: '平滑的噪声场，点跟着一股流走，有机',
+      jitter: '每颗点独立随机挪位，像点画',
+    },
+    tip: '点只挪位置，大小与形状不变；点挪到哪就采哪一块画面。',
+  },
+  'screen.warpAmount': {
+    summary: '点最多离开格心多远，以格为单位。100 就是最多挪一格，点会互相碰上。0–100%，默认 40。',
+  },
+  'screen.warpScale': {
+    summary: '波的长度或噪声的粗细，以格为单位：越大弧线越舒缓，越小越密。2–64 格，默认 12。',
+  },
+  'screen.warpSeed': {
+    summary: '决定波源位置、波的方向或随机落点，同一个种子结果可复现。',
+  },
   'screen.offsetX': {
     summary: '网格横向挪多少，用来让某个细节落在点的中心。0–63px，默认 0。',
   },

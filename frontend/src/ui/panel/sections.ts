@@ -82,6 +82,7 @@ export const SECTIONS: SectionMeta[] = [
         const py = num(p, 'screen.pitchY');
         const parts = [optionLabel('halftone.shape', p), px === py ? `${px}px` : `${px} × ${py}px`, `${num(p, 'screen.angle')}°`];
         if (str(p, 'screen.lattice') === 'hex') parts.push('交错');
+        if (str(p, 'screen.warp') !== 'none') parts.push(`${optionLabel('screen.warp', p)}扰动`);
         return parts.join(' · ');
       }
       const family = str(p, 'dither.family') as DitherFamily;

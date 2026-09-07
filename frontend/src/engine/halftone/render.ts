@@ -41,6 +41,9 @@ interface ScreenContext {
   glyphHw: number;
   spanX: number;
   spanY: number;
+  /** 网格扰动：每格网点离格心的位移（格） */
+  dx?: Float32Array;
+  dy?: Float32Array;
 }
 
 /** 预处理一张网格：把每像素都要用的常量算好，并按网点最大尺寸与融合半径决定要看几圈邻格 */
@@ -60,8 +63,12 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
   if (k > 0 && rMax + k + 1 > minPitch) reach = 2;
   else if (k === 0 && !spans && rMax + 1 <= halfMin) reach = 0;
   else reach = 1;
+  // 网点被扰动挪开最多 warpMax 格：邻格的点可能探进来，也可能是更远一格的，按最大位移多看几圈
+  if (screen.warpMax && screen.warpMax > 0) reach = Math.max(reach, 1) + Math.ceil(screen.warpMax - 1e-6);
   const [spanX, spanY] = glyphSpan(screen);
   return {
+    dx: screen.dx,
+    dy: screen.dy,
     glyph: g.shape === 'glyph' ? screen.glyph : undefined,
     glyphHw: glyphHalfStroke(g.glyphStroke, screen),
     spanX,
@@ -108,14 +115,15 @@ function distanceAt(c: ScreenContext, px: number, py: number): number {
       const idx = rowBase + ri;
       const sz = s.size[idx];
       if (sz <= 0) continue;
-      const lx = (u - (ii + 0.5 + shift)) * s.pitchX;
+      const lx = (u - (ii + 0.5 + shift + (c.dx ? c.dx[idx] : 0))) * s.pitchX;
+      const lyy = c.dy ? ly - c.dy[idx] * s.pitchY : ly;
       let dd: number;
       if (c.glyph) {
         const code = c.glyph[idx];
         if (code === 0) continue;
-        dd = glyphDistance(code, lx, ly, sz * c.r0, c.glyphHw, c.spanX, c.spanY);
+        dd = glyphDistance(code, lx, lyy, sz * c.r0, c.glyphHw, c.spanX, c.spanY);
       } else {
-        dd = shapeDistance(c.shape, lx, ly, sz * c.r0, c.halfWidth);
+        dd = shapeDistance(c.shape, lx, lyy, sz * c.r0, c.halfWidth);
       }
       d = c.k > 0 ? smoothMin(d, dd, c.k) : dd < d ? dd : d;
       if (dd < bestD) {

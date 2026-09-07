@@ -2,6 +2,7 @@ import { rgbToCmyk } from '../color/cmyk';
 import { srgbToLinearFast } from '../color/srgb';
 import { assignGlyphs, resolveGlyphRamp, type GlyphRampKind } from './glyphs';
 import type { HalftoneShape } from './shapes';
+import { buildWarp, type WarpSettings } from './warp';
 
 /**
  * Halftone 的几何层：把画面切成一张（或 CMYK 四张）网格，每个格子采样它盖住的那块画面，
@@ -12,7 +13,7 @@ export type LatticeKind = 'square' | 'hex';
 export type InkMode = 'mono' | 'source' | 'cmyk';
 export type SizeMapping = 'area' | 'linear';
 
-export interface HalftoneSettings {
+export interface HalftoneSettings extends WarpSettings {
   shape: HalftoneShape;
   /** 最暗处网点相对格子的大小 0..1.5（100% = 刚好占满格子） */
   size: number;
@@ -72,6 +73,10 @@ export const DEFAULT_HALFTONE: HalftoneSettings = {
   glyphMix: 0.35,
   glyphAccent: 0.05,
   glyphSeed: 1,
+  warp: 'none',
+  warpAmount: 0.4,
+  warpScale: 12,
+  warpSeed: 1,
 };
 
 /** 采样输入：已做影调、按 `sample` 倍缩小的亮度（与颜色），坐标除以 sample 就落到这张图上 */
@@ -109,6 +114,11 @@ export interface HalftoneScreen {
   color?: Uint8ClampedArray;
   /** 每格的符号编码（符号网点；`GLYPH_IDS` 的下标，0 是空） */
   glyph?: Uint8Array;
+  /** 网格扰动：每格网点离格子中心的位移，沿网格 x / y 轴，单位是格；没扰动时缺省 */
+  dx?: Float32Array;
+  dy?: Float32Array;
+  /** 最大 |位移|（格），渲染据此多看几圈邻格 */
+  warpMax?: number;
   /** 这一层的墨色 0..255 */
   ink: [number, number, number];
 }
@@ -198,6 +208,11 @@ export function cellCenter(screen: Pick<HalftoneScreen, 'lattice' | 'pitchX' | '
   return [(i + rowShift(screen.lattice, j)) * screen.pitchX - screen.offsetX, j * screen.pitchY - screen.offsetY];
 }
 
+/** 下标为 idx 的格子里网点被扰动挪开的距离（画布像素，沿网格坐标轴）；没扰动就是 0 */
+export function dotOffset(screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY' | 'dx' | 'dy'>, idx: number): [number, number] {
+  return [screen.dx ? screen.dx[idx] * screen.pitchX : 0, screen.dy ? screen.dy[idx] * screen.pitchY : 0];
+}
+
 /** 墨量 0..1 加上网点增益：正增益放大中间调 */
 export function gainedCoverage(coverage: number, gain: number): number {
   const c = clamp01(coverage);
@@ -243,16 +258,17 @@ function screenExtent(width: number, height: number, t: GridTransform): { i0: nu
 /**
  * 采样一张网格：每个格子在自己范围里取 CELL_SAMPLES² 个点，落在画布内的点取平均。
  * 回调拿到每格的平均亮度与（可选的）平均颜色，返回墨量数组（一格可对应多层墨，如 CMYK 四层）。
+ * 网格扰动时格子跟着网点一起挪：采样范围以挪开后的位置为中心，点画在哪就采哪一块画面。
  */
 function sampleScreen(
   src: HalftoneSource,
   t: GridTransform,
   lattice: LatticeKind,
-  extent: { i0: number; j0: number; cols: number; rows: number },
+  extent: { i0: number; j0: number; cols: number; rows: number; dx?: Float32Array; dy?: Float32Array },
   wantColor: boolean,
   onCell: (index: number, gray: number, r: number, g: number, b: number) => void,
 ) {
-  const { i0, j0, cols, rows } = extent;
+  const { i0, j0, cols, rows, dx, dy } = extent;
   const n = CELL_SAMPLES;
   const inv = 1 / src.sample;
   const gw = src.grayWidth;
@@ -264,15 +280,18 @@ function sampleScreen(
     const shift = rowShift(lattice, j);
     for (let ii = 0; ii < cols; ii++) {
       const i = i0 + ii;
+      const k0 = jj * cols + ii;
+      const ox = dx ? dx[k0] : 0;
+      const oy = dy ? dy[k0] : 0;
       let sum = 0;
       let sr = 0;
       let sg = 0;
       let sb = 0;
       let count = 0;
       for (let b = 0; b < n; b++) {
-        const v = j + (b + 0.5) / n;
+        const v = j + oy + (b + 0.5) / n;
         for (let a = 0; a < n; a++) {
-          const u = i + shift + (a + 0.5) / n;
+          const u = i + shift + ox + (a + 0.5) / n;
           const [x, y] = t.toCanvas(u, v);
           if (x < 0 || y < 0 || x >= src.width || y >= src.height) continue;
           const sx = Math.min(gw - 1, Math.floor(x * inv));
@@ -308,6 +327,12 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
       size: new Float32Array(extent.cols * extent.rows),
       ink,
     };
+    const warp = buildWarp(extent, (j) => rowShift(opts.lattice, j), opts);
+    if (warp) {
+      screen.dx = warp.dx;
+      screen.dy = warp.dy;
+      screen.warpMax = warp.max;
+    }
     return { screen, t };
   };
 

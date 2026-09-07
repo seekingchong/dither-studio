@@ -8,6 +8,7 @@ import {
   MAX_SVG_DOTS,
   Pipeline,
   buildHalftone,
+  buildWarp,
   countDots,
   coverageToSize,
   DEFAULT_HALFTONE,
@@ -411,6 +412,105 @@ describe('符号网点', () => {
     expect(filled).toMatch(/<polygon points="[^"]*"\/>/);
     const colored = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.5, [0.3, 0.6, 0.2]), glyph({ mode: 'source', glyphRamp: 'custom', glyphCustom: '+' })));
     expect(colored).toMatch(/<line [^>]*stroke="#4D9933"/);
+  });
+
+  it('网格扰动：位移不超过强度，同种子可复现，涟漪 / 波浪 / 流动平滑而随机逐点独立', () => {
+    const cells = { cols: 40, rows: 30, i0: -20, j0: -15 };
+    const noShift = () => 0;
+    expect(buildWarp(cells, noShift, { warp: 'none', warpAmount: 0.5, warpScale: 10, warpSeed: 1 })).toBeUndefined();
+    expect(buildWarp(cells, noShift, { warp: 'ripple', warpAmount: 0, warpScale: 10, warpSeed: 1 })).toBeUndefined();
+    for (const warp of ['ripple', 'wave', 'noise', 'jitter'] as const) {
+      const a = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 1 })!;
+      const b = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 1 })!;
+      const c = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 2 })!;
+      expect(a.max, warp).toBeGreaterThan(0.1);
+      expect(a.max, warp).toBeLessThanOrEqual(0.5 + 1e-6);
+      for (let k = 0; k < a.dx.length; k++) {
+        expect(Math.abs(a.dx[k]), warp).toBeLessThanOrEqual(0.5 + 1e-6);
+        expect(Math.abs(a.dy[k]), warp).toBeLessThanOrEqual(0.5 + 1e-6);
+      }
+      expect([...a.dx]).toEqual([...b.dx]);
+      expect([...a.dx]).not.toEqual([...c.dx]);
+      // 相邻格子的位移之差：平滑场里远小于强度，随机则常常接近整个范围
+      let maxStep = 0;
+      for (let k = 1; k < cells.cols; k++) maxStep = Math.max(maxStep, Math.abs(a.dx[k] - a.dx[k - 1]));
+      if (warp === 'jitter') expect(maxStep).toBeGreaterThan(0.5);
+      else expect(maxStep, warp).toBeLessThan(0.35);
+    }
+  });
+
+  it('网格扰动：点挪到哪就采哪一块画面，画在哪；SVG 的圆心跟着挪', () => {
+    // 左半黑右半白，随机扰动最多挪一格：每颗点的大小由它挪开后所在的位置决定
+    const width = 240;
+    const height = 48;
+    const gray = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) gray[y * width + x] = x < width / 2 ? 0 : 1;
+    const src: HalftoneSource = { width, height, sample: 1, grayWidth: width, grayHeight: height, gray, linear: false };
+    const g = buildHalftone(src, opts({ pitchX: 12, pitchY: 12, minSize: 0, warp: 'jitter', warpAmount: 1, warpSeed: 3 }));
+    const s = g.screens[0];
+    expect(s.dx).toBeDefined();
+    expect(s.warpMax).toBeGreaterThan(0.9);
+    const t = gridTransform(width, height, s);
+    let checked = 0;
+    for (let jj = 0; jj < s.rows; jj++) {
+      for (let ii = 0; ii < s.cols; ii++) {
+        const k = jj * s.cols + ii;
+        const [x, y] = t.toCanvas(s.i0 + ii + 0.5 + s.dx![k], s.j0 + jj + 0.5 + s.dy![k]);
+        // 离黑白分界一格以内的格子会采到两边，挪出画布边缘的格子采不到画面，都跳过
+        if (Math.abs(x - width / 2) < 12 || x < 12 || x > width - 12 || y < 12 || y > height - 12) continue;
+        checked++;
+        if (x < width / 2) expect(s.size[k]).toBeCloseTo(1, 5);
+        else expect(s.size[k]).toBe(0);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+
+    // 手动把画布中心那颗点右挪半格：墨落在挪开后的位置，原位空着；SVG 圆心同样右挪
+    const one = buildHalftone(flatSource(24, 24, 0), opts({ pitchX: 12, pitchY: 12, size: 0.5, minSize: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    const sc = one.screens[0];
+    const [u, v] = gridTransform(24, 24, sc).toGrid(12, 12);
+    const center = (Math.floor(v) - sc.j0) * sc.cols + (Math.floor(u) - sc.i0);
+    sc.dx = new Float32Array(sc.size.length);
+    sc.dy = new Float32Array(sc.size.length);
+    sc.dx[center] = 0.5;
+    sc.warpMax = 0.5;
+    const out = renderHalftone(one);
+    expect(px(out, 18, 12)).toEqual([0, 0, 0]);
+    expect(px(out, 12, 12)).toEqual([255, 255, 255]);
+    expect(halftoneToSvg(one)).toContain('<circle cx="6" cy="0" r="3"/>');
+  });
+
+  it('网格扰动：点挪出自己的格子后，渲染会多看几圈邻格把它找回来', () => {
+    // 36×12 的画布三个格子，只留最左边那颗点并把它整整右挪一格：没有多看邻格的话中间格子里就找不到它
+    const g = buildHalftone(flatSource(36, 12, 0), opts({ pitchX: 12, pitchY: 12, size: 0.5, minSize: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    const s = g.screens[0];
+    const t = gridTransform(36, 12, s);
+    const idxAt = (x: number) => {
+      const [u, v] = t.toGrid(x, 6);
+      return (Math.floor(v) - s.j0) * s.cols + (Math.floor(u) - s.i0);
+    };
+    const left = idxAt(6);
+    for (let k = 0; k < s.size.length; k++) if (k !== left) s.size[k] = 0;
+    s.dx = new Float32Array(s.size.length);
+    s.dy = new Float32Array(s.size.length);
+    s.dx[left] = 1;
+    s.warpMax = 1;
+    const out = renderHalftone(g);
+    expect(px(out, 18, 6)).toEqual([0, 0, 0]);
+    expect(px(out, 6, 6)).toEqual([255, 255, 255]);
+    expect(px(out, 30, 6)).toEqual([255, 255, 255]);
+  });
+
+  it('流水线：网格扰动能出图，Yellow Pop 预设带涟漪', () => {
+    const params = { ...defaultParams(), 'style.type': 'halftone', 'canvas.width': 48, 'canvas.height': 24, 'screen.pitchX': 6, 'screen.pitchY': 6, 'screen.warp': 'ripple', 'screen.warpAmount': 60 };
+    const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), params);
+    expect(out.width).toBe(48);
+    const p = new Pipeline();
+    p.run(makeFrame(64, 40, () => [128, 128, 128]), 'a', params);
+    expect(p.currentHalftone!.screens[0].dx).toBeDefined();
+    p.run(makeFrame(64, 40, () => [128, 128, 128]), 'a', { ...params, 'screen.warp': 'none' });
+    expect(p.lastStats.recomputed).toEqual(['halftone', 'render']);
+    expect(p.currentHalftone!.screens[0].dx).toBeUndefined();
   });
 
   it('流水线：形状选「符号」能出图，CMYK 四层各挑各的符号', () => {

@@ -15,12 +15,14 @@ export {
   type GlyphRampKind,
   type GlyphAssignOptions,
 } from './glyphs';
+export { buildWarp, type WarpKind, type WarpSettings, type WarpField } from './warp';
 export {
   buildHalftone,
   coverageToSize,
   gainedCoverage,
   gridTransform,
   cellCenter,
+  dotOffset,
   baseRadius,
   lineHalfWidth,
   glyphHalfStroke,

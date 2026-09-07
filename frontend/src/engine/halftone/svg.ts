@@ -1,4 +1,4 @@
-import { baseRadius, cellCenter, countDots, glyphHalfStroke, glyphSpan, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
+import { baseRadius, cellCenter, countDots, dotOffset, glyphHalfStroke, glyphSpan, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
 import { glyphSvg } from './glyphs';
 import { ROUND_SQUARE_CORNER, shapeVertices } from './shapes';
 
@@ -85,7 +85,10 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
         const idx = jj * screen.cols + ii;
         const sz = screen.size[idx];
         if (sz <= 0) continue;
-        const [cx, cy] = cellCenter(screen, screen.i0 + ii, j);
+        const [cx0, cy0] = cellCenter(screen, screen.i0 + ii, j);
+        const [ox, oy] = dotOffset(screen, idx);
+        const cx = cx0 + ox;
+        const cy = cy0 + oy;
         const color = screen.color ? hex(screen.color.subarray(idx * 3, idx * 3 + 3)) : '';
         const fill = color ? ` fill="${color}"` : '';
         if (glyphs) {

@@ -43,6 +43,7 @@ export const GLYPH_RAMP_OPTIONS: ParamOption[] = [
 ];
 
 const onGlyph = { id: 'halftone.shape', equals: 'glyph' };
+const warpOn = { id: 'screen.warp', in: ['ripple', 'wave', 'noise', 'jitter'] };
 
 /**
  * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
@@ -504,6 +505,19 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     default: 'square',
     options: [opt('square', '方格'), opt('hex', '交错')],
   },
+  // 网格扰动：把每颗点从格心推开一点，规则网格成了被水波推歪的网。位移以格为单位（强度 100% 最多挪一格），换间距不用重调；
+  // 采样跟着点走，光栅与 SVG 用同一份位移。涟漪是几处中心的圆形波（干涉出弧线，海报那种），波浪是几道平面波，流动是噪声场，随机是每点独立挪位。
+  {
+    id: 'screen.warp',
+    group: 'screen',
+    label: '网格扰动',
+    type: 'select',
+    default: 'none',
+    options: [opt('none', '无'), opt('ripple', '涟漪'), opt('wave', '波浪'), opt('noise', '流动'), opt('jitter', '随机')],
+  },
+  { id: 'screen.warpAmount', group: 'screen', label: '扰动强度', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%', visibleWhen: warpOn },
+  { id: 'screen.warpScale', group: 'screen', label: '波长', type: 'number', min: 2, max: 64, step: 1, default: 12, unit: '格', visibleWhen: { id: 'screen.warp', in: ['ripple', 'wave', 'noise'] } },
+  { id: 'screen.warpSeed', group: 'screen', label: '扰动种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: warpOn, advanced: true },
   { id: 'screen.offsetX', group: 'screen', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
   { id: 'screen.offsetY', group: 'screen', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
 

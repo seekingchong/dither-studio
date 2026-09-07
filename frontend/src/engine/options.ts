@@ -7,6 +7,7 @@ import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './rend
 import type { HatchLink, HatchOptions } from './render/hatch';
 import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
 import type { GlyphRampKind } from './halftone/glyphs';
+import type { WarpKind } from './halftone/warp';
 import type { HalftoneShape } from './halftone/shapes';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
@@ -178,6 +179,10 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       glyphMix: num(params, 'halftone.glyphMix') / 100,
       glyphAccent: num(params, 'halftone.glyphAccent') / 100,
       glyphSeed: Math.round(num(params, 'halftone.glyphSeed')),
+      warp: str(params, 'screen.warp') as WarpKind,
+      warpAmount: num(params, 'screen.warpAmount') / 100,
+      warpScale: num(params, 'screen.warpScale'),
+      warpSeed: Math.round(num(params, 'screen.warpSeed')),
     },
     grid: {
       dot: str(params, 'grid.dot') as DotShape,

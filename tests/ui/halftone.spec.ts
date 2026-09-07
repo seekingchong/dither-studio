@@ -222,6 +222,18 @@ test('网点：符号预设露出符号序列等参数，换回圆形收起，SV
   await expect(page.locator('[data-param="screen.pitchY"] input[type="range"]')).toHaveValue('13');
   await page.locator('[data-preset="ht-yellow-pop"]').click();
   await expect(page.locator('[data-param="ink.paper"] input[type="text"]')).toHaveValue('#FFF200');
+  // Yellow Pop 的网格带涟漪扰动：强度 / 波长跟着露出，「基础」摘要写着扰动；换成「无」就收起
+  await expect(page.locator('[data-param="screen.warp"] .tda-select__value')).toHaveText('涟漪');
+  await expect(page.locator('[data-param="screen.warpAmount"] input[type="range"]')).toHaveValue('60');
+  await expect(page.locator('[data-param="screen.warpScale"] input[type="range"]')).toHaveValue('12');
+  await page.locator('[data-section="basic"] .section__toggle').click();
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('圆形 · 14px · 0° · 涟漪扰动');
+  await page.locator('[data-section="basic"] .section__toggle').click();
+  await pick(page, 'screen.warp', '随机');
+  await expect(page.locator('[data-param="screen.warpScale"]')).toHaveCount(0);
+  await expect(page.locator('[data-param="screen.warpAmount"]')).toBeVisible();
+  await pick(page, 'screen.warp', '无');
+  await expect(page.locator('[data-param="screen.warpAmount"]')).toHaveCount(0);
 
   // 导出帧：符号是 <line> / 描边 <circle>，线粗与圆头写在 <g> 上
   await page.locator('[data-preset="ht-symbols"]').click();

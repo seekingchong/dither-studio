@@ -627,21 +627,26 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: HT,
   },
-  // 参考图三：音乐节海报——正置方格上的黑色圆点，亮处只剩针尖小点，主体处大点几乎相接，亮黄底
+  // 参考图三：音乐节海报——黑色圆点配亮黄底，点不在齐整的方格上：网格被几处圆形波推歪，亮部的小点沿干涉弧线排开，
+  // 主体处大点相接读成一块；亮处只剩针尖小点
   {
     id: 'ht-yellow-pop',
     name: 'Yellow Pop',
-    hint: '黑色圆点配亮黄底，亮处针尖小点，主体大点相接',
+    hint: '涟漪推歪的黑圆点配亮黄底，小点排成弧线，主体大点相接',
     params: {
       'style.type': 'halftone',
       'halftone.shape': 'circle',
       'halftone.size': 96,
-      'halftone.minSize': 8,
+      'halftone.minSize': 5,
       'halftone.mapping': 'area',
       'halftone.gain': 10,
-      'screen.pitchX': 15,
-      'screen.pitchY': 15,
+      'screen.pitchX': 14,
+      'screen.pitchY': 14,
       'screen.angle': 0,
+      'screen.warp': 'ripple',
+      'screen.warpAmount': 60,
+      'screen.warpScale': 12,
+      'screen.warpSeed': 1,
       'ink.dot': '#111111',
       'ink.paper': '#FFF200',
       'tone.contrast': 20,
