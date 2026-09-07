@@ -161,9 +161,11 @@ Worker 那边的源帧和最后一帧由 `RendererProvider` 跟着撤。
 主窗口有现成的直接给、正在导的把进度再报一次；之后的更新由主窗口主动推。主进程那边给两扇窗都关掉了
 `backgroundThrottling`，免得主窗口被预览窗口盖住之后定时器被节流、导出拖慢。
 
-设计稿里的图标是导出的 SVG 资源，构建环境访问不到 Figma 的资源域名，所以按项目自己的图标画法
-（1.5px 线、currentColor）重画了一遍，外框与内容尺寸对齐设计稿。颜色 / 字体全走 `tokens.css` ——
-这张画板与本项目用的是同一套 TDC 设计系统，令牌一一对得上。
+图标全部是设计稿里的矢量原样导出（Figma Plugin API `exportAsync` 的 SVG 字符串，路径一笔不改，
+放在 `ui/interface-preview/glyphs.tsx`），填色改成 currentColor 交给 CSS 用令牌上色；头像是设计稿里的照片，
+按 2 倍导出成 `avatar.png`。选中条目右端是 `icon/slash`，条目上还停着设计稿里那只手形指针（Cursor/hover）。
+颜色 / 字体全走 `tokens.css` —— 这张画板与本项目用的是同一套 TDC 设计系统，令牌一一对得上
+（0.2 / 0.3 的墨色、0.03 / 0.05 的灰底、品牌橙）；只有导航条点簇的 #AEB1B8 令牌表里没有，照原样写。
 
 左栏自上而下三层，顺序固定：
 
