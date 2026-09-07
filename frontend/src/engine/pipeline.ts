@@ -9,6 +9,8 @@ import { colorDither } from './dither/color';
 import { resolveAlgorithm } from './dither/registry';
 import type { AlgorithmDef, DitherInput } from './dither/types';
 import { applyEffects, parseStack } from './effects/stack';
+import { toneMapOf } from './effects/tone';
+import type { ToneBins, ToneMap } from './effects/types';
 import { keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
 import { backgroundMask, backgroundTarget, forceBackgroundGray, forceBackgroundRgb, isLightBackground } from './preprocess/background';
 import { fitFrame } from './preprocess/fit';
@@ -88,6 +90,8 @@ interface ScreenSpec {
   prefixes: string[];
   build(src: HalftoneSource): HalftoneGeometry;
   stage: string;
+  /** 这种风格自己怎么分阶，交给特效阶段的明暗分布沿用 */
+  bins: ToneBins;
 }
 
 /** 一次运行里各阶段共享的记账 */
@@ -149,10 +153,10 @@ export class Pipeline {
     if (opts.style === 'halftone' || opts.style === 'glyph') {
       const spec: ScreenSpec =
         opts.style === 'halftone'
-          ? { cache: this.ht, pitchX: opts.halftone.pitchX, pitchY: opts.halftone.pitchY, prefixes: ['halftone.', 'screen.', 'ink.'], build: (src) => buildHalftone(src, opts.halftone), stage: 'halftone' }
-          : { cache: this.gl, pitchX: opts.glyph.pitchX, pitchY: opts.glyph.pitchY, prefixes: ['glyph.', 'tile.'], build: (src) => buildGlyphScreen(src, opts.glyph), stage: 'glyph' };
-      const rendered = this.runScreen(params, opts, fitKey, ctx, spec);
-      const output = this.finish(rendered, this.fitted.value, params, ctx);
+          ? { cache: this.ht, pitchX: opts.halftone.pitchX, pitchY: opts.halftone.pitchY, prefixes: ['halftone.', 'screen.', 'ink.'], build: (src) => buildHalftone(src, opts.halftone), stage: 'halftone', bins: 'round' }
+          : { cache: this.gl, pitchX: opts.glyph.pitchX, pitchY: opts.glyph.pitchY, prefixes: ['glyph.', 'tile.'], build: (src) => buildGlyphScreen(src, opts.glyph), stage: 'glyph', bins: 'floor' };
+      const { rendered, tone } = this.runScreen(params, opts, fitKey, ctx, spec);
+      const output = this.finish(rendered, this.fitted.value, params, ctx, tone);
       this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: false };
       return output;
     }
@@ -221,24 +225,32 @@ export class Pipeline {
       };
     }
 
+    // 交给特效阶段的明暗分布：量化前的灰度按格子映射到画布，分阶规则沿用风格自己的（抖动四舍五入、排线等宽分档）
+    const bins: ToneBins = hatch ? 'floor' : 'round';
+    const tone: Cached<ToneMap> = {
+      key: `${forcedKey}|tone=${cellW}x${cellH}@${opts.pixel.offsetX},${opts.pixel.offsetY}|${bins}`,
+      value: toneMapOf(this.forced.value, cellW, cellH, opts.pixel.offsetX, opts.pixel.offsetY, bins),
+    };
+
     if (hatch) this.runHatch(params, opts, this.forced.value, forcedKey, ctx);
     else this.runDither(params, opts, palette, bg, bgKey, toneKey, forcedKey, ctx);
 
-    const output = this.finish(this.rendered!, this.fitted.value, params, ctx);
+    const output = this.finish(this.rendered!, this.fitted.value, params, ctx, tone);
     this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: ctx.gpu };
     return output;
   }
 
   /**
    * 渲染之后的收尾：特效栈（独立缓存）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本）。
-   * 特效能拿到适配画布后的原图（「叠加原图」用它当背景）；渲染键里已经含源帧与画布参数，换素材或换帧时特效缓存自然失效。
+   * 特效能拿到适配画布后的原图（「叠加原图」用它当背景）与量化前的明暗分布（「灰度块描边」沿格子边描线）；
+   * 渲染键里已经含源帧与画布参数，换素材或换帧时特效缓存自然失效。
    */
-  private finish(rendered: Cached<RGBAFrame>, source: RGBAFrame, params: Params, ctx: RunContext): RGBAFrame {
+  private finish(rendered: Cached<RGBAFrame>, source: RGBAFrame, params: Params, ctx: RunContext, tone: Cached<ToneMap>): RGBAFrame {
     const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
-    const effectsKey = `${rendered.key}|${stackJson}`;
+    const effectsKey = `${rendered.key}|${tone.key}|${stackJson}`;
     if (this.effected?.key !== effectsKey) {
       const stack = parseStack(stackJson);
-      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { source }) : rendered.value;
+      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { source, tone: tone.value }) : rendered.value;
       this.effected = { key: effectsKey, value };
       if (value !== rendered.value) ctx.recomputed.push('effects');
     }
@@ -251,7 +263,7 @@ export class Pipeline {
    * 影调在这张小图上做，然后每个格子在自己范围里超采样求平均明暗（与颜色），换成网点大小或符号。
    * 强制背景沿用抖动那套蒙版逻辑，只是目标亮度不再按级数取整（网点是连续的）。
    */
-  private runScreen(params: Params, opts: PipelineOptions, fitKey: string, ctx: RunContext, spec: ScreenSpec): Cached<RGBAFrame> {
+  private runScreen(params: Params, opts: PipelineOptions, fitKey: string, ctx: RunContext, spec: ScreenSpec): { rendered: Cached<RGBAFrame>; tone: Cached<ToneMap> } {
     this.hatch = undefined;
     const c = spec.cache;
     const sample = halftoneSampleSize(spec.pitchX, spec.pitchY);
@@ -294,6 +306,8 @@ export class Pipeline {
       }
       gray = c.forced.value;
     }
+    // 交给特效阶段的明暗分布：这张小图一像素就是画布上 sample × sample 的一块
+    const tone: Cached<ToneMap> = { key: `${grayKey}${bgKey}|tone=${sample}|${spec.bins}`, value: toneMapOf(gray, sample, sample, 0, 0, spec.bins) };
 
     const geometryKey = `${grayKey}${bgKey}|${keyOf(params, ...spec.prefixes)}|${opts.canvas.width}x${opts.canvas.height}`;
     if (c.geometry?.key !== geometryKey) {
@@ -315,7 +329,7 @@ export class Pipeline {
       c.rendered = { key: geometryKey, value: renderHalftone(c.geometry.value) };
       ctx.recomputed.push('render');
     }
-    return c.rendered;
+    return { rendered: c.rendered, tone };
   }
 
   /** 最近一次网点 / 符号运行的网格几何（SVG 导出用）；上一次跑的是抖动或排线时为空 */

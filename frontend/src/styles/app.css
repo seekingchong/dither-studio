@@ -1678,6 +1678,72 @@ body.is-resizing * {
   text-align: center;
 }
 
+/* 灰度块描边的逐阶开关：占满一整行，一阶一枚芯片（明暗色块 + 序号），按下的阶描边、抬起的不描 */
+.level-mask {
+  grid-column: 1 / -1;
+  height: auto;
+  min-height: var(--tda-control-height);
+  padding-block: 5px;
+  align-items: flex-start;
+}
+
+.level-mask .tda-field__label {
+  line-height: 28px;
+}
+
+.level-mask__chips {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tda-spacing-2xs);
+}
+
+.level-mask__chip {
+  height: 28px;
+  padding: 0 8px 0 5px;
+  border-radius: var(--tda-radius-sm);
+  border: 1px solid var(--tda-color-border);
+  background: var(--tda-color-white);
+  color: var(--tda-color-text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--tda-font-family-latin);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+  cursor: pointer;
+}
+
+.level-mask__chip:hover {
+  background: var(--tda-color-control-subtle);
+}
+
+.level-mask__chip:focus-visible {
+  outline: 1px solid var(--tda-color-text-primary);
+  outline-offset: -1px;
+}
+
+.level-mask__chip[aria-pressed='true'] {
+  border-color: var(--tda-color-text-primary);
+}
+
+.level-mask__chip[aria-pressed='false'] {
+  color: var(--tda-color-text-disabled);
+}
+
+.level-mask__chip[aria-pressed='false'] .level-mask__swatch {
+  opacity: 0.3;
+}
+
+.level-mask__swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--tda-radius-xs);
+  border: 1px solid var(--tda-color-border);
+}
+
 /* ---------- 播放控制 ---------- */
 
 .transport {
