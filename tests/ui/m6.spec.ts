@@ -43,7 +43,7 @@ test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) 
   await expect(page.getByTestId('effects-editor')).toContainText('还没有特效');
   // 特效选项全部露出为芯片，不是下拉
   const chips = page.getByTestId('effects-add').getByRole('button');
-  await expect(chips).toHaveCount(9);
+  await expect(chips).toHaveCount(10);
   await expect(page.locator('[data-param="effects.add"]')).toHaveCount(0);
   const base = await canvasHash(page);
 

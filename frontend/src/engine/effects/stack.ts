@@ -1,7 +1,7 @@
 import type { ParamValue } from '@/params';
 import type { RGBAFrame } from '../types';
 import { EFFECT_DEFS, getEffectDef } from './defs';
-import type { EffectDef, EffectInstance, EffectParamValues } from './types';
+import type { EffectContext, EffectDef, EffectInstance, EffectParamValues } from './types';
 
 /** 按定义把实例参数收敛到合法值 */
 export function coerceEffectParams(def: EffectDef, input: unknown): EffectParamValues {
@@ -66,14 +66,14 @@ export function serializeStack(stack: EffectInstance[]): string {
   return stack.length === 0 ? '' : JSON.stringify(stack);
 }
 
-/** 依次应用启用的特效 */
-export function applyEffects(frame: RGBAFrame, stack: EffectInstance[]): RGBAFrame {
+/** 依次应用启用的特效；ctx 带上原图等素材，需要的特效（叠加原图）自己取用 */
+export function applyEffects(frame: RGBAFrame, stack: EffectInstance[], ctx: EffectContext = {}): RGBAFrame {
   let current = frame;
   for (const inst of stack) {
     if (!inst.enabled) continue;
     const def = getEffectDef(inst.type);
     if (!def) continue;
-    current = def.apply(current, inst.params);
+    current = def.apply(current, inst.params, ctx);
   }
   return current;
 }
