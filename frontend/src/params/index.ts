@@ -3,7 +3,7 @@ import type { ParamDef, ParamValue, Params, StyleKind, VisibleWhen } from './typ
 
 export * from './types';
 export * from './help';
-export { PARAM_SCHEMA, DITHER_FAMILIES, STYLE_KINDS, GROUP_STYLE, HALFTONE_SHAPES, GLYPH_RAMP_OPTIONS } from './schema';
+export { PARAM_SCHEMA, DITHER_FAMILIES, STYLE_KINDS, GROUP_STYLE, HALFTONE_SHAPES, GLYPH_RAMP_OPTIONS, GLYPH_SHAPE_OPTIONS, GLYPH_COLOR_MODES, glyphShapeId, glyphColorId } from './schema';
 
 const byId = new Map<string, ParamDef>(PARAM_SCHEMA.map((p) => [p.id, p]));
 
@@ -34,7 +34,7 @@ function matchCondition(cond: VisibleWhen, params: Params): boolean {
 /** 当前参数所选的艺术风格 */
 export function styleOf(params: Params | Partial<Params>): StyleKind {
   const v = params['style.type'];
-  return v === 'hatch' || v === 'halftone' ? v : 'dither';
+  return v === 'hatch' || v === 'halftone' || v === 'glyph' ? v : 'dither';
 }
 
 export function isParamVisible(def: ParamDef, params: Params): boolean {

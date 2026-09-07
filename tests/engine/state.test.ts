@@ -3,6 +3,7 @@ import { PARAM_SCHEMA, defaultParams, getParamDef, sanitizeParams } from '@/para
 import {
   BUILTIN_PRESETS,
   DEFAULT_PRESET_ID,
+  GLYPH_DEFAULT_PRESET_ID,
   HALFTONE_DEFAULT_PRESET_ID,
   HISTORY_COALESCE_MS,
   HISTORY_LIMIT,
@@ -205,7 +206,11 @@ describe('预设与设置', () => {
     expect(BUILTIN_PRESETS[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('dither')[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('halftone').length).toBe(14);
+    expect(builtinPresetsOf('halftone').length).toBe(12);
+    expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
+    expect(builtinPresetsOf('glyph').length).toBe(11);
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-typewriter');
     for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
     // 网点的默认露出自己的全部分组与共用分组，不露出抖动 / 排线专属的
     const halftoneDefault = findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!;
@@ -214,6 +219,13 @@ describe('预设与设置', () => {
     }
     expect(isParamExposed(getParamDef('dither.family'), halftoneDefault.exposes)).toBe(false);
     expect(isParamExposed(getParamDef('hatch.angle'), halftoneDefault.exposes)).toBe(false);
+    // 符号的默认同理
+    const glyphDefault = findBuiltinPreset(GLYPH_DEFAULT_PRESET_ID)!;
+    for (const id of ['glyph.ramp', 'glyph.shape1', 'glyph.color8', 'tile.pitchX', 'glyph.colorMode', 'tone.brightness', 'canvas.width', 'effects.stack']) {
+      expect(isParamExposed(getParamDef(id), glyphDefault.exposes), `符号默认应露出 ${id}`).toBe(true);
+    }
+    expect(isParamExposed(getParamDef('halftone.shape'), glyphDefault.exposes)).toBe(false);
+    expect(isParamExposed(getParamDef('screen.pitchX'), glyphDefault.exposes)).toBe(false);
     for (const preset of BUILTIN_PRESETS) {
       expect(preset.exposes.length).toBeGreaterThan(0);
       for (const id of Object.keys(preset.params)) {
@@ -226,7 +238,9 @@ describe('预设与设置', () => {
           ? ['dither.family', 'color.mode', 'pixel.size', 'canvas.width']
           : style === 'hatch'
             ? ['hatch.angle', 'hatch.spacingX', 'canvas.width']
-            : ['halftone.shape', 'screen.pitchX', 'ink.mode', 'canvas.width'];
+            : style === 'glyph'
+              ? ['glyph.ramp', 'glyph.levels', 'tile.pitchX', 'glyph.colorMode', 'canvas.width']
+              : ['halftone.shape', 'screen.pitchX', 'ink.mode', 'canvas.width'];
       for (const id of must) {
         expect(isParamExposed(getParamDef(id), preset.exposes), `${preset.id} 应露出 ${id}`).toBe(true);
       }
@@ -263,6 +277,12 @@ describe('预设与设置', () => {
     expect(presetStyleById('nope', [])).toBeNull();
     expect(summarizeParams(ht.params)).toBe('网点 · 线条 · 4×7px · 双色');
     expect(summarizeParams(builtinPresetParams(findBuiltinPreset('ht-cmyk')!))).toBe('网点 · 圆形 · 10px · CMYK 分色');
+    // 符号：序列 · 阶数 · 间距
+    expect(presetStyleById('glyph-sketch', [])).toBe('glyph');
+    expect(defaultPresetIdFor('glyph')).toBe(GLYPH_DEFAULT_PRESET_ID);
+    expect(summarizeParams(builtinPresetParams(findBuiltinPreset('glyph-typewriter')!))).toBe('符号 · 自定义 · 7 阶 · 11×13px');
+    expect(summarizeParams(builtinPresetParams(findBuiltinPreset('glyph-terminal')!))).toBe('符号 · 字符 · 8 阶 · 9×14px');
+    expect(summarizeParams(builtinPresetParams(findBuiltinPreset(GLYPH_DEFAULT_PRESET_ID)!))).toBe('符号 · 草图 · 5 阶 · 12px');
   });
 
   it('「已微调」只看当前风格看得见的参数', () => {
@@ -276,6 +296,10 @@ describe('预设与设置', () => {
     expect(paramsDiffer(a, { ...a, 'tone.brightness': 5 }, 'dither')).toBe(true);
     expect(paramsDiffer(a, { ...a, 'tone.brightness': 5 }, 'halftone')).toBe(true);
     expect(paramsDiffer(a, { ...a, 'hatch.angle': 5 }, 'halftone')).toBe(false);
+    // 符号的参数只在符号页签算
+    expect(paramsDiffer(a, { ...a, 'glyph.levels': 3 }, 'halftone')).toBe(false);
+    expect(paramsDiffer(a, { ...a, 'glyph.levels': 3 }, 'glyph')).toBe(true);
+    expect(paramsDiffer(a, { ...a, 'screen.angle': 3 }, 'glyph')).toBe(false);
   });
 
   it('用户预设与设置的存储校验', () => {

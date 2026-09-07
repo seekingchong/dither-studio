@@ -57,7 +57,7 @@ test('网点页签：自己的预设与分节，来回切换不丢参数，保�
 
   // 左栏页签：抖动 / 排线 / 网点 / 历史，默认在抖动
   const tabs = page.locator('.pane--params .pane-actions [role="tab"]');
-  await expect(tabs).toHaveText(['抖动', '排线', '网点', '历史']);
+  await expect(tabs).toHaveText(['抖动', '排线', '网点', '符号', '历史']);
   await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
   await page.getByRole('tab', { name: '网点' }).click();
   await expect(tabs.nth(2)).toHaveAttribute('aria-selected', 'true');
@@ -186,40 +186,19 @@ test('网点：形状、排列与融合都能切，撤销能跨风格页签回�
   await expect(page.getByRole('tab', { name: '网点' })).toHaveAttribute('aria-selected', 'true');
 });
 
-test('网点：符号预设露出符号序列等参数，换回圆形收起，SVG 出线段与描边', async ({ page }) => {
+test('网点：Yellow Pop 的涟漪扰动参数随扰动种类显隐，摘要带扰动', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '网点' }).click();
-  // 三个新预设排在折叠线以下，先展开卡片
+  // 形状里已没有「符号」——按明暗换符号的活归「符号」页签
+  await page.locator('[data-param="halftone.shape"]').click();
+  await expect(page.getByRole('option', { name: '符号', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('option', { name: '十字', exact: true })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  // Yellow Pop 排在折叠线以下，先展开卡片；Symbol Sketch / Typewriter 已不在这一页
   await page.getByTestId('preset-more').click();
-  await page.locator('[data-preset="ht-symbols"]').click();
-  await expect(page.locator('[data-preset="ht-symbols"]')).toHaveClass(/is-active/);
-  await expect(page.locator('[data-param="halftone.shape"] .tda-select__value')).toHaveText('符号');
-  // 形状是「符号」时多出符号序列、线粗、交界混合、点缀；自定义序列只在选「自定义」后出现
-  await expect(page.locator('[data-param="halftone.glyphRamp"] .tda-select__value')).toHaveText('草图');
-  await expect(page.locator('[data-param="halftone.glyphStroke"] input[type="range"]')).toHaveValue('12');
-  await expect(page.locator('[data-param="halftone.glyphMix"] input[type="range"]')).toHaveValue('35');
-  await expect(page.locator('[data-param="halftone.glyphAccent"] input[type="range"]')).toHaveValue('5');
-  await expect(page.locator('[data-param="halftone.glyphCustom"]')).toHaveCount(0);
-  await pick(page, 'halftone.glyphRamp', '自定义');
-  await expect(page.locator('[data-param="halftone.glyphCustom"] input')).toHaveValue('. / + # *');
-  await pick(page, 'halftone.glyphRamp', '打字机');
-  await expect(page.locator('[data-param="halftone.glyphCustom"]')).toHaveCount(0);
-  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Symbol Sketch · 已微调');
-  // 收起「网点」节，摘要带上符号序列
-  await page.locator('[data-section="dots"] .section__toggle').click();
-  await expect(page.locator('[data-section="dots"] .section__summary')).toHaveText('88% · 最小 28% · 5 档 · 符号 打字机');
-  await page.locator('[data-section="dots"] .section__toggle').click();
-  // 换回圆形：符号参数全部收起
-  await pick(page, 'halftone.shape', '圆形');
-  await expect(page.locator('[data-param="halftone.glyphRamp"]')).toHaveCount(0);
-  await expect(page.locator('[data-param="halftone.glyphStroke"]')).toHaveCount(0);
-
-  // 另两个新预设的卡片也在；Typewriter 是长方格，「横纵分开」自动打开
-  await page.locator('[data-preset="ht-typewriter"]').click();
-  await expect(page.locator('[data-param="screen.pitchX"] input[type="range"]')).toHaveValue('11');
-  await expect(page.locator('[data-param="screen.pitchY"] input[type="range"]')).toHaveValue('13');
+  await expect(page.locator('[data-preset="ht-symbols"]')).toHaveCount(0);
+  await expect(page.locator('[data-preset="ht-typewriter"]')).toHaveCount(0);
   await page.locator('[data-preset="ht-yellow-pop"]').click();
   await expect(page.locator('[data-param="ink.paper"] input[type="text"]')).toHaveValue('#FFF200');
   // Yellow Pop 的网格带涟漪扰动：强度 / 波长跟着露出，「基础」摘要写着扰动；换成「无」就收起
@@ -234,15 +213,5 @@ test('网点：符号预设露出符号序列等参数，换回圆形收起，SV
   await expect(page.locator('[data-param="screen.warpAmount"]')).toBeVisible();
   await pick(page, 'screen.warp', '无');
   await expect(page.locator('[data-param="screen.warpAmount"]')).toHaveCount(0);
-
-  // 导出帧：符号是 <line> / 描边 <circle>，线粗与圆头写在 <g> 上
-  await page.locator('[data-preset="ht-symbols"]').click();
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
-  const svgDownload = page.waitForEvent('download');
-  await page.getByTestId('export-svg').click();
-  const svg = readFileSync((await (await svgDownload).path())!, 'utf8');
-  expect(svg).toMatch(/<g [^>]*stroke-linecap="round"/);
-  expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(100);
-  expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThan(100);
-  expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });

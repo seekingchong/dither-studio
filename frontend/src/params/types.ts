@@ -1,9 +1,12 @@
 export type ParamValue = number | string | boolean;
 
-export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'hatch' | 'halftone' | 'screen' | 'ink';
+export type ParamGroup = 'style' | 'canvas' | 'pixel' | 'tone' | 'dither' | 'color' | 'grid' | 'effects' | 'hatch' | 'halftone' | 'screen' | 'ink' | 'glyph' | 'tile';
 
-/** 艺术风格：抖动（现有整条抖动流水线）、排线（斜线粗细表现明暗）或网点（规则网格上按明暗放大缩小的点） */
-export type StyleKind = 'dither' | 'hatch' | 'halftone';
+/**
+ * 艺术风格：抖动（现有整条抖动流水线）、排线（斜线粗细表现明暗）、网点（规则网格上按明暗放大缩小的点）
+ * 或符号（同样的网格，但用格子里画的形状区分明暗）
+ */
+export type StyleKind = 'dither' | 'hatch' | 'halftone' | 'glyph';
 
 export interface ParamOption {
   value: string;
@@ -27,6 +30,8 @@ interface ParamBase {
   visibleWhen?: VisibleWhen | VisibleWhen[];
   /** 折叠在"更多"里，默认不露出 */
   advanced?: boolean;
+  /** 由专用编辑器渲染（如符号风格每一阶的形状与颜色），不在参数栅格里单独出现 */
+  custom?: boolean;
 }
 
 export interface NumberParam extends ParamBase {

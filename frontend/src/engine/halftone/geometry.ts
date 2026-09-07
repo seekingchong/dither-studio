@@ -1,12 +1,12 @@
 import { rgbToCmyk } from '../color/cmyk';
 import { srgbToLinearFast } from '../color/srgb';
-import { assignGlyphs, resolveGlyphRamp, type GlyphRampKind } from './glyphs';
 import type { HalftoneShape } from './shapes';
 import { buildWarp, type WarpSettings } from './warp';
 
 /**
  * Halftone 的几何层：把画面切成一张（或 CMYK 四张）网格，每个格子采样它盖住的那块画面，
  * 算出这一格网点的大小（和颜色）。渲染与 SVG 导出都吃这份数据，所以光栅与矢量出自同一套几何。
+ * 「符号」风格（`glyphScreen.ts`）用同一套网格、采样与数据结构，只是每格存的是符号而不是大小。
  */
 
 export type LatticeKind = 'square' | 'hex';
@@ -39,13 +39,6 @@ export interface HalftoneSettings extends WarpSettings {
   /** 网点色与底色 0..255 */
   dot: [number, number, number];
   paper: [number, number, number];
-  /** 符号网点（shape = 'glyph'）：符号序列、自定义序列文本、线粗（占格子短边 0..1）、交界混合 0..1、点缀密度 0..1、种子 */
-  glyphRamp: GlyphRampKind;
-  glyphCustom: string;
-  glyphStroke: number;
-  glyphMix: number;
-  glyphAccent: number;
-  glyphSeed: number;
 }
 
 export const DEFAULT_HALFTONE: HalftoneSettings = {
@@ -67,12 +60,6 @@ export const DEFAULT_HALFTONE: HalftoneSettings = {
   mode: 'mono',
   dot: [17, 25, 45],
   paper: [255, 255, 255],
-  glyphRamp: 'sketch',
-  glyphCustom: '',
-  glyphStroke: 0.12,
-  glyphMix: 0.35,
-  glyphAccent: 0.05,
-  glyphSeed: 1,
   warp: 'none',
   warpAmount: 0.4,
   warpScale: 12,
@@ -110,9 +97,9 @@ export interface HalftoneScreen {
   rows: number;
   /** 每格网点大小（相对格子的倍率 0..1.5），0 表示这一格不画 */
   size: Float32Array;
-  /** 每格网点颜色 0..255（原图色模式） */
+  /** 每格网点颜色 0..255（原图色模式，或符号风格的分级配色） */
   color?: Uint8ClampedArray;
-  /** 每格的符号编码（符号网点；`GLYPH_IDS` 的下标，0 是空） */
+  /** 每格的符号编码（符号风格；`GLYPH_IDS` 的下标，0 是空） */
   glyph?: Uint8Array;
   /** 网格扰动：每格网点离格子中心的位移，沿网格 x / y 轴，单位是格；没扰动时缺省 */
   dx?: Float32Array;
@@ -131,7 +118,7 @@ export interface HalftoneGeometry {
   paper: [number, number, number];
   merge: number;
   antialias: boolean;
-  /** 符号网点的线粗，占格子短边 0..1 */
+  /** 符号风格的线粗，占格子短边 0..1；网点风格不用，为 0 */
   glyphStroke: number;
   screens: HalftoneScreen[];
 }
@@ -260,7 +247,7 @@ function screenExtent(width: number, height: number, t: GridTransform): { i0: nu
  * 回调拿到每格的平均亮度与（可选的）平均颜色，返回墨量数组（一格可对应多层墨，如 CMYK 四层）。
  * 网格扰动时格子跟着网点一起挪：采样范围以挪开后的位置为中心，点画在哪就采哪一块画面。
  */
-function sampleScreen(
+export function sampleScreen(
   src: HalftoneSource,
   t: GridTransform,
   lattice: LatticeKind,
@@ -312,51 +299,39 @@ function sampleScreen(
   }
 }
 
+/** 一张网格的布局：间距、角度、排列、偏移与扰动，网点与符号两种风格共用 */
+export type ScreenLayout = Pick<HalftoneSettings, 'pitchX' | 'pitchY' | 'angle' | 'lattice' | 'offsetX' | 'offsetY'> & WarpSettings;
+
+/** 按布局铺一张空网格：算好格子范围、变换与扰动位移，大小数组全零，等采样填 */
+export function createScreen(width: number, height: number, layout: ScreenLayout, ink: [number, number, number]): { screen: HalftoneScreen; t: GridTransform } {
+  const spec = { angle: layout.angle, pitchX: Math.max(1, layout.pitchX), pitchY: Math.max(1, layout.pitchY), offsetX: layout.offsetX, offsetY: layout.offsetY };
+  const t = gridTransform(width, height, spec);
+  const extent = screenExtent(width, height, t);
+  const screen: HalftoneScreen = {
+    ...spec,
+    lattice: layout.lattice,
+    ...extent,
+    size: new Float32Array(extent.cols * extent.rows),
+    ink,
+  };
+  const warp = buildWarp(extent, (j) => rowShift(layout.lattice, j), layout);
+  if (warp) {
+    screen.dx = warp.dx;
+    screen.dy = warp.dy;
+    screen.warpMax = warp.max;
+  }
+  return { screen, t };
+}
+
 /** 从采样源与选项算出全部网格。mono / source 一张网格，cmyk 四张（各自的网线角度）。 */
 export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): HalftoneGeometry {
   const { width, height } = src;
   const screens: HalftoneScreen[] = [];
-  const makeScreen = (angle: number, ink: [number, number, number]): { screen: HalftoneScreen; t: GridTransform } => {
-    const spec = { angle, pitchX: Math.max(1, opts.pitchX), pitchY: Math.max(1, opts.pitchY), offsetX: opts.offsetX, offsetY: opts.offsetY };
-    const t = gridTransform(width, height, spec);
-    const extent = screenExtent(width, height, t);
-    const screen: HalftoneScreen = {
-      ...spec,
-      lattice: opts.lattice,
-      ...extent,
-      size: new Float32Array(extent.cols * extent.rows),
-      ink,
-    };
-    const warp = buildWarp(extent, (j) => rowShift(opts.lattice, j), opts);
-    if (warp) {
-      screen.dx = warp.dx;
-      screen.dy = warp.dy;
-      screen.warpMax = warp.max;
-    }
-    return { screen, t };
-  };
-
-  // 符号网点：采样时顺手记下每格加过增益的墨量，采完按它分档挑符号
-  const glyphs = opts.shape === 'glyph';
-  const coverageOf = (screen: HalftoneScreen) => (glyphs ? new Float32Array(screen.cols * screen.rows).fill(-1) : undefined);
-  const finish = (screen: HalftoneScreen, coverage?: Float32Array) => {
-    if (coverage) {
-      screen.glyph = assignGlyphs(screen, coverage, screen.size, {
-        ramp: resolveGlyphRamp(opts.glyphRamp, opts.glyphCustom),
-        mix: opts.glyphMix,
-        accent: opts.glyphAccent,
-        seed: opts.glyphSeed,
-        size: opts.size,
-      });
-    }
-    screens.push(screen);
-  };
 
   if (opts.mode === 'cmyk') {
-    const made = CMYK_ANGLES.map((a, k) => makeScreen((opts.angle + a) % 360, CMYK_INKS[k]));
+    const made = CMYK_ANGLES.map((a, k) => createScreen(width, height, { ...opts, angle: (opts.angle + a) % 360 }, CMYK_INKS[k]));
     // 四层共用一套采样比较浪费，但每层网格角度不同，格子盖住的画面也不同，只能各采各的
     made.forEach(({ screen, t }, k) => {
-      const coverage = coverageOf(screen);
       sampleScreen(src, t, opts.lattice, screen, true, (index, _gray, r, g, b) => {
         if (src.linear) {
           r = srgbToLinearFast(r);
@@ -365,28 +340,25 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
         }
         const cmyk = rgbToCmyk(clamp01(r), clamp01(g), clamp01(b));
         screen.size[index] = coverageToSize(cmyk[k], opts);
-        if (coverage) coverage[index] = gainedCoverage(cmyk[k], opts.gain);
       });
-      finish(screen, coverage);
+      screens.push(screen);
     });
   } else {
-    const { screen, t } = makeScreen(opts.angle, opts.dot);
+    const { screen, t } = createScreen(width, height, opts, opts.dot);
     const wantColor = opts.mode === 'source';
     if (wantColor) screen.color = new Uint8ClampedArray(screen.cols * screen.rows * 3);
-    const coverage = coverageOf(screen);
     sampleScreen(src, t, opts.lattice, screen, wantColor, (index, gray, r, g, b) => {
       screen.size[index] = coverageToSize(1 - gray, opts);
-      if (coverage) coverage[index] = gainedCoverage(1 - gray, opts.gain);
       if (screen.color) {
         screen.color[index * 3] = r * 255;
         screen.color[index * 3 + 1] = g * 255;
         screen.color[index * 3 + 2] = b * 255;
       }
     });
-    finish(screen, coverage);
+    screens.push(screen);
   }
 
-  return { width, height, shape: opts.shape, mode: opts.mode, paper: opts.paper, merge: opts.merge, antialias: opts.antialias, glyphStroke: opts.glyphStroke, screens };
+  return { width, height, shape: opts.shape, mode: opts.mode, paper: opts.paper, merge: opts.merge, antialias: opts.antialias, glyphStroke: 0, screens };
 }
 
 /** 网点大小 100% 对应的半径（画布像素）：线条按格高，其余按格子短边 */
@@ -399,7 +371,7 @@ export function lineHalfWidth(screen: Pick<HalftoneScreen, 'pitchX'>, extra = 0.
   return screen.pitchX / 2 + extra;
 }
 
-/** 符号网点里线的半粗（画布像素）：线粗按格子短边的比例算，再细也留 0.35px，免得小格子上看不见 */
+/** 符号风格里线的半粗（画布像素）：线粗按格子短边的比例算，再细也留 0.35px，免得小格子上看不见 */
 export function glyphHalfStroke(stroke: number, screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>): number {
   return Math.max((stroke * Math.min(screen.pitchX, screen.pitchY)) / 2, 0.35);
 }
@@ -409,7 +381,7 @@ export function glyphSpan(screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>, ext
   return [screen.pitchX / 2 + extra, screen.pitchY / 2 + extra];
 }
 
-/** 有多少个要画的网点（SVG 导出估算文件规模用）；符号网点里的「空」不算 */
+/** 有多少个要画的网点（SVG 导出估算文件规模用）；符号风格里的「空」不算 */
 export function countDots(g: HalftoneGeometry): number {
   let n = 0;
   for (const s of g.screens) for (let k = 0; k < s.size.length; k++) if (s.size[k] > 0 && (!s.glyph || s.glyph[k] !== 0)) n++;

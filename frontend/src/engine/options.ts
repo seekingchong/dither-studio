@@ -1,4 +1,4 @@
-import { bool, num, str, styleOf, type Params, type StyleKind } from '@/params';
+import { bool, glyphColorId, glyphShapeId, num, str, styleOf, type Params, type StyleKind } from '@/params';
 import { parseAccentColors, type AccentOptions, type AccentPlacement, type AccentTarget } from './color/accent';
 import type { ChannelSpace, ColorMode } from './color/map';
 import { parseColorList } from './color/palettes';
@@ -6,7 +6,8 @@ import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { HatchLink, HatchOptions } from './render/hatch';
 import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
-import type { GlyphRampKind } from './halftone/glyphs';
+import { isGlyphId, type GlyphId } from './halftone/glyphs';
+import { clampLevels, GLYPH_MAX_LEVELS, type GlyphColorMode, type GlyphRampKind, type GlyphSettings } from './halftone/glyphScreen';
 import type { WarpKind } from './halftone/warp';
 import type { HalftoneShape } from './halftone/shapes';
 import type { GrayFormula } from './color/gray';
@@ -17,7 +18,7 @@ import type { ResampleMethod } from './preprocess/resample';
 
 /** 从扁平参数表整理出各阶段的强类型选项 */
 export interface PipelineOptions {
-  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染，网点走逐格采样 → 网点几何 → 光栅 */
+  /** 艺术风格：抖动走原有的抖动 → 颜色 → 网格三段，排线走明暗分档 → 笔画渲染，网点 / 符号走逐格采样 → 网格几何 → 光栅 */
   style: StyleKind;
   canvas: { width: number; height: number; fit: FitMode };
   pixel: { size: number; method: ResampleMethod; offsetX: number; offsetY: number };
@@ -41,6 +42,7 @@ export interface PipelineOptions {
   };
   hatch: HatchOptions;
   halftone: HalftoneSettings;
+  glyph: GlyphSettings;
   grid: {
     dot: DotShape;
     dotSize: number;
@@ -58,6 +60,8 @@ export interface PipelineOptions {
     bgDotSize: number;
   };
 }
+
+const LEVELS = Array.from({ length: GLYPH_MAX_LEVELS }, (_, i) => i + 1);
 
 export function toPipelineOptions(params: Params): PipelineOptions {
   const mode = str(params, 'color.mode') as ColorMode;
@@ -173,16 +177,39 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       mode: str(params, 'ink.mode') as InkMode,
       dot: hexToRgb(str(params, 'ink.dot')),
       paper: hexToRgb(str(params, 'ink.paper')),
-      glyphRamp: str(params, 'halftone.glyphRamp') as GlyphRampKind,
-      glyphCustom: str(params, 'halftone.glyphCustom'),
-      glyphStroke: num(params, 'halftone.glyphStroke') / 100,
-      glyphMix: num(params, 'halftone.glyphMix') / 100,
-      glyphAccent: num(params, 'halftone.glyphAccent') / 100,
-      glyphSeed: Math.round(num(params, 'halftone.glyphSeed')),
       warp: str(params, 'screen.warp') as WarpKind,
       warpAmount: num(params, 'screen.warpAmount') / 100,
       warpScale: num(params, 'screen.warpScale'),
       warpSeed: Math.round(num(params, 'screen.warpSeed')),
+    },
+    glyph: {
+      ramp: str(params, 'glyph.ramp') as GlyphRampKind,
+      levels: clampLevels(num(params, 'glyph.levels')),
+      shapes: LEVELS.map((k): GlyphId => {
+        const v = str(params, glyphShapeId(k));
+        return isGlyphId(v) ? v : 'dot';
+      }),
+      size: num(params, 'glyph.size') / 100,
+      taper: num(params, 'glyph.taper') / 100,
+      stroke: num(params, 'glyph.stroke') / 100,
+      mix: num(params, 'glyph.mix') / 100,
+      accent: num(params, 'glyph.accent') / 100,
+      seed: Math.round(num(params, 'glyph.seed')),
+      antialias: bool(params, 'glyph.antialias'),
+      pitchX: Math.max(1, num(params, 'tile.pitchX')),
+      pitchY: Math.max(1, num(params, 'tile.pitchY')),
+      angle: num(params, 'tile.angle'),
+      lattice: str(params, 'tile.lattice') as LatticeKind,
+      offsetX: num(params, 'tile.offsetX'),
+      offsetY: num(params, 'tile.offsetY'),
+      warp: str(params, 'tile.warp') as WarpKind,
+      warpAmount: num(params, 'tile.warpAmount') / 100,
+      warpScale: num(params, 'tile.warpScale'),
+      warpSeed: Math.round(num(params, 'tile.warpSeed')),
+      colorMode: str(params, 'glyph.colorMode') as GlyphColorMode,
+      ink: hexToRgb(str(params, 'glyph.ink')),
+      colors: LEVELS.map((k) => hexToRgb(str(params, glyphColorId(k)))),
+      paper: hexToRgb(str(params, 'glyph.paper')),
     },
     grid: {
       dot: str(params, 'grid.dot') as DotShape,

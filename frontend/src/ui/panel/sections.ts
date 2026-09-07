@@ -1,5 +1,5 @@
-import { FAMILY_PARAM, type DitherFamily } from '@/engine';
-import { bool, getParamDef, num, str, styleOf, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
+import { FAMILY_PARAM, GLYPH_MAX_LEVELS, type DitherFamily } from '@/engine';
+import { bool, getParamDef, glyphColorId, num, str, styleOf, type ParamDef, type ParamGroup, type Params, type StyleKind } from '@/params';
 
 export interface SectionMeta {
   id: string;
@@ -41,7 +41,18 @@ export interface CellPair {
 export const CELL_PAIRS: Readonly<Partial<Record<StyleKind, CellPair>>> = {
   hatch: { id: 'hatch.cell', x: 'hatch.spacingX', y: 'hatch.spacingY' },
   halftone: { id: 'screen.cell', x: 'screen.pitchX', y: 'screen.pitchY' },
+  glyph: { id: 'tile.cell', x: 'tile.pitchX', y: 'tile.pitchY' },
 };
+
+/** 网点 / 符号的「基础」摘要里网格那一截：间距 · 角度（· 交错）（· 扰动） */
+function gridSummary(p: Params, pitchX: string, pitchY: string, angle: string, lattice: string, warp: string): string[] {
+  const px = num(p, pitchX);
+  const py = num(p, pitchY);
+  const parts = [px === py ? `${px}px` : `${px} × ${py}px`, `${num(p, angle)}°`];
+  if (str(p, lattice) === 'hex') parts.push('交错');
+  if (str(p, warp) !== 'none') parts.push(`${optionLabel(warp, p)}扰动`);
+  return parts;
+}
 
 /** 这种风格的像素尺寸由哪两个参数合成；抖动本来就只有一个 `pixel.size`，没有 */
 export function cellPairOf(style: StyleKind): CellPair | undefined {
@@ -60,8 +71,9 @@ export function cellSummary(p: Params, pair: CellPair): string {
  * 每节默认展开、可单独收起，收起时显示当前值摘要，几节的关系一眼可见。
  * 「颜色」紧跟「基础」：颜色模式就在「基础」那一排里选，细节挨着它才接得上，影调再往后。
  * 排线风格多一节「笔画」，紧跟「基础」——角度 / 间距 / 色阶在「基础」定大方向，这一节管每一笔长什么样；
- * 网点风格同理多一节「网点」——形状与网格在「基础」，这一节管点的大小、分级与融合。
- * 抖动风格下它们没有可见参数，自动不出现，「网格」在排线 / 网点下同理。
+ * 网点风格同理多一节「网点」——形状与网格在「基础」，这一节管点的大小、分级与融合；
+ * 符号风格多一节「符号」——序列、阶数与网格在「基础」，这一节是每一阶的形状与颜色表，再加大小、线粗与混合。
+ * 抖动风格下它们没有可见参数，自动不出现，「网格」在排线 / 网点 / 符号下同理。
  * 画布尺寸 / 适配不在这里，在预览区右上角的「画布」菜单里。
  */
 export const SECTIONS: SectionMeta[] = [
@@ -73,17 +85,17 @@ export const SECTIONS: SectionMeta[] = [
         ? '角度是笔画朝向，像素尺寸是格子大小，色阶是粗细分几档——这三样定排线的大方向。想要长方格就打开「横纵分开」。每一笔长什么样在下一节「笔画」。'
         : styleOf(p) === 'halftone'
           ? '网点形状定一颗点长什么样，像素尺寸、角度、排列定点排在哪——这几样定网点的大方向。想要长方格就打开「横纵分开」。点的大小、分级与融合在下一节「网点」。'
-          : '算法族决定风格的大方向，颜色模式决定用几种颜色，像素尺寸决定颗粒粗细。下面的参数随所选算法族变化。',
-    groups: ['dither', 'pixel', 'screen'],
+          : styleOf(p) === 'glyph'
+            ? '符号序列定用哪一套符号，灰阶定画面分成几阶（一阶一种符号），像素尺寸、角度、排列定符号排在哪。想要长方格就打开「横纵分开」。每一阶具体画什么、什么颜色在下一节「符号」。'
+            : '算法族决定风格的大方向，颜色模式决定用几种颜色，像素尺寸决定颗粒粗细。下面的参数随所选算法族变化。',
+    groups: ['dither', 'pixel', 'screen', 'tile'],
     summary: (p) => {
       if (styleOf(p) === 'hatch') return `排线 · ${num(p, 'hatch.angle')}° · ${cellSummary(p, CELL_PAIRS.hatch!)}`;
       if (styleOf(p) === 'halftone') {
-        const px = num(p, 'screen.pitchX');
-        const py = num(p, 'screen.pitchY');
-        const parts = [optionLabel('halftone.shape', p), px === py ? `${px}px` : `${px} × ${py}px`, `${num(p, 'screen.angle')}°`];
-        if (str(p, 'screen.lattice') === 'hex') parts.push('交错');
-        if (str(p, 'screen.warp') !== 'none') parts.push(`${optionLabel('screen.warp', p)}扰动`);
-        return parts.join(' · ');
+        return [optionLabel('halftone.shape', p), ...gridSummary(p, 'screen.pitchX', 'screen.pitchY', 'screen.angle', 'screen.lattice', 'screen.warp')].join(' · ');
+      }
+      if (styleOf(p) === 'glyph') {
+        return [optionLabel('glyph.ramp', p), `${num(p, 'glyph.levels')} 阶`, ...gridSummary(p, 'tile.pitchX', 'tile.pitchY', 'tile.angle', 'tile.lattice', 'tile.warp')].join(' · ');
       }
       const family = str(p, 'dither.family') as DitherFamily;
       const algorithmId = FAMILY_PARAM[family];
@@ -116,8 +128,22 @@ export const SECTIONS: SectionMeta[] = [
       if (bool(p, 'halftone.stepped')) parts.push(`${num(p, 'halftone.levels')} 档`);
       const merge = num(p, 'halftone.merge');
       if (merge > 0) parts.push(`融合 ${merge}%`);
-      if (str(p, 'halftone.shape') === 'glyph') parts.push(`符号 ${optionLabel('halftone.glyphRamp', p)}`);
       return parts.join(' · ');
+    },
+  },
+  {
+    id: 'glyphs',
+    label: '符号',
+    hint: '每一阶画什么：从亮到暗一行一阶，点形状换符号（推荐序列按墨量排好，改任何一阶就成自定义），点色块改这一阶的颜色。下面是所有阶共用的大小、线粗与交界混合。',
+    groups: ['glyph'],
+    summary: (p) => {
+      const parts = [`${num(p, 'glyph.levels')} 阶`, `${num(p, 'glyph.size')}%`];
+      const taper = num(p, 'glyph.taper');
+      if (taper > 0) parts.push(`亮部缩小 ${taper}%`);
+      parts.push(`线粗 ${num(p, 'glyph.stroke')}%`);
+      const mix = num(p, 'glyph.mix');
+      if (mix > 0) parts.push(`混合 ${mix}%`);
+      return join(parts, '');
     },
   },
   {
@@ -128,10 +154,20 @@ export const SECTIONS: SectionMeta[] = [
         ? '排线只用两种颜色：前景色是笔画，背景色是纸。色块可以点开改颜色或直接输入色值；想要浅线深底就把两色对调，再到「影调」里打开反相。'
         : styleOf(p) === 'halftone'
           ? '网点色与底色。原图色让每颗点带上那一块画面的颜色；CMYK 把画面分成青品黄黑四层网点，按印刷角度叠印。想要亮点配深底就把两色对调，再到「影调」里打开反相。'
-          : '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、两端色、调色板、分通道，以及在结果上撒跳色的强调层。色块可以点开改颜色或直接输入色值。',
+          : styleOf(p) === 'glyph'
+            ? '统一色是所有符号一种颜色；分级配色每一阶各一种，色块从亮到暗一阶一块，「符号」节的阶梯表里也能改；原图色让每个符号带上那一块画面的颜色。想要亮符号配深底就把颜色和背景对调，再到「影调」里打开反相。'
+            : '颜色模式在「基础」里选，这里是所选模式的细节：灰阶级数、两端色、调色板、分通道，以及在结果上撒跳色的强调层。色块可以点开改颜色或直接输入色值。',
     groups: ['color', 'ink'],
     summary: (p) => {
       if (styleOf(p) === 'hatch') return `${str(p, 'hatch.ink')} / ${str(p, 'hatch.paper')}`;
+      if (styleOf(p) === 'glyph') {
+        const mode = str(p, 'glyph.colorMode');
+        const parts = [optionLabel('glyph.colorMode', p)];
+        if (mode === 'mono') parts.push(str(p, 'glyph.ink'));
+        else if (mode === 'levels') parts.push(`${num(p, 'glyph.levels')} 色`);
+        parts.push(str(p, 'glyph.paper'));
+        return parts.join(' · ');
+      }
       if (styleOf(p) === 'halftone') {
         const mode = str(p, 'ink.mode');
         const parts = [optionLabel('ink.mode', p)];
@@ -224,9 +260,16 @@ export function sectionHint(meta: SectionMeta, params: Params): string {
 
 /**
  * 按名单跨节摆放的参数：排线的前景 / 背景色在数据上属 `hatch` 分组（随预设一起露出），
- * 面板上却该和抖动的两端色一样待在「颜色」里。
+ * 面板上却该和抖动的两端色一样待在「颜色」里；符号的颜色模式、统一色、各阶颜色与背景色同理。
  */
-export const PINNED: Readonly<Record<string, string>> = { 'hatch.ink': 'color', 'hatch.paper': 'color' };
+export const PINNED: Readonly<Record<string, string>> = {
+  'hatch.ink': 'color',
+  'hatch.paper': 'color',
+  'glyph.colorMode': 'color',
+  'glyph.ink': 'color',
+  'glyph.paper': 'color',
+  ...Object.fromEntries(Array.from({ length: GLYPH_MAX_LEVELS }, (_, k) => [glyphColorId(k + 1), 'color'])),
+};
 
 const sectionOfGroup = new Map<ParamGroup, string>();
 for (const meta of SECTIONS) for (const group of meta.groups) sectionOfGroup.set(group, meta.id);
@@ -241,12 +284,14 @@ export function sectionOf(def: ParamDef, leads: ReadonlySet<string>): string | u
  * 「基础」最前面这几个参数原来是 tab 之上单独一排"快捷参数"：算法族、当前族的算法、
  * 颜色模式、像素尺寸。tab 拆掉后它们整排并进「基础」，顺序不变，末尾补上降采样。
  * 颜色模式归在 color 分组，靠这份名单被拉到「基础」，不在「颜色」里重复出现。
- * 排线风格下领头的是角度、横纵间距、色阶——排线的"算法"就是这几样；网点风格下是形状、横纵间距、角度、排列。
+ * 排线风格下领头的是角度、横纵间距、色阶——排线的"算法"就是这几样；网点风格下是形状、横纵间距、角度、排列；
+ * 符号风格下是序列、灰阶、横纵间距、角度、排列。
  * 横纵间距在面板上合成一个「像素尺寸」（`CELL_PAIRS`），数据与分节归属仍按这两个参数算。
  */
 export function leadParamIds(params: Params): string[] {
   if (styleOf(params) === 'hatch') return ['hatch.angle', 'hatch.spacingX', 'hatch.spacingY', 'hatch.levels', 'pixel.method'];
   if (styleOf(params) === 'halftone') return ['halftone.shape', 'screen.pitchX', 'screen.pitchY', 'screen.angle', 'screen.lattice'];
+  if (styleOf(params) === 'glyph') return ['glyph.ramp', 'glyph.levels', 'tile.pitchX', 'tile.pitchY', 'tile.angle', 'tile.lattice'];
   const family = str(params, 'dither.family') as DitherFamily;
   const algorithmId = FAMILY_PARAM[family];
   return ['dither.family', ...(algorithmId ? [algorithmId] : []), 'color.mode', 'pixel.size', 'pixel.method'];

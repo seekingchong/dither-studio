@@ -651,6 +651,157 @@ body.is-resizing * {
   outline: none;
 }
 
+/* ---------- 符号风格：阶梯表与符号选择器 ---------- */
+
+.glyph-levels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-xs);
+}
+
+/* 一行一阶：明暗色块 · 名字 · 形状按钮（与下拉同框同高）· 颜色色块 */
+.glyph-level {
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-sm);
+  min-height: var(--tda-control-height);
+}
+
+.glyph-level__tone {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--tda-radius-xs);
+  border: 1px solid var(--tda-color-border);
+}
+
+.glyph-level__name {
+  flex: none;
+  width: 58px;
+  color: var(--tda-color-text-tertiary);
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.glyph-level__tag {
+  font-size: var(--tda-typography-label-size);
+  color: var(--tda-color-text-disabled);
+}
+
+.glyph-level__shape {
+  flex: 1;
+  min-width: 0;
+  height: var(--tda-control-height);
+  padding: 0 var(--tda-control-padding-x);
+  border-radius: var(--tda-radius-md);
+  border: 1px solid var(--tda-color-border);
+  background: var(--tda-color-white);
+  color: var(--tda-color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--tda-spacing-xs);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+}
+
+.glyph-level__shape:hover,
+.glyph-level__shape.is-open {
+  background: var(--tda-color-control-subtle);
+}
+
+.glyph-level__shape:focus-visible {
+  outline: 1px solid var(--tda-color-text-primary);
+  outline-offset: -1px;
+}
+
+.glyph-level__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.glyph-level__color {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--tda-radius-sm);
+}
+
+.glyph-levels__note {
+  margin: var(--tda-spacing-2xs) 0 0;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+}
+
+.glyph-icon {
+  display: block;
+  flex: none;
+}
+
+.glyph-picker {
+  padding: var(--tda-spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-sm);
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.glyph-picker__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-2xs);
+}
+
+.glyph-picker__group-label {
+  margin: 0;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+}
+
+.glyph-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 36px);
+  gap: 4px;
+}
+
+.glyph-picker__item {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: var(--tda-radius-sm);
+  border: 1px solid transparent;
+  background: none;
+  color: var(--tda-color-text-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.glyph-picker__item:hover {
+  background: var(--tda-color-control-subtle);
+}
+
+/* 选中的符号：墨色描边，与预设卡片一致 */
+.glyph-picker__item.is-active {
+  border-color: var(--tda-color-text-primary);
+  box-shadow: inset 0 0 0 1px var(--tda-color-text-primary);
+}
+
+.glyph-picker__foot {
+  margin: 0;
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: var(--tda-typography-label-line);
+}
+
 /* ---------- 「原图」页的素材编辑条 ---------- */
 
 /* 编辑区整体挂在视口下面，与画面之间一条分隔线 */

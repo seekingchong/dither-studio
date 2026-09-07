@@ -2,93 +2,160 @@ import { hash2 } from '../util/random';
 import { shapeDistance } from './shapes';
 
 /**
- * 符号网点（`halftone.shape = 'glyph'`）：格子里画的不是同一种形状的放大缩小，而是按明暗从一串符号里挑一个——
- * 亮处是小点、中间调是斜线、暗处是十字与网格，像手绘的图例或打字机敲出来的字符画。
- * 每个符号由几条基本图元拼成（实心圆、圆圈、线段、三角），图元只有两种尺寸参照：
- * `r` 是这一格的网点半径（随明暗变化），"跨格"线段则以半格为单位、两头各多出半像素，让相邻格子的线连成一条。
+ * 符号库：「符号」风格（`style.type = glyph`）每个格子里画的图元。
+ * 格子里画的不是同一种形状的放大缩小，而是按明暗从一串符号里挑一个——亮处是小点、中间调是斜线、暗处是十字与网格，
+ * 像手绘的图例或打字机敲出来的字符画。
+ * 每个符号由几条基本图元拼成（实心圆、圆圈、线段、三角、方、菱、六边），图元只有两种尺寸参照：
+ * `r` 是这一格的符号半径（随灰阶变化），"跨格"线段则以半格为单位、两头各多出半像素，让相邻格子的线连成一条。
  * 所有图元都给出有符号距离，渲染与融合沿用网点那一套；SVG 导出用同一张表出 <circle> / <line> / <polygon>。
  */
 
 export type GlyphId =
+  // 点
   | 'blank'
+  | 'pip'
   | 'dot'
+  | 'colon'
+  | 'quad'
   | 'ring'
+  | 'ringdot'
+  // 线
+  | 'tick'
+  | 'minus'
   | 'dash'
   | 'bar'
   | 'slash'
   | 'backslash'
-  | 'x'
+  | 'equals'
+  | 'pipes'
   | 'plus'
+  | 'x'
+  | 'asterisk'
+  | 'star8'
   | 'hash'
+  | 'hashx'
+  | 'dotslash'
+  // 几何
   | 'tri'
   | 'triline'
+  | 'tridown'
+  | 'square'
+  | 'squareline'
+  | 'diamond'
+  | 'diamondline'
+  | 'hex'
+  | 'boxx'
+  | 'boxplus'
+  | 'circlex'
+  | 'circleplus'
+  // 字符
+  | 'one'
   | 'four'
   | 'six'
+  | 'seven'
+  | 'eight'
+  | 'oslash'
   | 'percent'
-  | 'dotslash';
+  | 'tee'
+  | 'el'
+  | 'vee'
+  | 'zed'
+  | 'en'
+  | 'em'
+  | 'aitch'
+  | 'ee'
+  | 'wye';
 
-/** 符号表的顺序就是格子里存的编码；0 是「空」，不画 */
-export const GLYPH_IDS: readonly GlyphId[] = ['blank', 'dot', 'ring', 'dash', 'bar', 'slash', 'backslash', 'x', 'plus', 'hash', 'tri', 'triline', 'four', 'six', 'percent', 'dotslash'];
+/** 符号的分类，符号选择器按它分组 */
+export type GlyphGroup = 'dots' | 'lines' | 'geometry' | 'chars';
+
+export interface GlyphInfo {
+  id: GlyphId;
+  label: string;
+  group: GlyphGroup;
+  /** 一句话：长什么样，解读浮层与选择器的提示用 */
+  desc: string;
+}
+
+/** 符号表的顺序就是格子里存的编码；0 是「空」，不画。老的 16 个排在最前，编码不变 */
+export const GLYPHS: readonly GlyphInfo[] = [
+  { id: 'blank', label: '空', group: 'dots', desc: '什么都不画，留出纸色' },
+  { id: 'dot', label: '圆点', group: 'dots', desc: '实心圆，占满符号大小' },
+  { id: 'ring', label: '圆圈', group: 'dots', desc: '空心圆，只有一圈线' },
+  { id: 'dash', label: '横线', group: 'lines', desc: '贯穿格子的横线，与左右邻格连成一条' },
+  { id: 'bar', label: '竖线', group: 'lines', desc: '贯穿格子的竖线，与上下邻格连成一条' },
+  { id: 'slash', label: '斜线', group: 'lines', desc: '左下到右上贯穿格子，邻格接成长斜线' },
+  { id: 'backslash', label: '反斜线', group: 'lines', desc: '左上到右下贯穿格子，邻格接成长斜线' },
+  { id: 'x', label: '叉', group: 'lines', desc: '两条贯穿格子的斜线交叉' },
+  { id: 'plus', label: '十字', group: 'lines', desc: '格子里的横竖两笔，不出格' },
+  { id: 'hash', label: '网格', group: 'lines', desc: '贯穿的横线加竖线，邻格连成网' },
+  { id: 'tri', label: '实心三角', group: 'geometry', desc: '尖朝上的实心三角' },
+  { id: 'triline', label: '三角框', group: 'geometry', desc: '尖朝上的空心三角' },
+  { id: 'four', label: '4', group: 'chars', desc: '打字机的数字 4' },
+  { id: 'six', label: '6', group: 'chars', desc: '打字机的数字 6' },
+  { id: 'percent', label: '%', group: 'chars', desc: '两个小圈夹一道斜线' },
+  { id: 'dotslash', label: '点线', group: 'lines', desc: '实心圆叠在贯穿的斜线上' },
+  { id: 'pip', label: '小点', group: 'dots', desc: '不到一半大的实心小圆' },
+  { id: 'colon', label: '双点', group: 'dots', desc: '上下两个小圆，像冒号' },
+  { id: 'quad', label: '四点', group: 'dots', desc: '四角各一个小圆' },
+  { id: 'ringdot', label: '靶心', group: 'dots', desc: '圆圈中间加一个小实心圆' },
+  { id: 'tick', label: '短竖', group: 'lines', desc: '格子中间一小段竖线' },
+  { id: 'minus', label: '短横', group: 'lines', desc: '格子里的一横，不出格' },
+  { id: 'equals', label: '双横', group: 'lines', desc: '上下两道短横，像等号' },
+  { id: 'pipes', label: '双竖', group: 'lines', desc: '左右两道短竖' },
+  { id: 'asterisk', label: '星号', group: 'lines', desc: '三笔穿过中心，六个芒' },
+  { id: 'star8', label: '八芒', group: 'lines', desc: '横竖斜四笔穿过中心' },
+  { id: 'hashx', label: '密网', group: 'lines', desc: '横竖斜反斜四条贯穿线，最密' },
+  { id: 'tridown', label: '倒三角', group: 'geometry', desc: '尖朝下的实心三角' },
+  { id: 'square', label: '实心方', group: 'geometry', desc: '实心方块' },
+  { id: 'squareline', label: '方框', group: 'geometry', desc: '空心方块' },
+  { id: 'diamond', label: '实心菱', group: 'geometry', desc: '实心菱形' },
+  { id: 'diamondline', label: '菱框', group: 'geometry', desc: '空心菱形' },
+  { id: 'hex', label: '六边形', group: 'geometry', desc: '实心正六边形' },
+  { id: 'boxx', label: '叉框', group: 'geometry', desc: '方框里打一个叉' },
+  { id: 'boxplus', label: '田', group: 'geometry', desc: '方框里加一个十字' },
+  { id: 'circlex', label: '圈叉', group: 'geometry', desc: '圆圈里打一个叉' },
+  { id: 'circleplus', label: '圈十', group: 'geometry', desc: '圆圈里加一个十字' },
+  { id: 'one', label: '1', group: 'chars', desc: '打字机的数字 1' },
+  { id: 'seven', label: '7', group: 'chars', desc: '打字机的数字 7' },
+  { id: 'eight', label: '8', group: 'chars', desc: '上下两个圈叠成 8' },
+  { id: 'oslash', label: 'Ø', group: 'chars', desc: '圆圈加一道斜线' },
+  { id: 'tee', label: 'T', group: 'chars', desc: '字母 T' },
+  { id: 'el', label: 'L', group: 'chars', desc: '字母 L' },
+  { id: 'vee', label: 'V', group: 'chars', desc: '字母 V' },
+  { id: 'zed', label: 'Z', group: 'chars', desc: '字母 Z' },
+  { id: 'en', label: 'N', group: 'chars', desc: '字母 N' },
+  { id: 'em', label: 'M', group: 'chars', desc: '字母 M' },
+  { id: 'aitch', label: 'H', group: 'chars', desc: '字母 H' },
+  { id: 'ee', label: 'E', group: 'chars', desc: '字母 E' },
+  { id: 'wye', label: 'Y', group: 'chars', desc: '字母 Y' },
+];
+
+export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
 
 export const GLYPH_CODE: Readonly<Record<GlyphId, number>> = Object.fromEntries(GLYPH_IDS.map((id, k) => [id, k])) as Record<GlyphId, number>;
 
-/** 自定义序列里可用的单字符简写 */
-export const GLYPH_ALIASES: Readonly<Record<string, GlyphId>> = {
-  _: 'blank',
-  '.': 'dot',
-  o: 'ring',
-  '-': 'dash',
-  '|': 'bar',
-  '/': 'slash',
-  '\\': 'backslash',
-  x: 'x',
-  '+': 'plus',
-  '#': 'hash',
-  '^': 'tri',
-  a: 'triline',
-  '4': 'four',
-  '6': 'six',
-  '%': 'percent',
-  '*': 'dotslash',
-};
+const infoById = new Map(GLYPHS.map((g) => [g.id, g]));
 
-/** 内置的符号序列：从亮到暗 */
-export type GlyphRampKind = 'sketch' | 'typewriter' | 'mesh' | 'marks' | 'custom';
-
-export const GLYPH_RAMPS: Readonly<Record<Exclude<GlyphRampKind, 'custom'>, readonly GlyphId[]>> = {
-  // 参考图：点阵天空 → 斜线 → 十字 → 网格 → 斜线上的大圆点
-  sketch: ['dot', 'slash', 'plus', 'hash', 'dotslash'],
-  // 打字机字符画：留白 → 横线 → 4 → 6 → % → 实心点 → 实心三角
-  typewriter: ['blank', 'dash', 'four', 'six', 'percent', 'dot', 'tri'],
-  // 线格：留白 → 斜线 → 交叉线 → 网格
-  mesh: ['blank', 'slash', 'x', 'hash'],
-  // 几何记号：留白 → 点 → 圆圈 → 三角框 → 实心三角
-  marks: ['blank', 'dot', 'ring', 'triline', 'tri'],
-};
-
-/**
- * 解析自定义序列：空格 / 逗号分隔的符号名或单字符简写（`. / + # *`），大小写不限，认不出的跳过；
- * 一个都认不出时退回「草图」那一串。
- */
-export function parseGlyphRamp(text: string): GlyphId[] {
-  const out: GlyphId[] = [];
-  for (const raw of text.split(/[\s,;，；]+/)) {
-    if (!raw) continue;
-    const tok = raw.toLowerCase();
-    if ((GLYPH_IDS as readonly string[]).includes(tok)) out.push(tok as GlyphId);
-    else if (GLYPH_ALIASES[tok]) out.push(GLYPH_ALIASES[tok]);
-  }
-  return out.length > 0 ? out : [...GLYPH_RAMPS.sketch];
+export function glyphInfo(id: GlyphId): GlyphInfo {
+  return infoById.get(id)!;
 }
 
-/** 当前设置下用的那一串符号 */
-export function resolveGlyphRamp(kind: GlyphRampKind, custom: string): GlyphId[] {
-  return kind === 'custom' ? parseGlyphRamp(custom) : [...GLYPH_RAMPS[kind]];
+export function isGlyphId(v: unknown): v is GlyphId {
+  return typeof v === 'string' && infoById.has(v as GlyphId);
 }
 
+export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
+  { id: 'dots', label: '点' },
+  { id: 'lines', label: '线' },
+  { id: 'geometry', label: '几何' },
+  { id: 'chars', label: '字符' },
+];
+
 /**
- * 图元。坐标单位：`c` / `o` / `s` 以网点半径 r 为 1（格子 100% 时 r 是半格）；
- * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。三角用网点形状里那个等边三角（尖朝上）。
+ * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `d` / `D` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
+ * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
+ * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -96,12 +163,25 @@ type Prim =
   | { k: 's'; x1: number; y1: number; x2: number; y2: number }
   | { k: 'S'; x1: number; y1: number; x2: number; y2: number }
   | { k: 't' }
-  | { k: 'T' };
+  | { k: 'T' }
+  | { k: 'v' }
+  | { k: 'q'; h: number }
+  | { k: 'Q'; h: number }
+  | { k: 'd' }
+  | { k: 'D' }
+  | { k: 'g' };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
 const BACKSLASH: Prim = { k: 'S', x1: -1, y1: -1, x2: 1, y2: 1 };
 const DASH: Prim = { k: 'S', x1: -1, y1: 0, x2: 1, y2: 0 };
 const BAR: Prim = { k: 'S', x1: 0, y1: -1, x2: 0, y2: 1 };
+const H: Prim = { k: 's', x1: -1, y1: 0, x2: 1, y2: 0 };
+const V: Prim = { k: 's', x1: 0, y1: -1, x2: 0, y2: 1 };
+const DIAG: Prim = { k: 's', x1: -0.85, y1: 0.85, x2: 0.85, y2: -0.85 };
+const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
+/** 方框的半边：留一点缝，相邻格子的方块不粘连 */
+const BOX = 0.85;
+const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
 
 const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   blank: [],
@@ -112,31 +192,70 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   slash: [SLASH],
   backslash: [BACKSLASH],
   x: [SLASH, BACKSLASH],
-  plus: [
-    { k: 's', x1: -1, y1: 0, x2: 1, y2: 0 },
-    { k: 's', x1: 0, y1: -1, x2: 0, y2: 1 },
-  ],
+  plus: [H, V],
   hash: [DASH, BAR],
   tri: [{ k: 't' }],
   triline: [{ k: 'T' }],
   // 打字机的 4：斜笔、横笔、竖笔
-  four: [
-    { k: 's', x1: 0.3, y1: -1, x2: -0.75, y2: 0.35 },
-    { k: 's', x1: -0.75, y1: 0.35, x2: 0.8, y2: 0.35 },
-    { k: 's', x1: 0.3, y1: -1, x2: 0.3, y2: 1 },
-  ],
+  four: [seg(0.3, -1, -0.75, 0.35), seg(-0.75, 0.35, 0.8, 0.35), seg(0.3, -1, 0.3, 1)],
   // 6：下面一个圈，左侧一笔往右上挑
-  six: [
-    { k: 'o', x: 0, y: 0.4, r: 0.6 },
-    { k: 's', x1: -0.55, y1: 0.2, x2: 0.45, y2: -1 },
-  ],
+  six: [{ k: 'o', x: 0, y: 0.4, r: 0.6 }, seg(-0.55, 0.2, 0.45, -1)],
   // %：两个小圈夹一条斜线
   percent: [
     { k: 'o', x: -0.55, y: -0.55, r: 0.4 },
     { k: 'o', x: 0.55, y: 0.55, r: 0.4 },
-    { k: 's', x1: 0.6, y1: -1, x2: -0.6, y2: 1 },
+    seg(0.6, -1, -0.6, 1),
   ],
   dotslash: [{ k: 'c', x: 0, y: 0, r: 1 }, SLASH],
+  pip: [{ k: 'c', x: 0, y: 0, r: 0.45 }],
+  colon: [
+    { k: 'c', x: 0, y: -0.55, r: 0.38 },
+    { k: 'c', x: 0, y: 0.55, r: 0.38 },
+  ],
+  quad: [
+    { k: 'c', x: -0.55, y: -0.55, r: 0.32 },
+    { k: 'c', x: 0.55, y: -0.55, r: 0.32 },
+    { k: 'c', x: -0.55, y: 0.55, r: 0.32 },
+    { k: 'c', x: 0.55, y: 0.55, r: 0.32 },
+  ],
+  ringdot: [
+    { k: 'o', x: 0, y: 0, r: 1 },
+    { k: 'c', x: 0, y: 0, r: 0.38 },
+  ],
+  tick: [seg(0, -0.5, 0, 0.5)],
+  minus: [H],
+  equals: [seg(-1, -0.45, 1, -0.45), seg(-1, 0.45, 1, 0.45)],
+  pipes: [seg(-0.45, -1, -0.45, 1), seg(0.45, -1, 0.45, 1)],
+  // 星号：三笔过中心，六个芒
+  asterisk: [V, seg(-0.866, -0.5, 0.866, 0.5), seg(-0.866, 0.5, 0.866, -0.5)],
+  star8: [H, V, DIAG, ANTI],
+  hashx: [DASH, BAR, SLASH, BACKSLASH],
+  tridown: [{ k: 'v' }],
+  square: [{ k: 'q', h: BOX }],
+  squareline: [{ k: 'Q', h: BOX }],
+  diamond: [{ k: 'd' }],
+  diamondline: [{ k: 'D' }],
+  hex: [{ k: 'g' }],
+  boxx: [{ k: 'Q', h: BOX }, seg(-BOX, -BOX, BOX, BOX), seg(-BOX, BOX, BOX, -BOX)],
+  boxplus: [{ k: 'Q', h: BOX }, seg(-BOX, 0, BOX, 0), seg(0, -BOX, 0, BOX)],
+  circlex: [{ k: 'o', x: 0, y: 0, r: 1 }, seg(-0.62, -0.62, 0.62, 0.62), seg(-0.62, 0.62, 0.62, -0.62)],
+  circleplus: [{ k: 'o', x: 0, y: 0, r: 1 }, seg(-0.85, 0, 0.85, 0), seg(0, -0.85, 0, 0.85)],
+  one: [seg(0, -1, 0, 1), seg(0, -1, -0.5, -0.55)],
+  seven: [seg(-0.7, -1, 0.7, -1), seg(0.7, -1, -0.15, 1)],
+  eight: [
+    { k: 'o', x: 0, y: -0.45, r: 0.55 },
+    { k: 'o', x: 0, y: 0.45, r: 0.55 },
+  ],
+  oslash: [{ k: 'o', x: 0, y: 0, r: 1 }, seg(-0.55, 0.9, 0.55, -0.9)],
+  tee: [seg(-0.8, -1, 0.8, -1), seg(0, -1, 0, 1)],
+  el: [seg(-0.6, -1, -0.6, 1), seg(-0.6, 1, 0.7, 1)],
+  vee: [seg(-0.8, -1, 0, 1), seg(0, 1, 0.8, -1)],
+  zed: [seg(-0.8, -1, 0.8, -1), seg(0.8, -1, -0.8, 1), seg(-0.8, 1, 0.8, 1)],
+  en: [seg(-0.7, 1, -0.7, -1), seg(-0.7, -1, 0.7, 1), seg(0.7, 1, 0.7, -1)],
+  em: [seg(-0.8, 1, -0.8, -1), seg(-0.8, -1, 0, 0.2), seg(0, 0.2, 0.8, -1), seg(0.8, -1, 0.8, 1)],
+  aitch: [seg(-0.7, -1, -0.7, 1), seg(0.7, -1, 0.7, 1), seg(-0.7, 0, 0.7, 0)],
+  ee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.7, -1), seg(-0.7, 0, 0.5, 0), seg(-0.7, 1, 0.7, 1)],
+  wye: [seg(-0.8, -1, 0, 0), seg(0.8, -1, 0, 0), seg(0, 0, 0, 1)],
 };
 
 /** 按编码取图元表 */
@@ -158,9 +277,12 @@ function segmentDistance(px: number, py: number, ax: number, ay: number, bx: num
 
 /** 圆圈的中线半径：外缘落在 r 上，太细时至少留一点 */
 const ringRadius = (r: number, hw: number) => Math.max(r - hw, 0.25);
+/** 方框 / 菱框 / 三角框的中线尺寸：往里缩一个半粗，外缘正好落在实心版的边上，描边版总比实心版墨少 */
+const frameHalf = (h: number, hw: number) => Math.max(h - hw, 0.25);
+const SQRT3 = 1.7320508075688772;
 
 /**
- * 符号距离场。(x, y) 是相对格子中心、沿网格坐标轴的画布像素；r 是这一格的网点半径；
+ * 符号距离场。(x, y) 是相对格子中心、沿网格坐标轴的画布像素；r 是这一格的符号半径；
  * hw 是线的半粗；spanX / spanY 是跨格线段的半长（半格 + 半像素）。「空」返回 +∞。
  */
 export function glyphDistance(code: number, x: number, y: number, r: number, hw: number, spanX: number, spanY: number): number {
@@ -192,7 +314,25 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
         dd = shapeDistance('triangle', x, y, r, 0);
         break;
       case 'T':
-        dd = Math.abs(shapeDistance('triangle', x, y, r, 0)) - hw;
+        dd = Math.abs(shapeDistance('triangle', x, y, frameHalf(r, hw * SQRT3), 0)) - hw;
+        break;
+      case 'v':
+        dd = shapeDistance('triangle', x, -y, r, 0);
+        break;
+      case 'q':
+        dd = shapeDistance('square', x, y, p.h * r, 0);
+        break;
+      case 'Q':
+        dd = Math.abs(shapeDistance('square', x, y, frameHalf(p.h * r, hw), 0)) - hw;
+        break;
+      case 'd':
+        dd = shapeDistance('diamond', x, y, r, 0);
+        break;
+      case 'D':
+        dd = Math.abs(shapeDistance('diamond', x, y, frameHalf(r, hw * Math.SQRT2), 0)) - hw;
+        break;
+      case 'g':
+        dd = shapeDistance('hexagon', x, y, r, 0);
         break;
     }
     if (dd < d) d = dd;
@@ -206,9 +346,28 @@ const f = (n: number) => {
   return s === '-0' ? '0' : s;
 };
 
+function trianglePoints(cx: number, cy: number, r: number, down: boolean): string {
+  const top = (2 * r) / SQRT3;
+  const base = r / SQRT3;
+  return down ? `${f(cx)},${f(cy + top)} ${f(cx + r)},${f(cy - base)} ${f(cx - r)},${f(cy - base)}` : `${f(cx)},${f(cy - top)} ${f(cx + r)},${f(cy + base)} ${f(cx - r)},${f(cy + base)}`;
+}
+
+function diamondPoints(cx: number, cy: number, r: number): string {
+  return `${f(cx)},${f(cy - r)} ${f(cx + r)},${f(cy)} ${f(cx)},${f(cy + r)} ${f(cx - r)},${f(cy)}`;
+}
+
+function hexagonPoints(cx: number, cy: number, r: number): string {
+  const pts: string[] = [];
+  for (let k = 0; k < 6; k++) {
+    const a = (Math.PI / 3) * k;
+    pts.push(`${f(cx + r * Math.cos(a))},${f(cy + r * Math.sin(a))}`);
+  }
+  return pts.join(' ');
+}
+
 /**
  * 符号的 SVG 图元：填充图形直接继承所在 <g> 的 fill；描边图形带 `fill="none"` 加 stroke，
- * 线粗与圆头写在 <g> 上。`fill` / `stroke` 是要附在元素上的属性串（原图色模式每颗点各自带色），可为空。
+ * 线粗与圆头写在 <g> 上。`fill` / `stroke` 是要附在元素上的属性串（原图色 / 分级配色时每颗点各自带色），可为空。
  */
 export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: number, spanX: number, spanY: number, fill: string, stroke: string): string[] {
   const out: string[] = [];
@@ -227,16 +386,75 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         out.push(`<line x1="${f(cx + p.x1 * spanX)}" y1="${f(cy + p.y1 * spanY)}" x2="${f(cx + p.x2 * spanX)}" y2="${f(cy + p.y2 * spanY)}"${stroke}/>`);
         break;
       case 't':
-      case 'T': {
-        const top = (2 * r) / Math.sqrt(3);
-        const base = r / Math.sqrt(3);
-        const points = `${f(cx)},${f(cy - top)} ${f(cx + r)},${f(cy + base)} ${f(cx - r)},${f(cy + base)}`;
-        out.push(p.k === 't' ? `<polygon points="${points}"${fill}/>` : `<polygon points="${points}" fill="none"${stroke}/>`);
+        out.push(`<polygon points="${trianglePoints(cx, cy, r, false)}"${fill}/>`);
+        break;
+      case 'T':
+        out.push(`<polygon points="${trianglePoints(cx, cy, frameHalf(r, hw * SQRT3), false)}" fill="none"${stroke}/>`);
+        break;
+      case 'v':
+        out.push(`<polygon points="${trianglePoints(cx, cy, r, true)}"${fill}/>`);
+        break;
+      case 'q': {
+        const h = p.h * r;
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
         break;
       }
+      case 'Q': {
+        const h = frameHalf(p.h * r, hw);
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" fill="none"${stroke}/>`);
+        break;
+      }
+      case 'd':
+        out.push(`<polygon points="${diamondPoints(cx, cy, r)}"${fill}/>`);
+        break;
+      case 'D':
+        out.push(`<polygon points="${diamondPoints(cx, cy, frameHalf(r, hw * Math.SQRT2))}" fill="none"${stroke}/>`);
+        break;
+      case 'g':
+        out.push(`<polygon points="${hexagonPoints(cx, cy, r)}"${fill}/>`);
+        break;
     }
   }
   return out;
+}
+
+/** 算覆盖率时的参照：格子 32px，符号大小 80%，线粗 12%（与「符号」风格的默认值一致） */
+const COVERAGE_PITCH = 32;
+const COVERAGE_SIZE = 0.8;
+const COVERAGE_STROKE = 0.12;
+const COVERAGE_GRID = 48;
+
+let coverageTable: Float32Array | null = null;
+
+/**
+ * 每种符号在默认大小与线粗下盖住格子的比例 0..1——「墨量」。选择器按它排序，
+ * 推荐序列也按它校验：亮的阶梯配墨少的符号，暗的配墨多的。第一次用时算一遍，之后查表。
+ */
+export function glyphCoverage(code: number): number {
+  if (!coverageTable) {
+    coverageTable = new Float32Array(GLYPH_IDS.length);
+    const r = (COVERAGE_PITCH / 2) * COVERAGE_SIZE;
+    const hw = Math.max((COVERAGE_STROKE * COVERAGE_PITCH) / 2, 0.35);
+    const span = COVERAGE_PITCH / 2 + 0.5;
+    const n = COVERAGE_GRID;
+    for (let c = 0; c < GLYPH_IDS.length; c++) {
+      let inside = 0;
+      for (let j = 0; j < n; j++) {
+        const y = ((j + 0.5) / n - 0.5) * COVERAGE_PITCH;
+        for (let i = 0; i < n; i++) {
+          const x = ((i + 0.5) / n - 0.5) * COVERAGE_PITCH;
+          if (glyphDistance(c, x, y, r, hw, span, span) < 0) inside++;
+        }
+      }
+      coverageTable[c] = inside / (n * n);
+    }
+  }
+  return coverageTable[code];
+}
+
+/** 全部符号按墨量从少到多排（「空」在最前） */
+export function glyphsByCoverage(): GlyphId[] {
+  return GLYPH_IDS.slice().sort((a, b) => glyphCoverage(GLYPH_CODE[a]) - glyphCoverage(GLYPH_CODE[b]));
 }
 
 /** 明暗档：墨量 0..1 落在 n 档里的第几档（0 最亮）；jitter 给交界处加一点随机，最多挪半档 */
@@ -248,33 +466,36 @@ export function glyphBand(coverage: number, n: number, jitter: number, noise: nu
 
 /** 点缀符号：交界处的概率是密度本身，成片区域里只留三成，免得铺满 */
 export const ACCENT_INTERIOR = 0.3;
-/** 点缀符号至少占格子多大（相对「网点大小」），亮处的小点旁边才看得出它是个圈 */
+/** 点缀符号至少占格子多大（相对「符号大小」），亮处的小点旁边才看得出它是个圈 */
 export const ACCENT_MIN_SIZE = 0.6;
 const ACCENT_CODES = [GLYPH_CODE.ring, GLYPH_CODE.triline];
 
 export interface GlyphAssignOptions {
+  /** 从亮到暗每一阶用的符号 */
   ramp: readonly GlyphId[];
   /** 交界混合 0..1 */
   mix: number;
   /** 点缀符号密度 0..1 */
   accent: number;
   seed: number;
-  /** 「网点大小」，点缀符号按它的一定比例撑大 */
-  size: number;
+}
+
+export interface GlyphAssignment {
+  /** 每格的符号编码（`GLYPH_IDS` 的下标，0 是空） */
+  glyph: Uint8Array;
+  /** 每格落在第几阶（0 最亮），−1 是没采到画面的格子 */
+  band: Int16Array;
+  /** 这一格是不是被点缀符号换掉了 */
+  accent: Uint8Array;
 }
 
 /**
- * 给一张网格的每个格子挑符号：按（加过增益的）墨量分档取序列里的那一个，交界处按 mix 随机互换；
+ * 给一张网格的每个格子挑符号：按墨量分档取序列里的那一个，交界处按 mix 随机互换；
  * 再按密度撒圆圈 / 三角框做点缀——多落在两档交界的格子上，「空」档上不撒。
- * `coverage` 每格一个墨量，−1 表示这一格没采到画面；`size` 是每格网点大小，点缀的格子会被撑大。
+ * `coverage` 每格一个墨量，−1 表示这一格没采到画面。
  * 用绝对格坐标 (i, j) 做哈希，画布变大、网格挪动时已有格子的符号不变。
  */
-export function assignGlyphs(
-  cells: { cols: number; rows: number; i0: number; j0: number },
-  coverage: Float32Array,
-  size: Float32Array,
-  opts: GlyphAssignOptions,
-): Uint8Array {
+export function assignGlyphs(cells: { cols: number; rows: number; i0: number; j0: number }, coverage: Float32Array, opts: GlyphAssignOptions): GlyphAssignment {
   const { cols, rows, i0, j0 } = cells;
   const n = opts.ramp.length;
   const codes = opts.ramp.map((id) => GLYPH_CODE[id]);
@@ -289,6 +510,7 @@ export function assignGlyphs(
     }
   }
   const glyph = new Uint8Array(cols * rows);
+  const accent = new Uint8Array(cols * rows);
   const blank = GLYPH_CODE.blank;
   for (let jj = 0; jj < rows; jj++) {
     for (let ii = 0; ii < cols; ii++) {
@@ -302,11 +524,11 @@ export function assignGlyphs(
         const p = opts.accent * (boundary ? 1 : ACCENT_INTERIOR);
         if (hash2(i0 + ii, j0 + jj, opts.seed + 101) < p) {
           code = ACCENT_CODES[hash2(i0 + ii, j0 + jj, opts.seed + 202) < 0.5 ? 0 : 1];
-          size[k] = Math.max(size[k], opts.size * ACCENT_MIN_SIZE);
+          accent[k] = 1;
         }
       }
       glyph[k] = code;
     }
   }
-  return glyph;
+  return { glyph, band, accent };
 }
