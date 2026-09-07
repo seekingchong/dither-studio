@@ -26,6 +26,17 @@ export interface HalftoneSettings {
   /** 点融合 0..1 */
   merge: number;
   antialias: boolean;
+  /**
+   * 暗部反白：墨量超过 holeStart 的格子翻成"黑底挖白孔"——底是一块 field 倍大的形状（大过格子，相邻的连成片，
+   * 黑区边缘因此是一串圆鼓），孔是同形状的白点，越暗越小，全黑处消失。参考日历海报那种点阵。
+   */
+  holes: boolean;
+  /** 从多少墨量起翻成白孔 0.05..0.95 */
+  holeStart: number;
+  /** 刚翻过来时白孔相对格子的大小 0..1 */
+  holeSize: number;
+  /** 白孔下面那块黑底相对格子的大小 1..2；≥ 1.42 时四角的缝完全闭合 */
+  field: number;
   /** 网格：中心距（画布像素）、角度（度）、排列、偏移（画布像素） */
   pitchX: number;
   pitchY: number;
@@ -49,6 +60,10 @@ export const DEFAULT_HALFTONE: HalftoneSettings = {
   levels: 6,
   merge: 0,
   antialias: true,
+  holes: false,
+  holeStart: 0.5,
+  holeSize: 0.5,
+  field: 1.5,
   pitchX: 12,
   pitchY: 12,
   angle: 0,
@@ -89,8 +104,10 @@ export interface HalftoneScreen {
   j0: number;
   cols: number;
   rows: number;
-  /** 每格网点大小（相对格子的倍率 0..1.5），0 表示这一格不画 */
+  /** 每格网点大小（相对格子的倍率 0..2），0 表示这一格不画 */
   size: Float32Array;
+  /** 暗部反白时每格白孔的大小（相对格子 0..1），0 表示没有孔；反白关着时整个缺省 */
+  hole?: Float32Array;
   /** 每格网点颜色 0..255（原图色模式） */
   color?: Uint8ClampedArray;
   /** 这一层的墨色 0..255 */
@@ -194,6 +211,37 @@ export function coverageToSize(coverage: number, opts: Pick<HalftoneSettings, 's
   return min + (max - min) * t;
 }
 
+/** 一格的网点：`size` 是黑点（或黑底）相对格子的大小，`hole` 是挖掉的白孔的大小，0 没有孔 */
+export interface CellDot {
+  size: number;
+  hole: number;
+}
+
+/**
+ * 墨量 0..1 → 一格的网点。暗部反白关着时就是 `coverageToSize`；
+ * 开着时墨量在 holeStart 之前照常长黑点（到 holeStart 刚好长到最大网点），过了 holeStart 翻成 field 倍大的黑底加白孔，
+ * 白孔从 holeSize 起按响应曲线缩小，全黑处缩到 0。增益与分级先作用在墨量上，两段共用。
+ */
+export function coverageToDot(coverage: number, opts: Pick<HalftoneSettings, 'size' | 'minSize' | 'mapping' | 'gain' | 'stepped' | 'levels' | 'holes' | 'holeStart' | 'holeSize' | 'field'>): CellDot {
+  if (!opts.holes) return { size: coverageToSize(coverage, opts), hole: 0 };
+  let c = clamp01(coverage);
+  if (opts.gain !== 0) c = Math.pow(c, Math.exp(-opts.gain * 1.5));
+  if (opts.stepped) {
+    const n = Math.max(2, Math.round(opts.levels)) - 1;
+    c = Math.round(c * n) / n;
+  }
+  const start = Math.min(0.95, Math.max(0.05, opts.holeStart));
+  const curve = (v: number) => (opts.mapping === 'area' ? Math.sqrt(v) : v);
+  if (c <= start) {
+    const max = opts.size;
+    const min = Math.min(opts.minSize, max);
+    return { size: min + (max - min) * curve(c / start), hole: 0 };
+  }
+  const v = (c - start) / (1 - start);
+  const hole = clamp01(opts.holeSize) * curve(1 - v);
+  return { size: Math.max(opts.field, opts.size), hole: hole > 1e-3 ? hole : 0 };
+}
+
 /** 一张网格覆盖画布所需的格子范围（多留一圈，交错排列的半格错位也在内） */
 function screenExtent(width: number, height: number, t: GridTransform): { i0: number; j0: number; cols: number; rows: number } {
   let umin = Infinity;
@@ -285,6 +333,7 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
       size: new Float32Array(extent.cols * extent.rows),
       ink,
     };
+    if (opts.holes) screen.hole = new Float32Array(extent.cols * extent.rows);
     return { screen, t };
   };
 
@@ -299,7 +348,9 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
           b = srgbToLinearFast(b);
         }
         const cmyk = rgbToCmyk(clamp01(r), clamp01(g), clamp01(b));
-        screen.size[index] = coverageToSize(cmyk[k], opts);
+        const dot = coverageToDot(cmyk[k], opts);
+        screen.size[index] = dot.size;
+        if (screen.hole) screen.hole[index] = dot.hole;
       });
       screens.push(screen);
     });
@@ -308,7 +359,9 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
     const wantColor = opts.mode === 'source';
     if (wantColor) screen.color = new Uint8ClampedArray(screen.cols * screen.rows * 3);
     sampleScreen(src, t, opts.lattice, screen, wantColor, (index, gray, r, g, b) => {
-      screen.size[index] = coverageToSize(1 - gray, opts);
+      const dot = coverageToDot(1 - gray, opts);
+      screen.size[index] = dot.size;
+      if (screen.hole) screen.hole[index] = dot.hole;
       if (screen.color) {
         screen.color[index * 3] = r * 255;
         screen.color[index * 3 + 1] = g * 255;
@@ -331,9 +384,12 @@ export function lineHalfWidth(screen: Pick<HalftoneScreen, 'pitchX'>, extra = 0.
   return screen.pitchX / 2 + extra;
 }
 
-/** 有多少个要画的网点（SVG 导出估算文件规模用） */
+/** 有多少个要画的网点（SVG 导出估算文件规模用）；暗部反白的白孔也各算一个图形 */
 export function countDots(g: HalftoneGeometry): number {
   let n = 0;
-  for (const s of g.screens) for (let k = 0; k < s.size.length; k++) if (s.size[k] > 0) n++;
+  for (const s of g.screens) {
+    for (let k = 0; k < s.size.length; k++) if (s.size[k] > 0) n++;
+    if (s.hole) for (let k = 0; k < s.hole.length; k++) if (s.hole[k] > 0) n++;
+  }
   return n;
 }

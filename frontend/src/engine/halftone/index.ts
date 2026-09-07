@@ -2,6 +2,7 @@ export { shapeDistance, shapeVertices, HALFTONE_SHAPE_IDS, type HalftoneShape } 
 export {
   buildHalftone,
   coverageToSize,
+  coverageToDot,
   gridTransform,
   cellCenter,
   baseRadius,
@@ -12,6 +13,7 @@ export {
   CMYK_INKS,
   CELL_SAMPLES,
   type HalftoneSettings,
+  type CellDot,
   type HalftoneSource,
   type HalftoneScreen,
   type HalftoneGeometry,

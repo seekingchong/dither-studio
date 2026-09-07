@@ -5,6 +5,7 @@ import {
   Pipeline,
   buildHalftone,
   countDots,
+  coverageToDot,
   coverageToSize,
   DEFAULT_HALFTONE,
   gridTransform,
@@ -104,6 +105,29 @@ describe('墨量 → 网点大小', () => {
     expect(sizes.size).toBe(4);
     expect([...sizes].sort().map((v) => Math.round(v * 1e6) / 1e6)).toEqual([0, 1 / 3, 2 / 3, 1].map((v) => Math.round(v * 1e6) / 1e6));
   });
+
+  it('暗部反白：起点之前照常长黑点，过了起点翻成黑底加白孔，全黑处孔消失', () => {
+    const base = { size: 1, minSize: 0.1, mapping: 'linear' as const, gain: 0, stepped: false, levels: 6, holeStart: 0.5, holeSize: 0.6, field: 1.5 };
+    // 关着就是 coverageToSize
+    for (const c of [0, 0.3, 0.7, 1]) expect(coverageToDot(c, { ...base, holes: false })).toEqual({ size: coverageToSize(c, base), hole: 0 });
+    const on = { ...base, holes: true };
+    expect(coverageToDot(0, on)).toEqual({ size: 0.1, hole: 0 });
+    // 到起点刚好长到最大网点
+    expect(coverageToDot(0.25, on).size).toBeCloseTo(0.55);
+    expect(coverageToDot(0.5, on)).toEqual({ size: 1, hole: 0 });
+    // 刚翻过来：黑底是 field 倍大，孔是 holeSize；越暗孔越小
+    const flipped = coverageToDot(0.5001, on);
+    expect(flipped.size).toBe(1.5);
+    expect(flipped.hole).toBeCloseTo(0.6, 3);
+    expect(coverageToDot(0.75, on).hole).toBeCloseTo(0.3);
+    expect(coverageToDot(1, on)).toEqual({ size: 1.5, hole: 0 });
+    // 面积正比：孔的面积随白量走
+    expect(coverageToDot(0.75, { ...on, mapping: 'area' }).hole).toBeCloseTo(0.6 * Math.SQRT1_2);
+    // 分级先作用在墨量上，两段共用同一把尺子
+    const stepped = { ...on, stepped: true, levels: 5 };
+    expect(coverageToDot(0.6, stepped)).toEqual(coverageToDot(0.5, stepped));
+    expect(coverageToDot(0.7, stepped)).toEqual(coverageToDot(0.75, stepped));
+  });
 });
 
 describe('网格几何', () => {
@@ -200,6 +224,33 @@ describe('网点渲染', () => {
     expect(px(between(0.9), 18, 0)).toEqual([255, 255, 255]);
   });
 
+  it('暗部反白：暗处格心是白孔、周围是黑底，黑底大过格子把四角的缝盖住；亮处与不反白时一样', () => {
+    const dark = (patch: Partial<HalftoneSettings>) =>
+      renderHalftone(buildHalftone(flatSource(24, 24, 0.45), opts({ pitchX: 12, pitchY: 12, minSize: 0, antialias: false, holes: true, holeStart: 0.5, holeSize: 0.5, field: 1.5, mapping: 'linear', dot: [0, 0, 0], paper: [255, 255, 255], ...patch })));
+    // 墨量 0.55 刚过起点：孔半径 0.5 × 0.9 × 6 ≈ 2.7px，格心 (12, 12) 在孔里，4px 外已是黑底，四角 (6, 6) 被 150% 的黑底盖住
+    const out = dark({});
+    expect(px(out, 12, 12)).toEqual([255, 255, 255]);
+    expect(px(out, 16, 12)).toEqual([0, 0, 0]);
+    expect(px(out, 6, 6)).toEqual([0, 0, 0]);
+    // 黑底只有 100% 时四角留缝
+    expect(px(dark({ field: 1 }), 6, 6)).toEqual([255, 255, 255]);
+    // 全黑：孔消失
+    const solid = renderHalftone(buildHalftone(flatSource(24, 24, 0), opts({ pitchX: 12, pitchY: 12, minSize: 0, antialias: false, holes: true, dot: [0, 0, 0], paper: [255, 255, 255] })));
+    for (let i = 0; i < solid.data.length; i += 4) expect(solid.data[i]).toBe(0);
+    // 亮处（墨量 0.3，没到起点）：没有孔，格心照常是黑点、四角是纸
+    const lightG = buildHalftone(flatSource(24, 24, 0.7), opts({ pitchX: 12, pitchY: 12, holes: true, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    expect(lightG.screens[0].hole!.every((h) => h === 0)).toBe(true);
+    const light = renderHalftone(lightG);
+    expect(px(light, 12, 12)).toEqual([0, 0, 0]);
+    expect(px(light, 6, 6)).toEqual([255, 255, 255]);
+  });
+
+  it('暗部反白配点融合：孔连融合长出的桥一起挖掉', () => {
+    const out = renderHalftone(buildHalftone(flatSource(48, 12, 0.45), opts({ pitchX: 12, pitchY: 12, minSize: 0, antialias: false, holes: true, holeSize: 0.5, mapping: 'linear', merge: 0.9, dot: [0, 0, 0], paper: [255, 255, 255] })));
+    expect(px(out, 24, 6)).toEqual([255, 255, 255]);
+    expect(px(out, 18, 6)).toEqual([0, 0, 0]);
+  });
+
   it('线条：整行连成线，粗细随明暗', () => {
     const out = renderHalftone(buildHalftone(flatSource(36, 12, 0.3), opts({ shape: 'line', pitchX: 12, pitchY: 12, minSize: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] })));
     for (let x = 0; x < 36; x++) expect(px(out, x, 6)).toEqual([0, 0, 0]);
@@ -241,6 +292,23 @@ describe('SVG 导出', () => {
     expect((cmyk.match(/mix-blend-mode:multiply/g) ?? []).length).toBe(4);
     const src = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.4, [0.3, 0.6, 0.2]), opts({ mode: 'source', pitchX: 12, pitchY: 12 })));
     expect(src).toMatch(/<circle [^>]*fill="#4D9933"/);
+  });
+
+  it('暗部反白：白孔用 mask 从整组墨里挖掉，只有带孔的那层才有 mask', () => {
+    const g = buildHalftone(flatSource(48, 24, 0.45), opts({ pitchX: 12, pitchY: 12, holes: true, mapping: 'linear' }));
+    const svg = halftoneToSvg(g);
+    expect(svg).toContain('<mask id="holes"');
+    expect(svg).toContain('mask="url(#holes)"');
+    // 黑底与白孔各是一个 <circle>，countDots 两者都算
+    expect((svg.match(/<circle /g) ?? []).length).toBe(countDots(g));
+    expect(g.screens[0].hole!.some((h) => h > 0)).toBe(true);
+    // 没暗到起点的画面没有孔，也就没有 mask
+    expect(halftoneToSvg(buildHalftone(flatSource(48, 24, 0.7), opts({ pitchX: 12, pitchY: 12, holes: true })))).not.toContain('<mask');
+    // CMYK：只有青版有墨且未到全黑，只有它带孔
+    const cmyk = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.5, [0.4, 1, 1]), opts({ mode: 'cmyk', pitchX: 12, pitchY: 12, holes: true, holeStart: 0.3 })));
+    expect((cmyk.match(/<mask /g) ?? []).length).toBe(1);
+    expect(cmyk).toContain('<mask id="holes0"');
+    expect(cmyk).toContain('mask="url(#holes0)"');
   });
 
   it('网点太多就拒绝', () => {

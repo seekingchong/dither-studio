@@ -6,6 +6,7 @@ import { shapeDistance, type HalftoneShape } from './shapes';
  * Halftone 光栅渲染：逐像素求到最近网点边缘的有符号距离，1px 内做抗锯齿；
  * 点融合用多项式平滑最小值（smooth-min）把相邻网点的距离场揉在一起，
  * 只在两个点靠得比融合半径近时才长出桥，单独的小点大小不变（模糊 + 阈值那种做法会把小点吃掉）。
+ * 暗部反白的白孔是距离场减法：墨的距离与孔的距离取 max(d, -dHole)，孔连融合长出的桥一起挖掉。
  * CMYK 四层各自求覆盖率，再按墨色在纸色上做正片叠底。
  */
 
@@ -70,9 +71,10 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
   };
 }
 
-/** 画布像素 (px, py) 到这张网格上最近网点边缘的有符号距离（融合时是揉过的距离） */
+/** 画布像素 (px, py) 到这张网格上最近网点边缘的有符号距离（融合时是揉过的距离，反白时已挖掉白孔） */
 function distanceAt(c: ScreenContext, px: number, py: number): number {
   const s = c.screen;
+  const holes = s.hole;
   const dx = px - c.cx;
   const dy = py - c.cy;
   const u = (c.cos * dx + c.sin * dy + s.offsetX) * c.invPitchX + 0.5;
@@ -80,6 +82,7 @@ function distanceAt(c: ScreenContext, px: number, py: number): number {
   const j0 = Math.floor(v);
   const R = c.reach;
   let d = Infinity;
+  let dHole = Infinity;
   let bestD = Infinity;
   let best = -1;
   for (let jj = j0 - R; jj <= j0 + R; jj++) {
@@ -102,10 +105,18 @@ function distanceAt(c: ScreenContext, px: number, py: number): number {
         bestD = dd;
         best = idx;
       }
+      if (holes) {
+        const h = holes[idx];
+        if (h > 0) {
+          const dh = shapeDistance(c.shape, lx, ly, h * c.r0, c.halfWidth);
+          if (dh < dHole) dHole = dh;
+        }
+      }
     }
   }
   c.best = best;
-  return d;
+  // 白孔：孔里的点到墨边缘的距离改成到孔边缘的距离（取反），孔外不受影响
+  return dHole < Infinity && -dHole > d ? -dHole : d;
 }
 
 export function renderHalftone(g: HalftoneGeometry): RGBAFrame {

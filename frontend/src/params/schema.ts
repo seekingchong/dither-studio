@@ -51,6 +51,7 @@ const onDither = { id: 'style.type', equals: 'dither' };
 const notHalftone = { id: 'style.type', in: ['dither', 'hatch'] };
 const fam = (family: string) => ({ id: 'dither.family', equals: family });
 const bgOn = { id: 'tone.bg.enabled', equals: true };
+const holesOn = { id: 'halftone.holes', equals: true };
 const linkOn = { id: 'hatch.link', in: ['stroke', 'row', 'col', 'grid'] };
 const famAnd = (family: string, id: string, value: string | string[]) => [
   fam(family),
@@ -461,6 +462,12 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'halftone.stepped', group: 'halftone', label: '灰阶分级', type: 'boolean', default: false, hint: '把点的大小限定在固定几档' },
   { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
   { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
+  // 暗部反白：墨量过了起点的格子翻成"黑底挖白孔"——黑底大过格子、相邻的连成一片圆鼓边的黑区，白孔越暗越小、全黑处消失。
+  // 亮处黑点、暗处白孔都在同一张网格的格心上，参考日历海报那种像素画点阵。
+  { id: 'halftone.holes', group: 'halftone', label: '暗部反白', type: 'boolean', default: false, hint: '暗处翻成黑底白孔' },
+  { id: 'halftone.holeStart', group: 'halftone', label: '反白起点', type: 'number', min: 5, max: 95, step: 1, default: 50, unit: '%', visibleWhen: holesOn },
+  { id: 'halftone.holeSize', group: 'halftone', label: '白孔大小', type: 'number', min: 0, max: 100, step: 1, default: 50, unit: '%', visibleWhen: holesOn },
+  { id: 'halftone.field', group: 'halftone', label: '黑底大小', type: 'number', min: 100, max: 200, step: 1, default: 150, unit: '%', visibleWhen: holesOn },
   { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
 
   // ---------- 网点：网格 ----------

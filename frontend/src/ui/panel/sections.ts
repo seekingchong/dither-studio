@@ -107,7 +107,7 @@ export const SECTIONS: SectionMeta[] = [
   {
     id: 'dots',
     label: '网点',
-    hint: '每颗点多大：最暗处的点占格子多大、最亮处还留多大，明暗到大小是按面积还是按直径，增益放大缩小中间调；分级把大小限定在几档；点融合让相邻的点粘连。',
+    hint: '每颗点多大：最暗处的点占格子多大、最亮处还留多大，明暗到大小是按面积还是按直径，增益放大缩小中间调；分级把大小限定在几档；点融合让相邻的点粘连；暗部反白让暗处翻成黑底白孔。',
     groups: ['halftone'],
     summary: (p) => {
       const parts = [`${num(p, 'halftone.size')}%`];
@@ -115,6 +115,7 @@ export const SECTIONS: SectionMeta[] = [
       if (bool(p, 'halftone.stepped')) parts.push(`${num(p, 'halftone.levels')} 档`);
       const merge = num(p, 'halftone.merge');
       if (merge > 0) parts.push(`融合 ${merge}%`);
+      if (bool(p, 'halftone.holes')) parts.push(`反白 ${num(p, 'halftone.holeStart')}%`);
       return parts.join(' · ');
     },
   },

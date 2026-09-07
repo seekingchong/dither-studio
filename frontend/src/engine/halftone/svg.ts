@@ -5,6 +5,7 @@ import { ROUND_SQUARE_CORNER, shapeVertices } from './shapes';
  * Halftone 的矢量导出：每个网点就是一个 <circle> / <rect> / <polygon>，网格的旋转交给 <g transform>，
  * 所以文件里的数字就是格坐标，肉眼可读、也方便拿去别的软件继续编辑。
  * 点融合在 SVG 里用经典的"高斯模糊 + 提高 alpha 对比"滤镜近似，再把原形状叠回去，小点不会被模糊吃掉。
+ * 暗部反白的白孔用 <mask> 从整组墨里挖掉（白底黑孔），所以 CMYK 叠印时孔只挖自己这一层，融合长出的桥也一起挖。
  * CMYK 四层各成一组，正片叠底。特效栈不进 SVG。
  */
 
@@ -50,26 +51,48 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`];
   const minPitch = Math.min(...g.screens.map((s) => Math.min(s.pitchX, s.pitchY)));
   const goo = g.merge > 0;
+  const defs: string[] = [];
   if (goo) {
     // 光栅里融合度 100% 能接上相距四分之一格距的两个边；模糊 + 阈值要接上同样的缝，σ 约是缝宽的七成
     const sigma = f(g.merge * minPitch * 0.18);
-    parts.push(
-      '<defs>',
+    defs.push(
       `<filter id="goo" x="-10%" y="-10%" width="120%" height="120%">`,
       `<feGaussianBlur in="SourceGraphic" stdDeviation="${sigma}" result="blur"/>`,
       '<feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -9" result="goo"/>',
       '<feComposite in="SourceGraphic" in2="goo" operator="over"/>',
       '</filter>',
-      '</defs>',
     );
   }
+  // 白孔的 mask 与网点同在旋转后的坐标系里，范围取画布对角线的一半再多留一圈格子，任何角度都盖得住
+  const maskReach = Math.hypot(width, height) / 2 + Math.max(...g.screens.map((s) => Math.max(s.pitchX, s.pitchY)));
+  const maskIds: Array<string | null> = g.screens.map((screen, n) => {
+    if (!screen.hole) return null;
+    const r0 = baseRadius(g.shape, screen);
+    const holes: string[] = [];
+    for (let jj = 0; jj < screen.rows; jj++) {
+      for (let ii = 0; ii < screen.cols; ii++) {
+        const idx = jj * screen.cols + ii;
+        const h = screen.hole[idx];
+        if (h <= 0) continue;
+        const [cx, cy] = cellCenter(screen, screen.i0 + ii, screen.j0 + jj);
+        holes.push(dotElement(g, screen, cx, cy, h * r0, ''));
+      }
+    }
+    if (holes.length === 0) return null;
+    const id = `holes${g.screens.length > 1 ? n : ''}`;
+    const box = `x="${f(-maskReach)}" y="${f(-maskReach)}" width="${f(2 * maskReach)}" height="${f(2 * maskReach)}"`;
+    defs.push(`<mask id="${id}" maskUnits="userSpaceOnUse" ${box}>`, `<rect ${box} fill="#FFFFFF"/>`, '<g fill="#000000">', ...holes, '</g>', '</mask>');
+    return id;
+  });
+  if (defs.length > 0) parts.push('<defs>', ...defs, '</defs>');
   parts.push(`<rect width="${width}" height="${height}" fill="${hex(g.paper)}"/>`);
 
-  for (const screen of g.screens) {
+  for (const [n, screen] of g.screens.entries()) {
     const r0 = baseRadius(g.shape, screen);
     const attrs = [`transform="translate(${f(width / 2)} ${f(height / 2)}) rotate(${f(screen.angle)})"`];
     if (!screen.color) attrs.push(`fill="${hex(screen.ink)}"`);
     if (goo) attrs.push('filter="url(#goo)"');
+    if (maskIds[n]) attrs.push(`mask="url(#${maskIds[n]})"`);
     if (g.mode === 'cmyk') attrs.push('style="mix-blend-mode:multiply"');
     parts.push(`<g ${attrs.join(' ')}>`);
     for (let jj = 0; jj < screen.rows; jj++) {
