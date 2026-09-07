@@ -356,16 +356,58 @@
   background: var(--tda-color-background-page);
 }
 
-/* 唯一动起来的容器 */
+/* 唯一动起来的容器：里面放的是真正导出的成品（PNG 用 img、MP4 / WebM 用 video） */
 .tdc-cover__video {
   position: absolute;
   overflow: hidden;
 }
 
-.tdc-cover__canvas {
+.tdc-cover__media {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* 整张放进容器里居中，不裁画面；缩小交给浏览器，跟它在网页里显示这个文件时一样 */
+.tdc-cover__image,
+.tdc-cover__clip {
   display: block;
   width: 100%;
   height: 100%;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* 视频逐帧编码的进度：贴在容器底边的一条细线 */
+.tdc-cover__bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--tda-color-brand-primary);
+  transition: width 0.1s;
+}
+
+/* 窗口底部的状态条：正在导 / 导出失败，没事时不显示；浮在画板之外，不动界面本身 */
+.tdc-status {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: var(--tda-color-white);
+  font-family: var(--tda-font-family-mixed);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tdc-status--error {
+  background: var(--tda-color-danger);
 }
 
 .tdc-cover__tip {
