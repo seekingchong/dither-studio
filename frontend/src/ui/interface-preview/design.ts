@@ -1,6 +1,6 @@
 /**
  * 「界面预览」里那张静态界面的尺寸与文案。
- * 来源：Figma「书庆」文件画板 tdc home（node 45:3223），
+ * 来源：Figma「书庆」文件画板 tdc home（node 38:722），
  * 数值都是设计稿上的像素，界面按原尺寸画好之后整体缩放到窗口里。
  */
 
@@ -13,15 +13,15 @@ export const FRAME_WIDTH = 1728;
 export const FRAME_HEIGHT = 1080;
 
 /**
- * 封面图里的「video cover」容器（45:3247）——用户的视频 / 图片就放这儿。
+ * 封面图里的「video cover」容器（Frame 6 38:1932）——用户的视频 / 图片就放这儿。
  * 设计稿上这个节点带了一次水平镜像，左边界要按镜像后的视觉位置算（181.885 - 98.958）。
  */
 export const VIDEO_COVER = { left: 82.93, top: 78.375, width: 98.958, height: 59.375, radius: 7.125 };
 
-/** 封面图里盖在 video cover 右上角的白色小卡（45:3248「Group 5507」） */
+/** 封面图里盖在 video cover 右上角的白色小卡（Group 5507 38:1933） */
 export const COVER_TIP = { left: 160.11, top: 47.5, width: 98.958, height: 59.375, radius: 7.125 };
 
-/** 封面图右下角那个橙色箭头（45:3258） */
+/** 封面图右下角那个橙色箭头（Group 6174 38:1943） */
 export const COVER_ARROW = { left: 250.36, top: 98.17, size: 13.458 };
 
 export interface SkillGroup {

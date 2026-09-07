@@ -59,8 +59,8 @@ function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
-      // 界面预览窗口会盖住主窗口，被判成"不可见"后连消息回调都要被节流，
-      // 那边的画面就会卡住；主窗口是取景来源，不能睡。
+      // 界面预览窗口会盖住主窗口，被判成「不可见」后定时器与消息回调都要被节流；
+      // 预览窗口要的 PNG / MP4 是在主窗口里导的，不能睡。
       backgroundThrottling: false,
     },
   });

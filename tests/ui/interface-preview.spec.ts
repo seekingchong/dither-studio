@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
+import { openSection, setZoom } from './helpers';
 
 const GIF_B64 = readFileSync(fileURLToPath(new URL('./fixtures/anim.gif', import.meta.url))).toString('base64');
 
@@ -72,22 +73,47 @@ async function designBox(popup: Page, selector: string): Promise<number[]> {
   }, selector);
 }
 
-/** 封面画布的像素统计：非透明像素数与总亮度（用来判断有没有画、画面动没动） */
-async function coverSample(popup: Page) {
-  return popup.evaluate(() => {
-    const c = document.querySelector('canvas.tdc-cover__canvas') as HTMLCanvasElement;
-    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
-    let sum = 0;
-    let opaque = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      sum += d[i] + d[i + 1] + d[i + 2];
-      if (d[i + 3] > 0) opaque++;
-    }
-    return { sum, opaque };
-  });
-}
+/** 像素数据的指纹：尺寸 + FNV-1a，两边各算一份来比对，省得把几 MB 像素搬出页面 */
+const PIXEL_HASH = `(data, w, h) => {
+  let x = 2166136261;
+  for (let i = 0; i < data.length; i++) { x ^= data[i]; x = Math.imul(x, 16777619) >>> 0; }
+  return w + 'x' + h + ':' + x;
+}`;
 
-test('双击坑位打开界面预览窗口，整张界面按设计稿尺寸复刻', async ({ page }) => {
+/** 主窗口画布上的帧（100% 下后备存储就是原样的帧，也就是「导出图片」会存的那张） */
+const mainCanvasHash = (page: Page) =>
+  page.evaluate((hashSrc) => {
+    const hash = new Function(`return ${hashSrc}`)() as (d: Uint8ClampedArray, w: number, h: number) => string;
+    const c = document.querySelector('.slot__canvas') as HTMLCanvasElement;
+    return hash(c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+  }, PIXEL_HASH);
+
+/** 预览窗口封面里那张 PNG 解码回来的像素 */
+const coverImageHash = (popup: Page) =>
+  popup.evaluate(async (hashSrc) => {
+    const hash = new Function(`return ${hashSrc}`)() as (d: Uint8ClampedArray, w: number, h: number) => string;
+    const img = document.querySelector('img.tdc-cover__image') as HTMLImageElement | null;
+    if (!img || !img.naturalWidth) return 'none';
+    const blob = await (await fetch(img.src)).blob();
+    const bitmap = await createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const c = document.createElement('canvas');
+    c.width = bitmap.width;
+    c.height = bitmap.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return hash(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height);
+  }, PIXEL_HASH);
+
+/** 封面里成品文件的头几个字节与大小 */
+const coverFileHead = (popup: Page, selector: string) =>
+  popup.evaluate(async (sel) => {
+    const el = document.querySelector(sel) as HTMLImageElement | HTMLVideoElement;
+    const bytes = new Uint8Array(await (await fetch(el.src)).arrayBuffer());
+    return { size: bytes.length, head: Array.from(bytes.subarray(0, 12)) };
+  }, selector);
+
+test('双击坑位打开界面预览窗口，整张界面按设计稿尺寸复刻，封面里是导出的 PNG', async ({ page }) => {
   await page.goto('/');
   await dropSyntheticImage(page);
   const popup = await openPreview(page);
@@ -111,33 +137,75 @@ test('双击坑位打开界面预览窗口，整张界面按设计稿尺寸复�
 
   // 界面本身是静态的：没有输入框、没有按钮，只有一张画
   await expect(popup.locator('.tdc input, .tdc button, .tdc a')).toHaveCount(0);
-  await expect(popup.locator('canvas.tdc-cover__canvas')).toHaveCount(1);
 
-  // 素材确实画进了 video cover 容器
-  await expect.poll(async () => (await coverSample(popup)).opaque, { timeout: 10_000 }).toBeGreaterThan(0);
+  // 封面里是一张 <img>，来源是导出的 PNG 文件（blob），尺寸是画布全尺寸，不是封面那么大的抓帧
+  const img = popup.locator('img.tdc-cover__image');
+  await expect(img).toHaveCount(1, { timeout: 15_000 });
+  await expect(img).toHaveAttribute('src', /^blob:/);
+  await expect.poll(() => img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(1000);
+  await expect(popup.locator('.tdc-cover__media')).toHaveAttribute('data-format', 'PNG');
+  const png = await coverFileHead(popup, 'img.tdc-cover__image');
+  expect(png.head.slice(0, 8)).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
+  // 逐像素等于主窗口 100% 下画布上的帧——也就是「导出图片」会存的那张
+  await setZoom(page, '100%');
+  const expected = await mainCanvasHash(page);
+  await expect.poll(() => coverImageHash(popup), { timeout: 15_000 }).toBe(expected);
+
+  // 主窗口改参数（反相）：预览窗口自动换成新导出的 PNG，仍然逐像素一致
+  const before = await img.getAttribute('src');
+  await openSection(page, 'tone');
+  await page.locator('[data-param="tone.invert"]').click();
+  await expect.poll(() => mainCanvasHash(page)).not.toBe(expected);
+  await expect.poll(() => img.getAttribute('src'), { timeout: 15_000 }).not.toBe(before);
+  const inverted = await mainCanvasHash(page);
+  await expect.poll(() => coverImageHash(popup), { timeout: 15_000 }).toBe(inverted);
+  await expect(popup.getByTestId('preview-status')).toHaveCount(0);
 });
 
-test('界面预览里的 video cover 跟着主窗口循环播放动图', async ({ page }) => {
-  test.setTimeout(60_000);
+test('界面预览里的 video cover 是导出的 MP4 / WebM，自己循环播放', async ({ page }) => {
+  test.setTimeout(120_000);
   await page.goto('/');
   await dropInto(page, GIF_B64, 'anim.gif', 'image/gif');
   const popup = await openPreview(page);
-  await expect.poll(async () => (await coverSample(popup)).opaque, { timeout: 10_000 }).toBeGreaterThan(0);
 
-  // 这张 GIF 只有 0.6 秒，采样跨度远超一个循环：一直在变说明它在循环播，没有停在最后一帧
-  const sums = new Set<number>();
+  // 成品是 <video>，来源是导出的视频文件（blob）；封装按平台有没有 H.264 编码器决定
+  const clip = popup.locator('video.tdc-cover__clip');
+  await expect(clip).toHaveCount(1, { timeout: 90_000 });
+  await expect(clip).toHaveAttribute('src', /^blob:/);
+  const format = await popup.locator('.tdc-cover__media').getAttribute('data-format');
+  expect(['MP4', 'WebM']).toContain(format);
+  await expect.poll(() => popup.title()).toContain('anim.gif');
+
+  // 文件头跟容器对得上：MP4 前 8 字节含 ftyp，WebM 以 EBML 头开始
+  const file = await coverFileHead(popup, 'video.tdc-cover__clip');
+  expect(file.size).toBeGreaterThan(1000);
+  const isWebm = file.head[0] === 0x1a && file.head[1] === 0x45 && file.head[2] === 0xdf && file.head[3] === 0xa3;
+  const isMp4 = String.fromCharCode(...file.head.slice(4, 8)) === 'ftyp';
+  expect(format === 'MP4' ? isMp4 : isWebm, `${format} 的文件头`).toBe(true);
+
+  // 视频元数据：画布全尺寸 1000×600，时长就是这张 GIF 的 0.6 秒（60 fps × 36 帧），循环
+  await expect.poll(() => clip.evaluate((el) => (el as HTMLVideoElement).readyState), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+  const meta = await clip.evaluate((el) => {
+    const v = el as HTMLVideoElement;
+    return { width: v.videoWidth, height: v.videoHeight, duration: v.duration, loop: v.loop };
+  });
+  expect(meta.width).toBe(1000);
+  expect(meta.height).toBe(600);
+  expect(meta.duration).toBeCloseTo(0.6, 1);
+  expect(meta.loop).toBe(true);
+
+  // 自己在循环播：采样跨度远超一个循环，时间一直在变，没有停在末尾
+  await expect.poll(() => clip.evaluate((el) => (el as HTMLVideoElement).paused), { timeout: 10_000 }).toBe(false);
+  const times = new Set<number>();
   for (let i = 0; i < 6; i++) {
-    sums.add((await coverSample(popup)).sum);
-    await popup.waitForTimeout(400);
+    times.add(await clip.evaluate((el) => (el as HTMLVideoElement).currentTime));
+    await popup.waitForTimeout(250);
   }
-  expect(sums.size).toBeGreaterThan(2);
+  expect(times.size).toBeGreaterThan(2);
 
-  // 主窗口暂停后，预览窗口也跟着停住
-  await page.getByRole('button', { name: '暂停' }).click();
-  await popup.waitForTimeout(500);
-  const paused = (await coverSample(popup)).sum;
-  await popup.waitForTimeout(700);
-  expect((await coverSample(popup)).sum).toBe(paused);
+  // 导完之后状态条收起
+  await expect(popup.getByTestId('preview-status')).toHaveCount(0);
 });
 
 test('界面整体等比缩放：任何窗口大小下都完整可见、居中、不出滚动条', async ({ page }) => {

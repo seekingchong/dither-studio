@@ -1,26 +1,43 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FRAME_HEIGHT, FRAME_WIDTH, VIDEO_COVER } from './design';
-import { PREVIEW_CHANNEL, previewMessage, type PreviewMedia, type PreviewRequest } from './protocol';
+import { FRAME_HEIGHT, FRAME_WIDTH } from './design';
+import { PREVIEW_CHANNEL, previewMessage, type PreviewFile, type PreviewMedia, type PreviewRequest } from './protocol';
 import { TdcHome } from './TdcHome';
 
-/** 要帧的节奏：封面在设计稿上只有 99×59，30 fps 已经很顺，再快只是白费主窗口的抓帧开销 */
-const REQUEST_INTERVAL_MS = 1000 / 30;
+/** 要成品没回音时隔多久再要一次：主窗口那边可能还在导，或者第一份成品在这扇窗挂上监听之前就送到了 */
+const REQUEST_RETRY_MS = 2000;
 
-/** 一帧要了这么久还没回来就当丢了，重新要，免得主窗口那边出岔子之后画面永远卡住 */
-const REQUEST_TIMEOUT_MS = 1000;
+/** 封面里此刻显示的成品：PNG 用 <img>，MP4 / WebM 用 <video> */
+interface Shown {
+  kind: PreviewFile['kind'];
+  url: string;
+  format: PreviewFile['format'];
+  width: number;
+  height: number;
+}
+
+/** 窗口底部的状态条：正在导 / 导出失败；没事时不显示 */
+interface Status {
+  text: string;
+  /** 视频逐帧编码的百分比；图片与失败时没有 */
+  percent: number | null;
+  error: boolean;
+}
 
 /**
  * 界面预览窗口的根。
  *
  * 整张设计稿按原尺寸（1728×1080）画好再整体缩放到窗口里，保证与 Figma 逐像素一致；
- * 界面本身全是静态的，只有封面里的 video cover 是活的：这边按 rAF 的节奏向主窗口要帧，
- * 主窗口回传当前预览画布的位图，于是视频 / GIF 在这儿跟着主窗口一起循环播放。
+ * 界面本身全是静态的，只有封面里的 video cover 是活的——那儿放的是主窗口真正导出的成品：
+ * 图片是导出的 PNG，视频 / GIF 是导出的 MP4（没有 H.264 编码器时 WebM）自己循环播，
+ * 参数一改主窗口就重导一份送过来。看到的就是最终导出文件放进界面里的样子。
  */
 export function InterfacePreviewWindow({ slot }: { slot: number }) {
   const [scale, setScale] = useState(0);
   const [media, setMedia] = useState<PreviewMedia | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pendingAt = useRef(0);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const [status, setStatus] = useState<Status | null>(null);
+  const received = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // 预览的是别家产品的浅色界面，不跟随本应用的深浅主题
   useLayoutEffect(() => {
@@ -36,60 +53,70 @@ export function InterfacePreviewWindow({ slot }: { slot: number }) {
   }, []);
 
   useEffect(() => {
-    document.title = media ? `界面预览 — ${media.name}` : '界面预览';
-  }, [media]);
+    const name = media ? `界面预览 — ${media.name}` : '界面预览';
+    document.title = status ? `${name} · ${status.text}` : name;
+  }, [media, status]);
 
-  // 收帧：整张放进封面容器里居中，不裁画面
+  // 收成品与进度
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const msg = previewMessage(event.data);
-      if (!msg || msg.type !== 'frame' || msg.slot !== slot) return;
-      pendingAt.current = 0;
+      if (!msg || msg.slot !== slot || msg.type === 'request') return;
+      received.current = true;
       setMedia(msg.media);
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext('2d');
-      if (!canvas || !ctx) {
-        msg.bitmap?.close();
+      if (msg.type === 'progress') {
+        const percent = msg.total > 0 ? Math.min(100, Math.round((msg.done / msg.total) * 100)) : 0;
+        setStatus({ text: msg.format === 'PNG' ? '正在导出 PNG' : `正在导出 ${msg.format} ${percent}%`, percent: msg.format === 'PNG' ? null : percent, error: false });
         return;
       }
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!msg.bitmap) return;
-      const fit = Math.min(canvas.width / msg.bitmap.width, canvas.height / msg.bitmap.height);
-      const width = msg.bitmap.width * fit;
-      const height = msg.bitmap.height * fit;
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(msg.bitmap, (canvas.width - width) / 2, (canvas.height - height) / 2, width, height);
-      msg.bitmap.close();
+      if (msg.error) {
+        // 留着上一份成品，只把原因显示出来
+        setStatus({ text: `导出失败：${msg.error}`, percent: null, error: true });
+        return;
+      }
+      setStatus(null);
+      const file = msg.file;
+      setShown(file ? { kind: file.kind, url: URL.createObjectURL(new Blob([file.bytes], { type: file.mime })), format: file.format, width: file.width, height: file.height } : null);
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
   }, [slot]);
 
-  // 要帧：由这边主动拉，主窗口被这扇窗盖住时 rAF 会被节流，反过来推就会卡住
+  // 换了成品就把上一份的对象地址收回；这个清理在新地址已经挂到元素上之后才跑
+  useEffect(() => {
+    const url = shown?.url;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [shown]);
+
+  // 要成品：主窗口在开窗时就已经导起来了，这儿只是说一声「我准备好了」；没回音就隔两秒再要
   useEffect(() => {
     const opener = window.opener as Window | null;
     if (!opener) return;
-    let raf = 0;
-    let last = 0;
-    const tick = (now: number) => {
-      raf = window.requestAnimationFrame(tick);
-      if (pendingAt.current > 0 && now - pendingAt.current < REQUEST_TIMEOUT_MS) return;
-      if (now - last < REQUEST_INTERVAL_MS) return;
-      const canvas = canvasRef.current;
-      if (!canvas || canvas.width === 0) return;
-      last = now;
-      pendingAt.current = now;
-      const request: PreviewRequest = { channel: PREVIEW_CHANNEL, type: 'request', slot, width: canvas.width, height: canvas.height };
+    const ask = () => {
+      const request: PreviewRequest = { channel: PREVIEW_CHANNEL, type: 'request', slot };
       try {
         opener.postMessage(request, '*');
       } catch {
-        pendingAt.current = 0; // 主窗口已经关了，下一帧再试
+        // 主窗口已经关了
       }
     };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
+    ask();
+    const timer = window.setInterval(() => {
+      if (received.current) window.clearInterval(timer);
+      else ask();
+    }, REQUEST_RETRY_MS);
+    return () => window.clearInterval(timer);
   }, [slot]);
+
+  // 视频成品自己循环播：muted 属性 React 不写进 DOM，自动播放要靠它，这儿补上再 play
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || shown?.kind !== 'video') return;
+    el.muted = true;
+    void el.play().catch(() => undefined);
+  }, [shown]);
 
   // 弹出来的窗口，按 Esc 直接关掉
   useEffect(() => {
@@ -100,17 +127,25 @@ export function InterfacePreviewWindow({ slot }: { slot: number }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // 画布的像素数按它在屏幕上的实际大小给，缩放档位与屏幕倍率都算进去
-  const ratio = window.devicePixelRatio || 1;
-  const pixelWidth = Math.max(1, Math.round(VIDEO_COVER.width * scale * ratio));
-  const pixelHeight = Math.max(1, Math.round(VIDEO_COVER.height * scale * ratio));
+  const cover = (
+    <div className="tdc-cover__media" data-kind={shown?.kind ?? 'none'} data-format={shown?.format ?? ''}>
+      {shown?.kind === 'image' && <img className="tdc-cover__image" src={shown.url} width={shown.width} height={shown.height} alt="" draggable={false} />}
+      {shown?.kind === 'video' && <video ref={videoRef} className="tdc-cover__clip" src={shown.url} autoPlay muted loop playsInline />}
+      {status?.percent !== null && status?.percent !== undefined && <span className="tdc-cover__bar" style={{ width: `${status.percent}%` }} />}
+    </div>
+  );
 
   return (
     <div className="tdc-shell">
       {/* scale 还没量出来（首帧）时先不画，免得闪一下 1:1 的大界面 */}
       {scale > 0 && (
         <div className="tdc-frame" style={{ width: FRAME_WIDTH, height: FRAME_HEIGHT, transform: `translate(-50%, -50%) scale(${scale})` }}>
-          <TdcHome cover={<canvas ref={canvasRef} className="tdc-cover__canvas" width={pixelWidth} height={pixelHeight} />} />
+          <TdcHome cover={cover} />
+        </div>
+      )}
+      {status && (
+        <div className={status.error ? 'tdc-status tdc-status--error' : 'tdc-status'} role="status" data-testid="preview-status">
+          {status.text}
         </div>
       )}
     </div>

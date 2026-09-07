@@ -1,18 +1,17 @@
-import { useStudioStore } from '@/state';
-import { slotCanvas } from '@/ui/canvas/slotCanvasRegistry';
 import { FRAME_HEIGHT, FRAME_WIDTH } from './design';
-import { PREVIEW_CHANNEL, previewMessage, type PreviewFrame } from './protocol';
+import { SlotExporter } from './exporter';
+import { previewMessage } from './protocol';
 import { PREVIEW_ROUTE, previewWindowName } from './route';
-
-/**
- * 传给预览窗口的位图最长边上限。封面容器在设计稿上只有 99×59，
- * 再大也只是白搬运；这个值只是防住异常大的请求。
- */
-const MAX_FRAME_EDGE = 720;
 
 /** 开着的预览窗口：既用来复用窗口，也用来确认「这条请求是我开的窗发来的」 */
 const windows = new Map<number, Window>();
+/** 每个坑位一个导出器，窗口关了再开复用同一个（里面有成品缓存） */
+const exporters = new Map<number, SlotExporter>();
 let listening = false;
+let closeWatcher = 0;
+
+/** 关窗的巡检间隔：跨窗口没有关闭事件可听，只能定时看 closed */
+const CLOSE_POLL_MS = 1000;
 
 /** 预览窗口跑的是同一份前端，只是地址上多一个 hash */
 function previewUrl(slot: number): string {
@@ -29,51 +28,21 @@ function windowSize(): { width: number; height: number } {
   return { width: Math.round(FRAME_WIDTH * scale), height: Math.round(FRAME_HEIGHT * scale) };
 }
 
-/**
- * 抓帧尺寸：等比缩到预览窗口要的框里（它是「整张放进去」的画法，所以按 contain 算），
- * 画布本来就比框小就原样传。
- */
-function captureSize(canvas: HTMLCanvasElement, maxWidth: number, maxHeight: number): { width: number; height: number } {
-  const limitWidth = Math.min(Math.max(1, maxWidth), MAX_FRAME_EDGE);
-  const limitHeight = Math.min(Math.max(1, maxHeight), MAX_FRAME_EDGE);
-  const scale = Math.min(limitWidth / canvas.width, limitHeight / canvas.height, 1);
-  return {
-    width: Math.max(1, Math.round(canvas.width * scale)),
-    height: Math.max(1, Math.round(canvas.height * scale)),
-  };
-}
-
-/** 回一帧给预览窗口 */
-async function serveFrame(win: Window, slot: number, maxWidth: number, maxHeight: number): Promise<void> {
-  const media = useStudioStore.getState().slots[slot]?.media ?? null;
-  const canvas = slotCanvas(slot);
-  let bitmap: ImageBitmap | null = null;
-  if (media && canvas && canvas.width > 0 && canvas.height > 0) {
-    const size = captureSize(canvas, maxWidth, maxHeight);
-    try {
-      bitmap = await createImageBitmap(canvas, { resizeWidth: size.width, resizeHeight: size.height, resizeQuality: 'high' });
-    } catch {
-      // 画布这一刻读不了（尺寸刚变成 0 / 正在重建），这一帧作废，下一帧再要
-      bitmap = null;
-    }
+function exporterFor(slot: number): SlotExporter {
+  let exporter = exporters.get(slot);
+  if (!exporter) {
+    exporter = new SlotExporter(slot, (message, transfer) => {
+      const win = windows.get(slot);
+      if (!win || win.closed) return;
+      try {
+        win.postMessage(message, '*', transfer ?? []);
+      } catch {
+        // 窗口刚关，这份成品作废；再开时从缓存给
+      }
+    });
+    exporters.set(slot, exporter);
   }
-  // 抓帧是异步的，回来时窗口可能已经关了
-  if (win.closed) {
-    bitmap?.close();
-    return;
-  }
-  const frame: PreviewFrame = {
-    channel: PREVIEW_CHANNEL,
-    type: 'frame',
-    slot,
-    bitmap,
-    media: media ? { name: media.name, kind: media.kind, width: media.width, height: media.height } : null,
-  };
-  try {
-    win.postMessage(frame, '*', bitmap ? [bitmap] : []);
-  } catch {
-    bitmap?.close();
-  }
+  return exporter;
 }
 
 function onMessage(event: MessageEvent): void {
@@ -82,14 +51,30 @@ function onMessage(event: MessageEvent): void {
   const win = windows.get(msg.slot);
   // 只回应自己开出去的那扇窗
   if (!win || win.closed || event.source !== win) return;
-  void serveFrame(win, msg.slot, msg.width, msg.height);
+  exporterFor(msg.slot).resend();
+}
+
+/** 窗口关了就把那个坑位的导出停掉，别再白导 */
+function watchClosed(): void {
+  if (closeWatcher) return;
+  closeWatcher = window.setInterval(() => {
+    for (const [slot, win] of windows) {
+      if (!win.closed) continue;
+      windows.delete(slot);
+      exporters.get(slot)?.stop();
+    }
+    if (windows.size === 0) {
+      window.clearInterval(closeWatcher);
+      closeWatcher = 0;
+    }
+  }, CLOSE_POLL_MS);
 }
 
 /**
  * 打开（或聚焦）某个坑位的界面预览窗口。
  * 窗口里跑的是同一份前端，按 hash 路由渲染成那张静态界面；
- * 里面的「video cover」是活的——它按自己的节奏来要帧，这边逐帧回传当前预览画布，
- * 所以视频 / GIF 在那儿跟主窗口一样循环播放。
+ * 里面的「video cover」放的是真正导出的成品：这边把当前坑位导成 PNG（图片）或 MP4（视频 / GIF）
+ * 送过去，参数一改就重导，所以那边看到的就是最终导出文件的样子。
  *
  * 返回 false 表示被浏览器的弹窗拦截拦下了。
  */
@@ -108,5 +93,8 @@ export function openInterfacePreview(slot: number): boolean {
   const win = window.open(previewUrl(slot), previewWindowName(slot), `popup=yes,width=${width},height=${height}`);
   if (!win) return false;
   windows.set(slot, win);
+  // 窗口还在加载就先导起来：那边就绪后来要，成品多半已经在手上了
+  exporterFor(slot).start();
+  watchClosed();
   return true;
 }

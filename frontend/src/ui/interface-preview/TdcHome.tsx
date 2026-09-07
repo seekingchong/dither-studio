@@ -19,19 +19,22 @@ import {
   CollapseGlyph,
   CommentAddGlyph,
   CursorArrowGlyph,
+  CursorHoverGlyph,
   HistoryGlyph,
   InfoGlyph,
   MicGlyph,
   ModelMarkGlyph,
   SkillGlyph,
+  SlashGlyph,
 } from './glyphs';
+import avatarUrl from './avatar.png';
 
 interface TdcHomeProps {
   /** 放进「video cover」容器里的东西——界面上唯一活的部分 */
   cover: ReactNode;
 }
 
-/** 左侧导航条（45:3224）：上下留白，中间三个圆按钮，底部头像 */
+/** 左侧导航条（navi bar 38:73）：上下留白，中间三个圆按钮，底部头像 */
 function NavRail() {
   return (
     <nav className="tdc-rail" aria-hidden="true">
@@ -40,19 +43,20 @@ function NavRail() {
         <span className="tdc-rail__btn tdc-rail__btn--filled">
           <CommentAddGlyph size={18} />
         </span>
-        <span className="tdc-rail__btn">
-          <ClusterGlyph size={18} />
+        <span className="tdc-rail__btn tdc-rail__btn--muted tdc-rail__btn--cluster">
+          <ClusterGlyph size={56} />
         </span>
         <span className="tdc-rail__btn tdc-rail__btn--muted">
           <BookGlyph size={18} />
         </span>
       </div>
-      <span className="tdc-rail__avatar" />
+      {/* 设计稿里的头像（Ellipse 3，40px），按 2 倍导出 */}
+      <img className="tdc-rail__avatar" src={avatarUrl} alt="" width={40} height={40} draggable={false} />
     </nav>
   );
 }
 
-/** 技能分组（45:3231）：序号 + 组名 + 收起尖角，下面挂条目 */
+/** 技能分组（skill group 38:730…）：序号 + 组名 + 收起尖角，下面挂条目 */
 function SkillGroupBlock({ number, name, items }: (typeof SKILL_GROUPS)[number]) {
   return (
     <div className="tdc-group">
@@ -71,7 +75,17 @@ function SkillGroupBlock({ number, name, items }: (typeof SKILL_GROUPS)[number])
               <SkillGlyph size={16} />
             </span>
             <span className="tdc-item__label">{item}</span>
-            {item === SELECTED_SKILL && <span className="tdc-item__mark">/</span>}
+            {item === SELECTED_SKILL && (
+              <>
+                <span className="tdc-item__mark">
+                  <SlashGlyph size={14} />
+                </span>
+                {/* 设计稿里停在这一条上的手形指针（Cursor/hover） */}
+                <span className="tdc-item__cursor">
+                  <CursorHoverGlyph />
+                </span>
+              </>
+            )}
           </li>
         ))}
       </ul>
@@ -79,7 +93,7 @@ function SkillGroupBlock({ number, name, items }: (typeof SKILL_GROUPS)[number])
   );
 }
 
-/** 应用详情卡片（45:3243）：封面图 + 描述 + 详情，底下垫一团模糊的投影 */
+/** 应用详情卡片（Frame 6468 38:742）：封面图 + 描述 + 详情，底下垫一团模糊的投影 */
 function DetailCard({ cover }: TdcHomeProps) {
   return (
     <div className="tdc-card">
@@ -141,7 +155,7 @@ function DetailCard({ cover }: TdcHomeProps) {
 }
 
 /**
- * Figma「tdc home」（45:3223）的静态复刻：左导航条 + 技能库侧栏 + 应用详情卡片 + 会话主区。
+ * Figma「tdc home」（38:722）的静态复刻：左导航条 + 技能库侧栏 + 应用详情卡片 + 会话主区。
  * 除了卡片封面里的 video cover，整张界面都是死的，不接任何交互。
  */
 export function TdcHome({ cover }: TdcHomeProps) {
@@ -161,7 +175,7 @@ export function TdcHome({ cover }: TdcHomeProps) {
           <div className="tdc-side__scroll">
             <div className="tdc-side__agent">
               <span className="tdc-side__brand">
-                <BrandMarkGlyph size={26} />
+                <BrandMarkGlyph />
               </span>
               <span className="tdc-side__agentname">淘天设计智库</span>
             </div>
@@ -207,7 +221,7 @@ export function TdcHome({ cover }: TdcHomeProps) {
 
         <div className="tdc-foot">
           <span className="tdc-foot__mark">
-            <ModelMarkGlyph size={11} />
+            <ModelMarkGlyph size={14} />
           </span>
           <span className="tdc-foot__latin">Powered by Qwen</span>
           <span className="tdc-foot__sep" />

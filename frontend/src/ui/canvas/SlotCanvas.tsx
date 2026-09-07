@@ -3,7 +3,6 @@ import { computeFit, displayGeometry, resampleForDisplay, type FitMode, type Ren
 import type { LoadedMedia, PreviewTab } from '@/state';
 import { usePlaybackStore } from '@/ui/media/playback';
 import { IDENTITY_EDIT, drawEditedInto, editGeometry, editedSize, useSourceEditStore, type SourceEdit } from '@/ui/media/sourceEdit';
-import { registerSlotCanvas } from './slotCanvasRegistry';
 import { useDevicePixelRatio } from './useDevicePixelRatio';
 
 interface SlotCanvasProps {
@@ -23,7 +22,7 @@ interface SlotCanvasProps {
  */
 export const PREVIEW_RADIUS_RATIO = 0.072;
 
-/** 一次绘制要用到的全部输入：屏幕上的画布和给界面预览窗口的全尺寸副本都照它画 */
+/** 一次绘制要用到的全部输入 */
 interface PaintInput {
   tab: PreviewTab;
   media: LoadedMedia;
@@ -120,37 +119,11 @@ export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, sca
   const geometry = displayGeometry(width, height, scale, dpr);
   const { shownWidth, shownHeight, backingWidth, backingHeight, mode } = geometry;
 
-  /**
-   * 最近一次绘制的输入与序号。界面预览窗口要帧时按它补一份全尺寸副本：
-   * 屏幕上那块画布在 area 模式下只有物理像素那么大，直接拿去当帧源会糊。
-   */
-  const lastPaint = useRef<{ input: PaintInput; mode: 'area' | 'nearest'; seq: number } | null>(null);
-  const paintSeq = useRef(0);
-  const fullCopy = useRef<HTMLCanvasElement | null>(null);
-  const fullCopySeq = useRef(-1);
-
-  useEffect(
-    () =>
-      registerSlotCanvas(slot, () => {
-        const last = lastPaint.current;
-        if (!last || last.mode === 'nearest') return ref.current;
-        if (!fullCopy.current) fullCopy.current = document.createElement('canvas');
-        if (fullCopySeq.current !== last.seq) {
-          paintFull(fullCopy.current, last.input, scratch);
-          fullCopySeq.current = last.seq;
-        }
-        return fullCopy.current;
-      }),
-    [slot],
-  );
-
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const input: PaintInput = { tab, media, rendered, width, height, fit, frameIndex, edit };
-    lastPaint.current = { input, mode, seq: ++paintSeq.current };
     if (mode === 'nearest') {
-      paintFull(canvas, input, scratch);
+      paintFull(canvas, { tab, media, rendered, width, height, fit, frameIndex, edit }, scratch);
       return;
     }
     const ctx = canvas.getContext('2d');
