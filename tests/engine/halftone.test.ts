@@ -8,10 +8,15 @@ import {
   countDots,
   coverageToSize,
   DEFAULT_HALFTONE,
+  extendRowEnds,
   gridTransform,
   halftoneToSvg,
+  hermite,
+  hermiteSlope,
+  monotoneSlope,
   renderHalftone,
   renderImage,
+  ribbonProfile,
   scaleParamsForPreview,
   shapeDistance,
   shapeVertices,
@@ -48,7 +53,7 @@ function flatSource(width: number, height: number, gray: number, rgb?: [number, 
 const opts = (patch: Partial<HalftoneSettings> = {}): HalftoneSettings => ({ ...DEFAULT_HALFTONE, ...patch });
 
 describe('网点形状距离场', () => {
-  it.each(['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'cross'] as HalftoneShape[])('%s：中心在里面，远处在外面，边界附近过零', (shape) => {
+  it.each(['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'smoothline', 'cross'] as HalftoneShape[])('%s：中心在里面，远处在外面，边界附近过零', (shape) => {
     expect(shapeDistance(shape, 0, 0, 5, 6)).toBeLessThan(0);
     expect(shapeDistance(shape, 40, 40, 5, 6)).toBeGreaterThan(0);
     // 100% 时不越出 2r × 2r 的格子：格子四角之外一律为正
@@ -219,6 +224,142 @@ describe('网点渲染', () => {
   it('原图色：网点用格子自己的颜色', () => {
     const out = renderHalftone(buildHalftone(flatSource(24, 24, 0.2, [0.8, 0.2, 0.1]), opts({ mode: 'source', pitchX: 12, pitchY: 12, antialias: false, paper: [255, 255, 255] })));
     expect(px(out, 12, 12)).toEqual([204, 51, 26]);
+  });
+});
+
+describe('平滑线条', () => {
+  /** 从左（黑）到右（白）的横向渐变 */
+  function gradientSource(width: number, height: number): HalftoneSource {
+    const gray = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) gray[y * width + x] = x / (width - 1);
+    return { width, height, sample: 1, grayWidth: width, grayHeight: height, gray, linear: false };
+  }
+  /** 每一列的墨量（按像素覆盖率累加，抗锯齿的半透明像素按比例算） */
+  function inkPerColumn(f: { width: number; height: number; data: Uint8ClampedArray }): number[] {
+    const ink: number[] = [];
+    for (let x = 0; x < f.width; x++) {
+      let sum = 0;
+      for (let y = 0; y < f.height; y++) sum += (255 - f.data[(y * f.width + x) * 4]) / 255;
+      ink.push(sum);
+    }
+    return ink;
+  }
+  const maxStep = (v: number[]) => Math.max(...v.slice(1).map((n, k) => Math.abs(n - v[k])));
+
+  it('结点斜率：单调处取两侧割线的调和平均，极值处放平；Hermite 曲线过两端、切线对得上', () => {
+    expect(monotoneSlope(0, 1, 2)).toBeCloseTo(1);
+    expect(monotoneSlope(0, 1, 3)).toBeCloseTo(4 / 3);
+    expect(monotoneSlope(0, 1, 1)).toBe(0);
+    expect(monotoneSlope(1, 0, 1)).toBe(0);
+    expect(hermite(0, 0.2, 0.5, 0.8, -0.1)).toBeCloseTo(0.2);
+    expect(hermite(1, 0.2, 0.5, 0.8, -0.1)).toBeCloseTo(0.8);
+    expect(hermiteSlope(0, 0.2, 0.5, 0.8, -0.1)).toBeCloseTo(0.5);
+    expect(hermiteSlope(1, 0.2, 0.5, 0.8, -0.1)).toBeCloseTo(-0.1);
+    // 两端放平就是 smoothstep：中点正好一半
+    expect(hermite(0.5, 0, 0, 1, 0)).toBeCloseTo(0.5);
+  });
+
+  it('剖面：连续变粗的几格是一条直坡，单独一格的尖峰不过冲，行首行尾之外平着延伸', () => {
+    const out = { r: 0, dr: 0, y: 0, dy: 0, near: 0 };
+    const ramp = { cols: 6, size: new Float32Array([0.2, 0.4, 0.6, 0.8, 0.8, 0.8]) };
+    // 结点 1、2 两侧的割线都是 0.2：这一段就是直线
+    expect(ribbonProfile(ramp, 0, 1.5, out).r).toBeCloseTo(0.5);
+    expect(out.dr).toBeCloseTo(0.2);
+    expect(ribbonProfile(ramp, 0, 1.25, out).r).toBeCloseTo(0.45);
+    // 结点 3 后面是平台、斜率放平：进入平台前缓一下，略高于弦、不过冲
+    const ease = ribbonProfile(ramp, 0, 2.25, out).r;
+    expect(ease).toBeGreaterThan(0.65);
+    expect(ease).toBeLessThan(0.7);
+    let prev = -1;
+    for (let x = 0; x <= 5; x += 0.05) {
+      const r = ribbonProfile(ramp, 0, x, out).r;
+      expect(r).toBeGreaterThanOrEqual(prev - 1e-9);
+      prev = r;
+    }
+    expect(ribbonProfile(ramp, 0, -3, out).r).toBeCloseTo(0.2);
+    expect(ribbonProfile(ramp, 0, 9, out).r).toBeCloseTo(0.8);
+    expect(ribbonProfile(ramp, 0, 1.4, out).near).toBe(1);
+    expect(ribbonProfile(ramp, 0, 1.6, out).near).toBe(2);
+    const spike = { cols: 3, size: new Float32Array([0, 1, 0]) };
+    for (let x = 0; x <= 2; x += 0.05) {
+      const r = ribbonProfile(spike, 0, x, out).r;
+      expect(r).toBeGreaterThanOrEqual(0);
+      expect(r).toBeLessThanOrEqual(1 + 1e-9);
+    }
+    expect(ribbonProfile(spike, 0, 1, out).r).toBeCloseTo(1);
+    // 没采到的格子（负数）当 0；纵向位移同样插值
+    const warped = { cols: 3, size: new Float32Array([-1, 0.5, 0.5]), dy: new Float32Array([0, 0, 0.4]) };
+    expect(ribbonProfile(warped, 0, 0, out).r).toBe(0);
+    expect(ribbonProfile(warped, 0, 1.5, out).y).toBeCloseTo(0.2);
+  });
+
+  it('行首行尾画布之外的格子补成边上那格的大小与颜色，纯白的格子不补', () => {
+    const screen = { cols: 5, rows: 1, size: new Float32Array([0, 0, 0.4, 0.6, 0]), color: new Uint8ClampedArray([0, 0, 0, 0, 0, 0, 10, 20, 30, 40, 50, 60, 0, 0, 0]) };
+    extendRowEnds(screen, new Uint8Array([0, 0, 1, 1, 0]));
+    expect([...screen.size]).toEqual([0.4, 0.4, 0.4, 0.6, 0.6].map((v) => Math.fround(v)));
+    expect([...screen.color.subarray(0, 3)]).toEqual([10, 20, 30]);
+    expect([...screen.color.subarray(12, 15)]).toEqual([40, 50, 60]);
+    const white = { cols: 3, rows: 1, size: new Float32Array([0, 0.5, 0]) };
+    extendRowEnds(white, new Uint8Array([1, 1, 1]));
+    expect([...white.size]).toEqual([0, 0.5, 0]);
+  });
+
+  it('渐变画面：线条一格一段在格子边界打台阶，平滑线条的粗细逐列缓缓变化、单调不回头', () => {
+    const src = gradientSource(192, 48);
+    const render = (shape: HalftoneShape) => inkPerColumn(renderHalftone(buildHalftone(src, opts({ shape, pitchX: 24, pitchY: 48, minSize: 0, mapping: 'linear', dot: [0, 0, 0], paper: [255, 255, 255] }))));
+    const stepped = render('line');
+    const smooth = render('smoothline');
+    expect(maxStep(stepped)).toBeGreaterThan(3);
+    expect(maxStep(smooth)).toBeLessThan(1.5);
+    for (let x = 1; x < smooth.length; x++) expect(smooth[x], `x=${x}`).toBeLessThanOrEqual(smooth[x - 1] + 0.02);
+    expect(smooth[0]).toBeGreaterThan(smooth[191] + 20);
+    // 两个格心中间的粗细约等于两边格心的平均：坡是直的
+    expect(smooth[84]).toBeCloseTo((smooth[72] + smooth[96]) / 2, 0);
+    // 画布边缘的格子外面补成同样的大小：最边上一列的粗细和它所在格心的一样
+    expect(smooth[0]).toBeCloseTo(smooth[1], 0);
+  });
+
+  it('画面一色时整行粗细相同，到画布边缘也不收尖；纯白处真的没墨，不留发丝线', () => {
+    const flat = inkPerColumn(renderHalftone(buildHalftone(flatSource(60, 12, 0.5), opts({ shape: 'smoothline', pitchX: 12, pitchY: 12, minSize: 0, mapping: 'linear', dot: [0, 0, 0], paper: [255, 255, 255] }))));
+    for (let x = 0; x < 60; x++) expect(flat[x], `x=${x}`).toBeCloseTo(flat[30], 5);
+    expect(flat[30]).toBeCloseTo(6, 0);
+    // 左半黑右半白：带子在黑白交界后收尖，再往右一格之外整列都是纸色
+    const width = 120;
+    const gray = new Float32Array(width * 12);
+    for (let y = 0; y < 12; y++) for (let x = 0; x < width; x++) gray[y * width + x] = x < 48 ? 0 : 1;
+    const src: HalftoneSource = { width, height: 12, sample: 1, grayWidth: width, grayHeight: 12, gray, linear: false };
+    const out = renderHalftone(buildHalftone(src, opts({ shape: 'smoothline', pitchX: 12, pitchY: 12, minSize: 0, dot: [0, 0, 0], paper: [255, 255, 255] })));
+    const ink = inkPerColumn(out);
+    expect(ink[24]).toBeCloseTo(12, 0);
+    for (let x = 72; x < width; x++) expect(ink[x], `x=${x}`).toBe(0);
+    for (let x = 48; x < 60; x++) expect(ink[x], `x=${x}`).toBeGreaterThan(ink[x + 1]);
+  });
+
+  it('网格扰动的纵向位移把带子整条挪开', () => {
+    const g = buildHalftone(flatSource(36, 24, 0.5), opts({ shape: 'smoothline', pitchX: 12, pitchY: 12, minSize: 0, mapping: 'linear', antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    const s = g.screens[0];
+    expect(px(renderHalftone(g), 18, 10)).toEqual([0, 0, 0]);
+    expect(px(renderHalftone(g), 18, 17)).toEqual([255, 255, 255]);
+    s.dx = new Float32Array(s.size.length);
+    s.dy = new Float32Array(s.size.length).fill(0.25);
+    s.warpMax = 0.25;
+    const moved = renderHalftone(g);
+    expect(px(moved, 18, 8)).toEqual([255, 255, 255]);
+    expect(px(moved, 18, 17)).toEqual([0, 0, 0]);
+  });
+
+  it('SVG：一行一条闭合 path，上下沿各一串贝塞尔；原图色模式逐格切开各填各的颜色', () => {
+    const svg = halftoneToSvg(buildHalftone(gradientSource(96, 12), opts({ shape: 'smoothline', pitchX: 12, pitchY: 12, minSize: 0.1 })));
+    expect((svg.match(/<path /g) ?? []).length).toBe(1);
+    expect(svg).not.toContain('<rect x=');
+    expect(svg).toMatch(/<path d="M [^"]* C [^"]* L [^"]* C [^"]* Z"\/>/);
+    const colored = halftoneToSvg(buildHalftone(flatSource(48, 12, 0.3, [0.8, 0.2, 0.1]), opts({ shape: 'smoothline', mode: 'source', pitchX: 12, pitchY: 12 })));
+    expect((colored.match(/<path [^>]*fill="#CC331A"/g) ?? []).length).toBeGreaterThanOrEqual(4);
+    // 一色画面的带子上沿是一条水平线：所有贝塞尔控制点的 y 都等于 -半粗
+    const flat = halftoneToSvg(buildHalftone(flatSource(48, 12, 0.5), opts({ shape: 'smoothline', pitchX: 12, pitchY: 12, minSize: 0, mapping: 'linear' })));
+    const d = /<path d="([^"]*)"/.exec(flat)![1];
+    const ys = d.match(/-?\d+(\.\d+)? (-?\d+(\.\d+)?)/g)!.map((pair) => Number(pair.split(' ')[1]));
+    expect(new Set(ys.map((v) => Math.abs(v)))).toEqual(new Set([3]));
   });
 });
 

@@ -31,6 +31,7 @@ export const HALFTONE_SHAPES: ParamOption[] = [
   opt('triangle', '三角'),
   opt('hexagon', '六边形'),
   opt('line', '线条'),
+  opt('smoothline', '平滑线'),
   opt('cross', '十字'),
 ];
 

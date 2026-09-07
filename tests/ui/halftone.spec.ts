@@ -199,6 +199,13 @@ test('网点：Yellow Pop 的涟漪扰动参数随扰动种类显隐，摘要带
   await page.getByTestId('preset-more').click();
   await expect(page.locator('[data-preset="ht-symbols"]')).toHaveCount(0);
   await expect(page.locator('[data-preset="ht-typewriter"]')).toHaveCount(0);
+  // Line Flow：Line Screen 的平滑版，形状是「平滑线」，「基础」摘要也这么写
+  await page.locator('[data-preset="ht-line-flow"]').click();
+  await expect(page.locator('[data-param="halftone.shape"] .tda-select__value')).toHaveText('平滑线');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+  await page.locator('[data-section="basic"] .section__toggle').click();
+  await expect(page.locator('[data-section="basic"] .section__summary')).toHaveText('平滑线 · 6 × 7px · 20°');
+  await page.locator('[data-section="basic"] .section__toggle').click();
   await page.locator('[data-preset="ht-yellow-pop"]').click();
   await expect(page.locator('[data-param="ink.paper"] input[type="text"]')).toHaveValue('#FFF200');
   // Yellow Pop 的网格带涟漪扰动：强度 / 波长跟着露出，「基础」摘要写着扰动；换成「无」就收起

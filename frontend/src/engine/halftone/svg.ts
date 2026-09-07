@@ -1,9 +1,10 @@
 import { baseRadius, cellCenter, countDots, dotOffset, glyphHalfStroke, glyphSpan, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
 import { glyphSvg } from './glyphs';
+import { ribbonPaths } from './ribbon';
 import { ROUND_SQUARE_CORNER, shapeVertices } from './shapes';
 
 /**
- * Halftone 的矢量导出：每个网点就是一个 <circle> / <rect> / <polygon>，网格的旋转交给 <g transform>，
+ * Halftone 的矢量导出：每个网点就是一个 <circle> / <rect> / <polygon>（平滑线条一行一条 <path>），网格的旋转交给 <g transform>，
  * 所以文件里的数字就是格坐标，肉眼可读、也方便拿去别的软件继续编辑。
  * 点融合在 SVG 里用经典的"高斯模糊 + 提高 alpha 对比"滤镜近似，再把原形状叠回去，小点不会被模糊吃掉。
  * CMYK 四层各成一组，正片叠底。特效栈不进 SVG。
@@ -79,6 +80,18 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
     if (g.mode === 'cmyk') attrs.push('style="mix-blend-mode:multiply"');
     parts.push(`<g ${attrs.join(' ')}>`);
     const inkStroke = ` stroke="${hex(screen.ink)}"`;
+    if (g.shape === 'smoothline') {
+      // 平滑线条：一行一条闭合 <path>（上下沿各一串三次贝塞尔），原图色模式按格切开各填各的颜色
+      for (let jj = 0; jj < screen.rows; jj++) {
+        const [x0, y0] = cellCenter(screen, screen.i0, screen.j0 + jj);
+        for (const { d, idx } of ribbonPaths(screen, jj, r0, x0, y0, !!screen.color, f)) {
+          const fill = screen.color ? ` fill="${hex(screen.color.subarray(idx * 3, idx * 3 + 3))}"` : '';
+          parts.push(`<path d="${d}"${fill}/>`);
+        }
+      }
+      parts.push('</g>');
+      continue;
+    }
     for (let jj = 0; jj < screen.rows; jj++) {
       const j = screen.j0 + jj;
       for (let ii = 0; ii < screen.cols; ii++) {

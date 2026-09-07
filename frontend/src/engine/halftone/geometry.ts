@@ -1,5 +1,6 @@
 import { rgbToCmyk } from '../color/cmyk';
 import { srgbToLinearFast } from '../color/srgb';
+import { extendRowEnds } from './ribbon';
 import type { HalftoneShape } from './shapes';
 import { buildWarp, type WarpSettings } from './warp';
 
@@ -327,11 +328,18 @@ export function createScreen(width: number, height: number, layout: ScreenLayout
 export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): HalftoneGeometry {
   const { width, height } = src;
   const screens: HalftoneScreen[] = [];
+  // 平滑线条：记下哪些格子采到了画面，采完把每行画布之外的格子补成边上那格的大小，带子到画布边缘不收尖
+  const ribbon = opts.shape === 'smoothline';
+  const finish = (screen: HalftoneScreen, sampled?: Uint8Array) => {
+    if (sampled) extendRowEnds(screen, sampled);
+    screens.push(screen);
+  };
 
   if (opts.mode === 'cmyk') {
     const made = CMYK_ANGLES.map((a, k) => createScreen(width, height, { ...opts, angle: (opts.angle + a) % 360 }, CMYK_INKS[k]));
     // 四层共用一套采样比较浪费，但每层网格角度不同，格子盖住的画面也不同，只能各采各的
     made.forEach(({ screen, t }, k) => {
+      const sampled = ribbon ? new Uint8Array(screen.size.length) : undefined;
       sampleScreen(src, t, opts.lattice, screen, true, (index, _gray, r, g, b) => {
         if (src.linear) {
           r = srgbToLinearFast(r);
@@ -340,30 +348,33 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
         }
         const cmyk = rgbToCmyk(clamp01(r), clamp01(g), clamp01(b));
         screen.size[index] = coverageToSize(cmyk[k], opts);
+        if (sampled) sampled[index] = 1;
       });
-      screens.push(screen);
+      finish(screen, sampled);
     });
   } else {
     const { screen, t } = createScreen(width, height, opts, opts.dot);
     const wantColor = opts.mode === 'source';
     if (wantColor) screen.color = new Uint8ClampedArray(screen.cols * screen.rows * 3);
+    const sampled = ribbon ? new Uint8Array(screen.size.length) : undefined;
     sampleScreen(src, t, opts.lattice, screen, wantColor, (index, gray, r, g, b) => {
       screen.size[index] = coverageToSize(1 - gray, opts);
+      if (sampled) sampled[index] = 1;
       if (screen.color) {
         screen.color[index * 3] = r * 255;
         screen.color[index * 3 + 1] = g * 255;
         screen.color[index * 3 + 2] = b * 255;
       }
     });
-    screens.push(screen);
+    finish(screen, sampled);
   }
 
   return { width, height, shape: opts.shape, mode: opts.mode, paper: opts.paper, merge: opts.merge, antialias: opts.antialias, glyphStroke: 0, screens };
 }
 
-/** 网点大小 100% 对应的半径（画布像素）：线条按格高，其余按格子短边 */
+/** 网点大小 100% 对应的半径（画布像素）：线条 / 平滑线条按格高，其余按格子短边 */
 export function baseRadius(shape: HalftoneShape, screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>): number {
-  return shape === 'line' ? screen.pitchY / 2 : Math.min(screen.pitchX, screen.pitchY) / 2;
+  return shape === 'line' || shape === 'smoothline' ? screen.pitchY / 2 : Math.min(screen.pitchX, screen.pitchY) / 2;
 }
 
 /** 线条横向的半宽：铺满格宽，多出一点盖住格间接缝 */

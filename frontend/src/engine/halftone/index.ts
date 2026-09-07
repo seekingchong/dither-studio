@@ -1,4 +1,5 @@
 export { shapeDistance, shapeVertices, HALFTONE_SHAPE_IDS, type HalftoneShape } from './shapes';
+export { monotoneSlope, hermite, hermiteSlope, ribbonProfile, ribbonPaths, extendRowEnds, type RibbonProfile } from './ribbon';
 export {
   glyphDistance,
   glyphSvg,
