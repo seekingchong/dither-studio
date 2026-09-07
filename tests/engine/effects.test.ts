@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import { defaultParams } from '@/params';
-import { EFFECT_DEFS, Pipeline, applyEffects, coerceEffectParams, defaultEffectInstance, getEffectDef, parseStack, serializeStack, type RGBAFrame } from '@/engine';
+import {
+  EFFECT_DEFS,
+  LEVEL_OUTLINE_ID,
+  Pipeline,
+  applyEffects,
+  coerceEffectParams,
+  defaultEffectInstance,
+  getEffectDef,
+  levelEnabled,
+  outlineMask,
+  parseStack,
+  serializeStack,
+  styleLevelCount,
+  toneLevel,
+  toneMapOf,
+  type RGBAFrame,
+} from '@/engine';
 import { makeFrame } from './helpers';
 
 const luma = (d: Uint8ClampedArray, i: number) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
@@ -164,5 +180,182 @@ describe('流水线特效阶段', () => {
     expect(differs(plain, fx)).toBe(true);
     p.run(source, 'a', { ...params, 'effects.stack': stack });
     expect(p.lastStats.recomputed).toEqual([]);
+  });
+});
+
+describe('灰度块描边', () => {
+  const def = getEffectDef(LEVEL_OUTLINE_ID)!;
+  const RED: [number, number, number] = [255, 0, 0];
+  const base = { levels: 2, width: 2, color: '#FF0000', join: 'square', fill: 'keep', paper: '#FFFFFF', mask: '' };
+  /** 左半黑、右半白，分界在 x = 8 */
+  const halves = () => makeFrame(16, 8, (x) => (x < 8 ? [0, 0, 0] : [255, 255, 255]));
+  const px = (f: RGBAFrame, x: number, y: number) => Array.from(f.data.subarray((y * f.width + x) * 4, (y * f.width + x) * 4 + 3));
+  const isRed = (f: RGBAFrame, x: number, y: number) => px(f, x, y).join() === RED.join();
+  const redCount = (f: RGBAFrame) => {
+    let c = 0;
+    for (let y = 0; y < f.height; y++) for (let x = 0; x < f.width; x++) if (isRed(f, x, y)) c++;
+    return c;
+  };
+
+  it('分阶：抖动 / 网点四舍五入到最近一级，排线 / 符号等宽分档，0 是最亮', () => {
+    expect(toneLevel(1, 8, 'round')).toBe(0);
+    expect(toneLevel(0, 8, 'round')).toBe(7);
+    expect(toneLevel(0.9, 8, 'round')).toBe(1); // round(0.9 × 7) = 6 → 7 − 6
+    expect(toneLevel(0.9, 8, 'floor')).toBe(0); // floor(0.1 × 8) = 0
+    expect(toneLevel(0.5, 2, 'round')).toBe(0);
+    expect(toneLevel(0.49, 2, 'round')).toBe(1);
+    expect(toneLevel(-1, 4, 'floor')).toBe(3);
+    expect(toneLevel(2, 4, 'floor')).toBe(0);
+    expect(levelEnabled('', 5)).toBe(true);
+    expect(levelEnabled('10', 1)).toBe(false);
+    expect(levelEnabled('10', 2)).toBe(true);
+  });
+
+  it('参数收敛：颜色只认 #RRGGBB，开关串只留 0 / 1', () => {
+    const p = coerceEffectParams(def, { color: 'red', paper: '#abcdef', mask: 'x1y0!', levels: 99, width: 0 });
+    expect(p.color).toBe('#000000');
+    expect(p.paper).toBe('#ABCDEF');
+    expect(p.mask).toBe('10');
+    expect(p.levels).toBe(16);
+    expect(p.width).toBe(1);
+    expect(coerceEffectParams(def, { mask: 7 }).mask).toBe('');
+  });
+
+  it('没有上下文时按成品亮度分阶，沿分界描线，粗细与颜色照参数', () => {
+    const src = halves();
+    const out = def.apply(src, base);
+    for (let y = 0; y < 8; y++) {
+      expect(isRed(out, 7, y)).toBe(true);
+      expect(isRed(out, 8, y)).toBe(true);
+      expect(px(out, 6, y)).toEqual([0, 0, 0]);
+      expect(px(out, 9, y)).toEqual([255, 255, 255]);
+    }
+    expect(redCount(out)).toBe(16);
+    // 源帧不动
+    expect(src.data).toEqual(halves().data);
+    // 粗细 1 只占分界左侧一列，粗细 4 两侧各两列
+    const thin = def.apply(src, { ...base, width: 1 });
+    expect(redCount(thin)).toBe(8);
+    expect(isRed(thin, 7, 0)).toBe(true);
+    const thick = def.apply(src, { ...base, width: 4 });
+    expect(redCount(thick)).toBe(32);
+    expect(isRed(thick, 6, 0)).toBe(true);
+    expect(isRed(thick, 9, 0)).toBe(true);
+    expect(isRed(thick, 5, 0)).toBe(false);
+    // 颜色
+    const blue = def.apply(src, { ...base, color: '#0000FF' });
+    expect(px(blue, 7, 0)).toEqual([0, 0, 255]);
+  });
+
+  it('每阶开关：两阶都关就没有线，关掉一阶另一阶的轮廓还在', () => {
+    const src = halves();
+    expect(def.apply(src, { ...base, mask: '00' }).data).toEqual(src.data);
+    expect(redCount(def.apply(src, { ...base, mask: '01' }))).toBe(16);
+    expect(redCount(def.apply(src, { ...base, mask: '10' }))).toBe(16);
+    expect(redCount(def.apply(src, { ...base, mask: '11' }))).toBe(16);
+  });
+
+  it('只留描边：画面换成底色，线照描', () => {
+    const out = def.apply(halves(), { ...base, fill: 'flat', paper: '#00FF00' });
+    expect(px(out, 0, 0)).toEqual([0, 255, 0]);
+    expect(px(out, 15, 7)).toEqual([0, 255, 0]);
+    expect(isRed(out, 7, 3)).toBe(true);
+    expect(isRed(out, 8, 3)).toBe(true);
+  });
+
+  it('转角：圆角削掉外角像素，方角把角拼满', () => {
+    // 白底上一个 8×8 的黑方块，左上角在 (4, 4)
+    const src = makeFrame(16, 16, (x, y) => (x >= 4 && x < 12 && y >= 4 && y < 12 ? [0, 0, 0] : [255, 255, 255]));
+    const square = def.apply(src, { ...base, width: 4, join: 'square' });
+    const round = def.apply(src, { ...base, width: 4, join: 'round' });
+    // 线心在方块边上，两侧各 2px：外角 (2, 2) 方角有、圆角没有；边中段 (2, 8) 两者都有
+    expect(isRed(square, 2, 2)).toBe(true);
+    expect(isRed(round, 2, 2)).toBe(false);
+    expect(isRed(square, 2, 8)).toBe(true);
+    expect(isRed(round, 2, 8)).toBe(true);
+    expect(redCount(round)).toBeLessThan(redCount(square));
+    // 内角 (5, 5) 两者都在线里
+    expect(isRed(square, 5, 5)).toBe(true);
+    expect(isRed(round, 5, 5)).toBe(true);
+  });
+
+  it('按明暗分布描线：线落在格子边上，格子可以带偏移', () => {
+    // 4 × 2 格，左两列暗、右两列亮，格子 4px，横向偏移 1：格子 i 覆盖 [4i − 1, 4i + 3)，分界在 x = 7
+    const gray = { width: 4, height: 2, data: new Float32Array([0, 0, 1, 1, 0, 0, 1, 1]) };
+    const tone = toneMapOf(gray, 4, 4, 1, 0, 'round');
+    expect(tone.originX).toBe(-1);
+    const mask = outlineMask(tone, 16, 8, 2, '', 2, false);
+    for (let y = 0; y < 8; y++) {
+      expect(mask[y * 16 + 6]).toBe(1);
+      expect(mask[y * 16 + 7]).toBe(1);
+      expect(mask[y * 16 + 5]).toBe(0);
+      expect(mask[y * 16 + 8]).toBe(0);
+    }
+    // 上下两行同阶，横边不描
+    expect(mask[4 * 16 + 0]).toBe(0);
+    expect(mask[3 * 16 + 0]).toBe(0);
+  });
+
+  it('流水线里按格子描线：像素尺寸 4 时线贴着格子边，而不是抖动噪点边', () => {
+    const p = new Pipeline();
+    // 左半黑右半白，画布 64×32，像素尺寸 4，单色 Bayer：分界正好在第 8 格的边上 x = 32
+    const source = makeFrame(64, 32, (x) => (x < 32 ? [0, 0, 0] : [255, 255, 255]));
+    const inst = defaultEffectInstance(LEVEL_OUTLINE_ID)!;
+    inst.params = { ...inst.params, levels: 2, width: 2, color: '#FF0000', join: 'square' };
+    const params = { ...defaultParams(), 'canvas.width': 64, 'canvas.height': 32, 'pixel.size': 4, 'effects.stack': serializeStack([inst]) };
+    const out = p.run(source, 'a', params);
+    expect(p.lastStats.recomputed).toContain('effects');
+    for (let y = 0; y < 32; y++) {
+      expect(isRed(out, 31, y)).toBe(true);
+      expect(isRed(out, 32, y)).toBe(true);
+      expect(isRed(out, 30, y)).toBe(false);
+      expect(isRed(out, 33, y)).toBe(false);
+    }
+    expect(redCount(out)).toBe(64);
+    // 只改特效参数只重算 effects
+    inst.params = { ...inst.params, width: 4 };
+    const wide = p.run(source, 'a', { ...params, 'effects.stack': serializeStack([inst]) });
+    expect(p.lastStats.recomputed).toEqual(['effects']);
+    expect(redCount(wide)).toBe(128);
+    // 改像素尺寸后线跟着格子走：像素尺寸 8 时分界还在 x = 32
+    const big = p.run(source, 'a', { ...params, 'pixel.size': 8 });
+    expect(isRed(big, 31, 0)).toBe(true);
+    expect(isRed(big, 32, 0)).toBe(true);
+    expect(isRed(big, 30, 0)).toBe(false);
+  });
+
+  it('排线 / 网点 / 符号风格下也描，线落在明暗分界附近', () => {
+    const source = makeFrame(64, 32, (x) => (x < 32 ? [0, 0, 0] : [255, 255, 255]));
+    for (const style of ['hatch', 'halftone', 'glyph'] as const) {
+      const inst = defaultEffectInstance(LEVEL_OUTLINE_ID)!;
+      inst.params = { ...inst.params, levels: 2, width: 2, color: '#FF0000' };
+      const params = { ...defaultParams(), 'style.type': style, 'canvas.width': 64, 'canvas.height': 32, 'effects.stack': serializeStack([inst]) };
+      const out = new Pipeline().run(source, style, params);
+      let reds = 0;
+      for (let y = 0; y < 32; y++) {
+        for (let x = 0; x < 64; x++) {
+          if (!isRed(out, x, y)) continue;
+          reds++;
+          expect(Math.abs(x - 32)).toBeLessThanOrEqual(16);
+        }
+      }
+      expect(reds).toBeGreaterThanOrEqual(32);
+    }
+  });
+
+  it('添加时阶数跟随风格：单色 2、灰阶按级数、排线 / 符号按各自的色阶、网点开分级才有阶数', () => {
+    const d = defaultParams();
+    expect(styleLevelCount(d)).toBe(2);
+    expect(styleLevelCount({ ...d, 'color.mode': 'gray', 'color.levels': 6 })).toBe(6);
+    expect(styleLevelCount({ ...d, 'color.mode': 'palette', 'color.mismatch': true, 'color.palette.levels': 5 })).toBe(5);
+    expect(styleLevelCount({ ...d, 'style.type': 'hatch', 'hatch.levels': 7 })).toBe(7);
+    expect(styleLevelCount({ ...d, 'style.type': 'glyph', 'glyph.levels': 4 })).toBe(4);
+    expect(styleLevelCount({ ...d, 'style.type': 'halftone', 'halftone.stepped': true, 'halftone.levels': 12 })).toBe(12);
+    expect(styleLevelCount({ ...d, 'style.type': 'halftone', 'halftone.stepped': false })).toBe(8);
+    const inst = defaultEffectInstance(LEVEL_OUTLINE_ID, { ...d, 'color.mode': 'gray', 'color.levels': 6 })!;
+    expect(inst.params.levels).toBe(6);
+    expect(defaultEffectInstance(LEVEL_OUTLINE_ID)!.params.levels).toBe(8);
+    // 超出范围的阶数收敛到上限
+    expect(defaultEffectInstance(LEVEL_OUTLINE_ID, { ...d, 'style.type': 'halftone', 'halftone.stepped': true, 'halftone.levels': 32 })!.params.levels).toBe(16);
   });
 });

@@ -1,7 +1,7 @@
 import type { ParamValue } from '@/params';
 import type { RGBAFrame } from '../types';
 import { EFFECT_DEFS, getEffectDef } from './defs';
-import type { EffectDef, EffectInstance, EffectParamValues } from './types';
+import type { EffectContext, EffectDef, EffectInstance, EffectParamValues } from './types';
 
 /** 按定义把实例参数收敛到合法值 */
 export function coerceEffectParams(def: EffectDef, input: unknown): EffectParamValues {
@@ -29,15 +29,23 @@ export function coerceEffectParams(def: EffectDef, input: unknown): EffectParamV
       case 'boolean':
         out[p.id] = typeof v === 'boolean' ? v : p.default;
         break;
+      case 'color':
+        out[p.id] = typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v.toUpperCase() : p.default;
+        break;
+      case 'levels':
+        // 只留 0 / 1，长度不按阶数裁：阶数改多了新阶默认开，改少了多出的位忽略
+        out[p.id] = typeof v === 'string' ? v.replace(/[^01]/g, '').slice(0, 32) : p.default;
+        break;
     }
   }
   return out;
 }
 
-export function defaultEffectInstance(type: string): EffectInstance | null {
+/** 新实例：全部默认值；给了当前参数表时，定义了 init 的特效按它给初始值（如描边的阶数跟随风格的灰阶数） */
+export function defaultEffectInstance(type: string, params?: Record<string, ParamValue>): EffectInstance | null {
   const def = getEffectDef(type);
   if (!def) return null;
-  return { type, enabled: true, params: coerceEffectParams(def, {}) };
+  return { type, enabled: true, params: coerceEffectParams(def, params && def.init ? def.init(params) : {}) };
 }
 
 /** 解析特效栈 JSON，未知类型丢弃，参数按定义收敛 */
@@ -66,14 +74,14 @@ export function serializeStack(stack: EffectInstance[]): string {
   return stack.length === 0 ? '' : JSON.stringify(stack);
 }
 
-/** 依次应用启用的特效 */
-export function applyEffects(frame: RGBAFrame, stack: EffectInstance[]): RGBAFrame {
+/** 依次应用启用的特效；ctx 是流水线交来的上下文（明暗分布等），直接调用时可省 */
+export function applyEffects(frame: RGBAFrame, stack: EffectInstance[], ctx?: EffectContext): RGBAFrame {
   let current = frame;
   for (const inst of stack) {
     if (!inst.enabled) continue;
     const def = getEffectDef(inst.type);
     if (!def) continue;
-    current = def.apply(current, inst.params);
+    current = def.apply(current, inst.params, ctx);
   }
   return current;
 }

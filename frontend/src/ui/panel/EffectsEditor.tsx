@@ -2,12 +2,21 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { EFFECT_DEFS, defaultEffectInstance, parseStack, serializeStack, type EffectInstance, type EffectParamDef } from '@/engine';
 import { useStudioStore } from '@/state';
-import { HelpLabel, Icon, IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
+import { ColorField, HelpLabel, Icon, IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
 import { helpForEffect } from '@/ui/state/helpStore';
+import { LevelMaskControl } from './LevelMaskControl';
 
 const STACK_ID = 'effects.stack';
 
-function EffectParamControl({ def, value, onChange }: { def: EffectParamDef; value: EffectInstance['params'][string]; onChange: (v: EffectInstance['params'][string]) => void }) {
+interface EffectParamControlProps {
+  def: EffectParamDef;
+  value: EffectInstance['params'][string];
+  /** 同一实例的全部参数：逐阶开关要看阶数 */
+  params: EffectInstance['params'];
+  onChange: (v: EffectInstance['params'][string]) => void;
+}
+
+function EffectParamControl({ def, value, params, onChange }: EffectParamControlProps) {
   switch (def.type) {
     case 'number':
       return (
@@ -26,7 +35,24 @@ function EffectParamControl({ def, value, onChange }: { def: EffectParamDef; val
       return <Select label={def.label} value={String(value)} options={def.options ?? []} onChange={onChange} data-param={`effect.${def.id}`} />;
     case 'boolean':
       return <ToggleField label={def.label} value={Boolean(value)} onChange={onChange} data-param={`effect.${def.id}`} />;
+    case 'color':
+      return <ColorField label={def.label} value={String(value)} onChange={onChange} data-param={`effect.${def.id}`} />;
+    case 'levels':
+      return (
+        <LevelMaskControl
+          label={def.label}
+          value={String(value ?? '')}
+          count={def.countFrom ? Number(params[def.countFrom]) : 1}
+          onChange={onChange}
+          data-param={`effect.${def.id}`}
+        />
+      );
   }
+}
+
+/** 参数在这个实例里露不露出：定义了 visibleWhen 的只在那个参数等于指定值时显示 */
+function paramVisible(def: EffectParamDef, params: EffectInstance['params']): boolean {
+  return !def.visibleWhen || params[def.visibleWhen.id] === def.visibleWhen.equals;
 }
 
 /** 特效栈编辑器：全部特效以选项芯片露出，点一下即添加；已添加的实例可启用、上下移动、删除，按定义生成控件 */
@@ -44,7 +70,8 @@ export function EffectsEditor() {
   };
   const remove = (index: number) => write(stack.filter((_, i) => i !== index));
   const add = (type: string) => {
-    const inst = defaultEffectInstance(type);
+    // 初始值可以看当前参数表（描边的阶数跟随风格的灰阶数），所以取一次实时状态
+    const inst = defaultEffectInstance(type, useStudioStore.getState().params);
     if (inst) write([...stack, inst]);
   };
   const countOf = (type: string) => stack.filter((e) => e.type === type).length;
@@ -93,9 +120,11 @@ export function EffectsEditor() {
               <IconButton icon="trash" label="删除" className="tda-iconbtn--sm" onClick={() => remove(index)} />
             </header>
             <div className="param-grid">
-              {def.params.map((p) => (
-                <EffectParamControl key={p.id} def={p} value={inst.params[p.id]} onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })} />
-              ))}
+              {def.params
+                .filter((p) => paramVisible(p, inst.params))
+                .map((p) => (
+                  <EffectParamControl key={p.id} def={p} value={inst.params[p.id]} params={inst.params} onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })} />
+                ))}
             </div>
           </section>
         );

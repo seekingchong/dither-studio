@@ -43,7 +43,7 @@ test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) 
   await expect(page.getByTestId('effects-editor')).toContainText('还没有特效');
   // 特效选项全部露出为芯片，不是下拉
   const chips = page.getByTestId('effects-add').getByRole('button');
-  await expect(chips).toHaveCount(9);
+  await expect(chips).toHaveCount(10);
   await expect(page.locator('[data-param="effects.add"]')).toHaveCount(0);
   const base = await canvasHash(page);
 
@@ -81,5 +81,41 @@ test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) 
   await page.locator('.effect-card').first().getByRole('button', { name: '删除' }).click();
   await expect(page.locator('.effect-card')).toHaveCount(0);
   await expect.poll(() => canvasHash(page)).toBe(base);
+  await expect(page.locator('.tda-toast--error')).toHaveCount(0);
+});
+
+test('灰度块描边：阶数跟随风格，各阶芯片可开关，底色只在「只留描边」下露出', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await openSection(page, 'effects');
+  const base = await canvasHash(page);
+
+  await page.getByTestId('effects-add').getByRole('button', { name: '灰度块描边' }).click();
+  const card = page.locator('.effect-card[data-effect="levelOutline"]');
+  await expect(card).toHaveCount(1);
+  // 默认方案是单色，两阶，芯片就是两枚
+  await expect(card.locator('.level-mask__chip')).toHaveCount(2);
+  await expect(card.locator('.level-mask__chip[aria-pressed="true"]')).toHaveCount(2);
+  await expect.poll(() => canvasHash(page)).not.toBe(base);
+
+  // 灰阶数改 4 → 四枚芯片
+  const levels = card.locator('[data-param="effect.levels"] .tda-slider__input');
+  await levels.fill('4');
+  await levels.press('Enter');
+  await expect(card.locator('.level-mask__chip')).toHaveCount(4);
+
+  // 四阶全关：没有线，画面回到原样
+  for (let i = 0; i < 4; i++) await card.locator('.level-mask__chip').nth(i).click();
+  await expect(card.locator('.level-mask__chip[aria-pressed="true"]')).toHaveCount(0);
+  await expect.poll(() => canvasHash(page)).toBe(base);
+  // 再开最暗一阶，线回来了
+  await card.locator('.level-mask__chip').nth(3).click();
+  await expect(card.locator('.level-mask__chip[aria-pressed="true"]')).toHaveCount(1);
+  await expect.poll(() => canvasHash(page)).not.toBe(base);
+
+  // 底色只在「只留描边」下露出
+  await expect(card.locator('[data-param="effect.paper"]')).toHaveCount(0);
+  await pick(page, 'effect.fill', '只留描边');
+  await expect(card.locator('[data-param="effect.paper"]')).toHaveCount(1);
   await expect(page.locator('.tda-toast--error')).toHaveCount(0);
 });
