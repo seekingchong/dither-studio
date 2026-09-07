@@ -156,7 +156,7 @@ export class Pipeline {
           ? { cache: this.ht, pitchX: opts.halftone.pitchX, pitchY: opts.halftone.pitchY, prefixes: ['halftone.', 'screen.', 'ink.'], build: (src) => buildHalftone(src, opts.halftone), stage: 'halftone', bins: 'round' }
           : { cache: this.gl, pitchX: opts.glyph.pitchX, pitchY: opts.glyph.pitchY, prefixes: ['glyph.', 'tile.'], build: (src) => buildGlyphScreen(src, opts.glyph), stage: 'glyph', bins: 'floor' };
       const { rendered, tone } = this.runScreen(params, opts, fitKey, ctx, spec);
-      const output = this.finish(rendered, params, ctx, tone);
+      const output = this.finish(rendered, this.fitted.value, params, ctx, tone);
       this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: false };
       return output;
     }
@@ -235,18 +235,22 @@ export class Pipeline {
     if (hatch) this.runHatch(params, opts, this.forced.value, forcedKey, ctx);
     else this.runDither(params, opts, palette, bg, bgKey, toneKey, forcedKey, ctx);
 
-    const output = this.finish(this.rendered!, params, ctx, tone);
+    const output = this.finish(this.rendered!, this.fitted.value, params, ctx, tone);
     this.lastStats = { recomputed: ctx.recomputed, elapsedMs: now() - t0, gpu: ctx.gpu };
     return output;
   }
 
-  /** 渲染之后的收尾：特效栈（独立缓存，明暗分布随上下文交给特效）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本） */
-  private finish(rendered: Cached<RGBAFrame>, params: Params, ctx: RunContext, tone: Cached<ToneMap>): RGBAFrame {
+  /**
+   * 渲染之后的收尾：特效栈（独立缓存）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本）。
+   * 特效能拿到适配画布后的原图（「叠加原图」用它当背景）与量化前的明暗分布（「灰度块描边」沿格子边描线）；
+   * 渲染键里已经含源帧与画布参数，换素材或换帧时特效缓存自然失效。
+   */
+  private finish(rendered: Cached<RGBAFrame>, source: RGBAFrame, params: Params, ctx: RunContext, tone: Cached<ToneMap>): RGBAFrame {
     const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
     const effectsKey = `${rendered.key}|${tone.key}|${stackJson}`;
     if (this.effected?.key !== effectsKey) {
       const stack = parseStack(stackJson);
-      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { tone: tone.value }) : rendered.value;
+      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { source, tone: tone.value }) : rendered.value;
       this.effected = { key: effectsKey, value };
       if (value !== rendered.value) ctx.recomputed.push('effects');
     }

@@ -18,7 +18,7 @@ export interface EffectParamDef {
   options?: Array<{ value: string; label: string }>;
   /** levels 型：阶数取自同一实例里的哪个参数 */
   countFrom?: string;
-  /** 只在同一实例的某个参数等于某值时露出 */
+  /** 只在同一实例的另一个参数等于某值时露出（如模糊半径只在开了模糊时显示、底色只在「只留描边」时显示） */
   visibleWhen?: { id: string; equals: ParamValue };
   default: ParamValue;
 }
@@ -43,8 +43,11 @@ export interface ToneMap {
   bins: ToneBins;
 }
 
-/** 流水线交给特效阶段的上下文；直接调 applyEffects 时可以不给，特效各自回退 */
+/** 特效运行时能拿到的上下文：除了当前帧之外的素材；直接调 applyEffects 时可以不给，需要的特效各自回退 */
 export interface EffectContext {
+  /** 适配到画布尺寸的原图（视频则是当前帧），与成品同尺寸（「叠加原图」用） */
+  source?: RGBAFrame;
+  /** 风格量化前的明暗分布（「灰度块描边」用） */
   tone?: ToneMap;
 }
 

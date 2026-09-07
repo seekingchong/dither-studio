@@ -74,8 +74,8 @@ export function serializeStack(stack: EffectInstance[]): string {
   return stack.length === 0 ? '' : JSON.stringify(stack);
 }
 
-/** 依次应用启用的特效；ctx 是流水线交来的上下文（明暗分布等），直接调用时可省 */
-export function applyEffects(frame: RGBAFrame, stack: EffectInstance[], ctx?: EffectContext): RGBAFrame {
+/** 依次应用启用的特效；ctx 是流水线交来的上下文（原图、明暗分布等），需要的特效自己取用，直接调用时可省 */
+export function applyEffects(frame: RGBAFrame, stack: EffectInstance[], ctx: EffectContext = {}): RGBAFrame {
   let current = frame;
   for (const inst of stack) {
     if (!inst.enabled) continue;
