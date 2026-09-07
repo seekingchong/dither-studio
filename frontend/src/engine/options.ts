@@ -6,6 +6,7 @@ import { hexToRgb } from './color/srgb';
 import type { BackgroundKind, BgDotShape, DotShape, LineDirection } from './render/grid';
 import type { HatchLink, HatchOptions } from './render/hatch';
 import type { HalftoneSettings, InkMode, LatticeKind, SizeMapping } from './halftone/geometry';
+import type { GlyphRampKind } from './halftone/glyphs';
 import type { HalftoneShape } from './halftone/shapes';
 import type { GrayFormula } from './color/gray';
 import type { FitMode } from './preprocess/fit';
@@ -171,6 +172,12 @@ export function toPipelineOptions(params: Params): PipelineOptions {
       mode: str(params, 'ink.mode') as InkMode,
       dot: hexToRgb(str(params, 'ink.dot')),
       paper: hexToRgb(str(params, 'ink.paper')),
+      glyphRamp: str(params, 'halftone.glyphRamp') as GlyphRampKind,
+      glyphCustom: str(params, 'halftone.glyphCustom'),
+      glyphStroke: num(params, 'halftone.glyphStroke') / 100,
+      glyphMix: num(params, 'halftone.glyphMix') / 100,
+      glyphAccent: num(params, 'halftone.glyphAccent') / 100,
+      glyphSeed: Math.round(num(params, 'halftone.glyphSeed')),
     },
     grid: {
       dot: str(params, 'grid.dot') as DotShape,

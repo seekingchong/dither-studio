@@ -1,5 +1,6 @@
 import { rgbToCmyk } from '../color/cmyk';
 import { srgbToLinearFast } from '../color/srgb';
+import { assignGlyphs, resolveGlyphRamp, type GlyphRampKind } from './glyphs';
 import type { HalftoneShape } from './shapes';
 
 /**
@@ -37,6 +38,13 @@ export interface HalftoneSettings {
   /** 网点色与底色 0..255 */
   dot: [number, number, number];
   paper: [number, number, number];
+  /** 符号网点（shape = 'glyph'）：符号序列、自定义序列文本、线粗（占格子短边 0..1）、交界混合 0..1、点缀密度 0..1、种子 */
+  glyphRamp: GlyphRampKind;
+  glyphCustom: string;
+  glyphStroke: number;
+  glyphMix: number;
+  glyphAccent: number;
+  glyphSeed: number;
 }
 
 export const DEFAULT_HALFTONE: HalftoneSettings = {
@@ -58,6 +66,12 @@ export const DEFAULT_HALFTONE: HalftoneSettings = {
   mode: 'mono',
   dot: [17, 25, 45],
   paper: [255, 255, 255],
+  glyphRamp: 'sketch',
+  glyphCustom: '',
+  glyphStroke: 0.12,
+  glyphMix: 0.35,
+  glyphAccent: 0.05,
+  glyphSeed: 1,
 };
 
 /** 采样输入：已做影调、按 `sample` 倍缩小的亮度（与颜色），坐标除以 sample 就落到这张图上 */
@@ -93,6 +107,8 @@ export interface HalftoneScreen {
   size: Float32Array;
   /** 每格网点颜色 0..255（原图色模式） */
   color?: Uint8ClampedArray;
+  /** 每格的符号编码（符号网点；`GLYPH_IDS` 的下标，0 是空） */
+  glyph?: Uint8Array;
   /** 这一层的墨色 0..255 */
   ink: [number, number, number];
 }
@@ -105,6 +121,8 @@ export interface HalftoneGeometry {
   paper: [number, number, number];
   merge: number;
   antialias: boolean;
+  /** 符号网点的线粗，占格子短边 0..1 */
+  glyphStroke: number;
   screens: HalftoneScreen[];
 }
 
@@ -180,10 +198,15 @@ export function cellCenter(screen: Pick<HalftoneScreen, 'lattice' | 'pitchX' | '
   return [(i + rowShift(screen.lattice, j)) * screen.pitchX - screen.offsetX, j * screen.pitchY - screen.offsetY];
 }
 
+/** 墨量 0..1 加上网点增益：正增益放大中间调 */
+export function gainedCoverage(coverage: number, gain: number): number {
+  const c = clamp01(coverage);
+  return gain !== 0 ? Math.pow(c, Math.exp(-gain * 1.5)) : c;
+}
+
 /** 墨量 0..1 → 网点大小（相对格子），把增益、分级、响应曲线、最小 / 最大网点一并算进去 */
 export function coverageToSize(coverage: number, opts: Pick<HalftoneSettings, 'size' | 'minSize' | 'mapping' | 'gain' | 'stepped' | 'levels'>): number {
-  let c = clamp01(coverage);
-  if (opts.gain !== 0) c = Math.pow(c, Math.exp(-opts.gain * 1.5));
+  let c = gainedCoverage(coverage, opts.gain);
   if (opts.stepped) {
     const n = Math.max(2, Math.round(opts.levels)) - 1;
     c = Math.round(c * n) / n;
@@ -288,10 +311,27 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
     return { screen, t };
   };
 
+  // 符号网点：采样时顺手记下每格加过增益的墨量，采完按它分档挑符号
+  const glyphs = opts.shape === 'glyph';
+  const coverageOf = (screen: HalftoneScreen) => (glyphs ? new Float32Array(screen.cols * screen.rows).fill(-1) : undefined);
+  const finish = (screen: HalftoneScreen, coverage?: Float32Array) => {
+    if (coverage) {
+      screen.glyph = assignGlyphs(screen, coverage, screen.size, {
+        ramp: resolveGlyphRamp(opts.glyphRamp, opts.glyphCustom),
+        mix: opts.glyphMix,
+        accent: opts.glyphAccent,
+        seed: opts.glyphSeed,
+        size: opts.size,
+      });
+    }
+    screens.push(screen);
+  };
+
   if (opts.mode === 'cmyk') {
     const made = CMYK_ANGLES.map((a, k) => makeScreen((opts.angle + a) % 360, CMYK_INKS[k]));
     // 四层共用一套采样比较浪费，但每层网格角度不同，格子盖住的画面也不同，只能各采各的
     made.forEach(({ screen, t }, k) => {
+      const coverage = coverageOf(screen);
       sampleScreen(src, t, opts.lattice, screen, true, (index, _gray, r, g, b) => {
         if (src.linear) {
           r = srgbToLinearFast(r);
@@ -300,25 +340,28 @@ export function buildHalftone(src: HalftoneSource, opts: HalftoneSettings): Half
         }
         const cmyk = rgbToCmyk(clamp01(r), clamp01(g), clamp01(b));
         screen.size[index] = coverageToSize(cmyk[k], opts);
+        if (coverage) coverage[index] = gainedCoverage(cmyk[k], opts.gain);
       });
-      screens.push(screen);
+      finish(screen, coverage);
     });
   } else {
     const { screen, t } = makeScreen(opts.angle, opts.dot);
     const wantColor = opts.mode === 'source';
     if (wantColor) screen.color = new Uint8ClampedArray(screen.cols * screen.rows * 3);
+    const coverage = coverageOf(screen);
     sampleScreen(src, t, opts.lattice, screen, wantColor, (index, gray, r, g, b) => {
       screen.size[index] = coverageToSize(1 - gray, opts);
+      if (coverage) coverage[index] = gainedCoverage(1 - gray, opts.gain);
       if (screen.color) {
         screen.color[index * 3] = r * 255;
         screen.color[index * 3 + 1] = g * 255;
         screen.color[index * 3 + 2] = b * 255;
       }
     });
-    screens.push(screen);
+    finish(screen, coverage);
   }
 
-  return { width, height, shape: opts.shape, mode: opts.mode, paper: opts.paper, merge: opts.merge, antialias: opts.antialias, screens };
+  return { width, height, shape: opts.shape, mode: opts.mode, paper: opts.paper, merge: opts.merge, antialias: opts.antialias, glyphStroke: opts.glyphStroke, screens };
 }
 
 /** 网点大小 100% 对应的半径（画布像素）：线条按格高，其余按格子短边 */
@@ -331,9 +374,19 @@ export function lineHalfWidth(screen: Pick<HalftoneScreen, 'pitchX'>, extra = 0.
   return screen.pitchX / 2 + extra;
 }
 
-/** 有多少个要画的网点（SVG 导出估算文件规模用） */
+/** 符号网点里线的半粗（画布像素）：线粗按格子短边的比例算，再细也留 0.35px，免得小格子上看不见 */
+export function glyphHalfStroke(stroke: number, screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>): number {
+  return Math.max((stroke * Math.min(screen.pitchX, screen.pitchY)) / 2, 0.35);
+}
+
+/** 跨格线段的半长：半格再多出一点盖住格间接缝，相邻格子的线才连成一条 */
+export function glyphSpan(screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>, extra = 0.5): [number, number] {
+  return [screen.pitchX / 2 + extra, screen.pitchY / 2 + extra];
+}
+
+/** 有多少个要画的网点（SVG 导出估算文件规模用）；符号网点里的「空」不算 */
 export function countDots(g: HalftoneGeometry): number {
   let n = 0;
-  for (const s of g.screens) for (let k = 0; k < s.size.length; k++) if (s.size[k] > 0) n++;
+  for (const s of g.screens) for (let k = 0; k < s.size.length; k++) if (s.size[k] > 0 && (!s.glyph || s.glyph[k] !== 0)) n++;
   return n;
 }

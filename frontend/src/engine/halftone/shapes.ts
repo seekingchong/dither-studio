@@ -6,9 +6,10 @@
  * 返回值负数在形状里面，绝对值就是到边缘的距离，渲染用它做 1px 抗锯齿，点融合用它做平滑最小值。
  */
 
-export type HalftoneShape = 'circle' | 'square' | 'roundsquare' | 'diamond' | 'triangle' | 'hexagon' | 'line' | 'cross';
+/** `glyph` 是符号网点：每格按明暗从一串符号里挑一个，图元与距离场在 `glyphs.ts`，这里只留一个占位的圆 */
+export type HalftoneShape = 'circle' | 'square' | 'roundsquare' | 'diamond' | 'triangle' | 'hexagon' | 'line' | 'cross' | 'glyph';
 
-export const HALFTONE_SHAPE_IDS: readonly HalftoneShape[] = ['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'cross'];
+export const HALFTONE_SHAPE_IDS: readonly HalftoneShape[] = ['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'cross', 'glyph'];
 
 const SQRT3 = 1.7320508075688772;
 const SQRT1_2 = Math.SQRT1_2;
@@ -36,6 +37,8 @@ function box(x: number, y: number, hx: number, hy: number): number {
 export function shapeDistance(shape: HalftoneShape, x: number, y: number, r: number, halfWidth: number): number {
   switch (shape) {
     case 'circle':
+    // 符号网点每格各画各的符号（`glyphDistance`），不会走到这里；万一走到就当圆
+    case 'glyph':
       return Math.sqrt(x * x + y * y) - r;
     case 'square':
       return box(x, y, r, r);

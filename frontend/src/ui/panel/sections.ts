@@ -115,6 +115,7 @@ export const SECTIONS: SectionMeta[] = [
       if (bool(p, 'halftone.stepped')) parts.push(`${num(p, 'halftone.levels')} 档`);
       const merge = num(p, 'halftone.merge');
       if (merge > 0) parts.push(`融合 ${merge}%`);
+      if (str(p, 'halftone.shape') === 'glyph') parts.push(`符号 ${optionLabel('halftone.glyphRamp', p)}`);
       return parts.join(' · ');
     },
   },

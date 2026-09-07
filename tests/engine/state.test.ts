@@ -205,7 +205,7 @@ describe('预设与设置', () => {
     expect(BUILTIN_PRESETS[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('dither')[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('halftone').length).toBe(11);
+    expect(builtinPresetsOf('halftone').length).toBe(14);
     for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
     // 网点的默认露出自己的全部分组与共用分组，不露出抖动 / 排线专属的
     const halftoneDefault = findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!;

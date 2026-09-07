@@ -1,4 +1,5 @@
-import { baseRadius, cellCenter, countDots, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
+import { baseRadius, cellCenter, countDots, glyphHalfStroke, glyphSpan, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
+import { glyphSvg } from './glyphs';
 import { ROUND_SQUARE_CORNER, shapeVertices } from './shapes';
 
 /**
@@ -67,11 +68,17 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
 
   for (const screen of g.screens) {
     const r0 = baseRadius(g.shape, screen);
+    // 符号网点：线粗与圆头写在 <g> 上，描边图元各自带 stroke（填充图元继承 <g> 的 fill，不描边）
+    const glyphs = g.shape === 'glyph' ? screen.glyph : undefined;
+    const hw = glyphHalfStroke(g.glyphStroke, screen);
+    const [spanX, spanY] = glyphSpan(screen, 0.25);
     const attrs = [`transform="translate(${f(width / 2)} ${f(height / 2)}) rotate(${f(screen.angle)})"`];
     if (!screen.color) attrs.push(`fill="${hex(screen.ink)}"`);
+    if (glyphs) attrs.push(`stroke-width="${f(hw * 2)}" stroke-linecap="round" stroke-linejoin="round"`);
     if (goo) attrs.push('filter="url(#goo)"');
     if (g.mode === 'cmyk') attrs.push('style="mix-blend-mode:multiply"');
     parts.push(`<g ${attrs.join(' ')}>`);
+    const inkStroke = ` stroke="${hex(screen.ink)}"`;
     for (let jj = 0; jj < screen.rows; jj++) {
       const j = screen.j0 + jj;
       for (let ii = 0; ii < screen.cols; ii++) {
@@ -79,8 +86,15 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
         const sz = screen.size[idx];
         if (sz <= 0) continue;
         const [cx, cy] = cellCenter(screen, screen.i0 + ii, j);
-        const fill = screen.color ? ` fill="${hex(screen.color.subarray(idx * 3, idx * 3 + 3))}"` : '';
-        parts.push(dotElement(g, screen, cx, cy, sz * r0, fill));
+        const color = screen.color ? hex(screen.color.subarray(idx * 3, idx * 3 + 3)) : '';
+        const fill = color ? ` fill="${color}"` : '';
+        if (glyphs) {
+          const code = glyphs[idx];
+          if (code === 0) continue;
+          parts.push(...glyphSvg(code, cx, cy, sz * r0, hw, spanX, spanY, fill, color ? ` stroke="${color}"` : inkStroke));
+        } else {
+          parts.push(dotElement(g, screen, cx, cy, sz * r0, fill));
+        }
       }
     }
     parts.push('</g>');

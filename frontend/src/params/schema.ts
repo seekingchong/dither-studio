@@ -30,7 +30,19 @@ export const HALFTONE_SHAPES: ParamOption[] = [
   opt('hexagon', '六边形'),
   opt('line', '线条'),
   opt('cross', '十字'),
+  opt('glyph', '符号'),
 ];
+
+/** 符号网点的序列（`halftone.glyphRamp`），与 `engine/halftone/glyphs.ts` 的 GLYPH_RAMPS 一一对应 */
+export const GLYPH_RAMP_OPTIONS: ParamOption[] = [
+  opt('sketch', '草图'),
+  opt('typewriter', '打字机'),
+  opt('mesh', '线格'),
+  opt('marks', '记号'),
+  opt('custom', '自定义'),
+];
+
+const onGlyph = { id: 'halftone.shape', equals: 'glyph' };
 
 /**
  * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
@@ -462,6 +474,22 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
   { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
   { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
+  // 符号网点（形状选「符号」）：格子里画的不是同一种形状，而是按明暗从一串符号里挑——亮处小点、中间调斜线、暗处十字与网格。
+  // 线粗按格子短边的比例定，换间距不用重调；交界混合让两档交界处互相掺一点，点缀在交界处撒圆圈 / 三角框。
+  { id: 'halftone.glyphRamp', group: 'halftone', label: '符号序列', type: 'select', default: 'sketch', options: GLYPH_RAMP_OPTIONS, visibleWhen: onGlyph },
+  {
+    id: 'halftone.glyphCustom',
+    group: 'halftone',
+    label: '自定义序列',
+    type: 'text',
+    default: '. / + # *',
+    placeholder: '从亮到暗，空格分隔：. / + # * 或 dot slash plus',
+    visibleWhen: [onGlyph, { id: 'halftone.glyphRamp', equals: 'custom' }],
+  },
+  { id: 'halftone.glyphStroke', group: 'halftone', label: '线粗', type: 'number', min: 4, max: 40, step: 1, default: 12, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphMix', group: 'halftone', label: '交界混合', type: 'number', min: 0, max: 100, step: 1, default: 35, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphAccent', group: 'halftone', label: '点缀符号', type: 'number', min: 0, max: 100, step: 1, default: 5, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphSeed', group: 'halftone', label: '符号种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: onGlyph, advanced: true },
 
   // ---------- 网点：网格 ----------
   // 间距是相邻点的中心距，也是格子的宽 / 高；网格绕画布中心转，画布中心永远是一颗点的中心
