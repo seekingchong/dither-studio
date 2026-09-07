@@ -30,7 +30,20 @@ export const HALFTONE_SHAPES: ParamOption[] = [
   opt('hexagon', '六边形'),
   opt('line', '线条'),
   opt('cross', '十字'),
+  opt('glyph', '符号'),
 ];
+
+/** 符号网点的序列（`halftone.glyphRamp`），与 `engine/halftone/glyphs.ts` 的 GLYPH_RAMPS 一一对应 */
+export const GLYPH_RAMP_OPTIONS: ParamOption[] = [
+  opt('sketch', '草图'),
+  opt('typewriter', '打字机'),
+  opt('mesh', '线格'),
+  opt('marks', '记号'),
+  opt('custom', '自定义'),
+];
+
+const onGlyph = { id: 'halftone.shape', equals: 'glyph' };
+const warpOn = { id: 'screen.warp', in: ['ripple', 'wave', 'noise', 'jitter'] };
 
 /**
  * 只属于某一种风格的分组：风格切走后整组隐藏（`isParamVisible` 按这张表过滤），
@@ -462,6 +475,22 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
   { id: 'halftone.levels', group: 'halftone', label: '灰阶级数', type: 'number', min: 2, max: 32, step: 1, default: 6, visibleWhen: { id: 'halftone.stepped', equals: true } },
   { id: 'halftone.merge', group: 'halftone', label: '点融合', type: 'number', min: 0, max: 100, step: 1, default: 0, unit: '%' },
   { id: 'halftone.antialias', group: 'halftone', label: '平滑边缘', type: 'boolean', default: true, advanced: true },
+  // 符号网点（形状选「符号」）：格子里画的不是同一种形状，而是按明暗从一串符号里挑——亮处小点、中间调斜线、暗处十字与网格。
+  // 线粗按格子短边的比例定，换间距不用重调；交界混合让两档交界处互相掺一点，点缀在交界处撒圆圈 / 三角框。
+  { id: 'halftone.glyphRamp', group: 'halftone', label: '符号序列', type: 'select', default: 'sketch', options: GLYPH_RAMP_OPTIONS, visibleWhen: onGlyph },
+  {
+    id: 'halftone.glyphCustom',
+    group: 'halftone',
+    label: '自定义序列',
+    type: 'text',
+    default: '. / + # *',
+    placeholder: '从亮到暗，空格分隔：. / + # * 或 dot slash plus',
+    visibleWhen: [onGlyph, { id: 'halftone.glyphRamp', equals: 'custom' }],
+  },
+  { id: 'halftone.glyphStroke', group: 'halftone', label: '线粗', type: 'number', min: 4, max: 40, step: 1, default: 12, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphMix', group: 'halftone', label: '交界混合', type: 'number', min: 0, max: 100, step: 1, default: 35, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphAccent', group: 'halftone', label: '点缀符号', type: 'number', min: 0, max: 100, step: 1, default: 5, unit: '%', visibleWhen: onGlyph },
+  { id: 'halftone.glyphSeed', group: 'halftone', label: '符号种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: onGlyph, advanced: true },
 
   // ---------- 网点：网格 ----------
   // 间距是相邻点的中心距，也是格子的宽 / 高；网格绕画布中心转，画布中心永远是一颗点的中心
@@ -476,6 +505,19 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
     default: 'square',
     options: [opt('square', '方格'), opt('hex', '交错')],
   },
+  // 网格扰动：把每颗点从格心推开一点，规则网格成了被水波推歪的网。位移以格为单位（强度 100% 最多挪一格），换间距不用重调；
+  // 采样跟着点走，光栅与 SVG 用同一份位移。涟漪是几处中心的圆形波（干涉出弧线，海报那种），波浪是几道平面波，流动是噪声场，随机是每点独立挪位。
+  {
+    id: 'screen.warp',
+    group: 'screen',
+    label: '网格扰动',
+    type: 'select',
+    default: 'none',
+    options: [opt('none', '无'), opt('ripple', '涟漪'), opt('wave', '波浪'), opt('noise', '流动'), opt('jitter', '随机')],
+  },
+  { id: 'screen.warpAmount', group: 'screen', label: '扰动强度', type: 'number', min: 0, max: 100, step: 1, default: 40, unit: '%', visibleWhen: warpOn },
+  { id: 'screen.warpScale', group: 'screen', label: '波长', type: 'number', min: 2, max: 64, step: 1, default: 12, unit: '格', visibleWhen: { id: 'screen.warp', in: ['ripple', 'wave', 'noise'] } },
+  { id: 'screen.warpSeed', group: 'screen', label: '扰动种子', type: 'number', min: 0, max: 9999, step: 1, default: 1, visibleWhen: warpOn, advanced: true },
   { id: 'screen.offsetX', group: 'screen', label: '偏移 X', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
   { id: 'screen.offsetY', group: 'screen', label: '偏移 Y', type: 'number', min: 0, max: 63, step: 1, default: 0, unit: 'px', advanced: true },
 

@@ -1,11 +1,32 @@
 export { shapeDistance, shapeVertices, HALFTONE_SHAPE_IDS, type HalftoneShape } from './shapes';
 export {
+  glyphDistance,
+  glyphSvg,
+  glyphBand,
+  assignGlyphs,
+  parseGlyphRamp,
+  resolveGlyphRamp,
+  GLYPH_IDS,
+  GLYPH_CODE,
+  GLYPH_RAMPS,
+  GLYPH_ALIASES,
+  ACCENT_MIN_SIZE,
+  type GlyphId,
+  type GlyphRampKind,
+  type GlyphAssignOptions,
+} from './glyphs';
+export { buildWarp, type WarpKind, type WarpSettings, type WarpField } from './warp';
+export {
   buildHalftone,
   coverageToSize,
+  gainedCoverage,
   gridTransform,
   cellCenter,
+  dotOffset,
   baseRadius,
   lineHalfWidth,
+  glyphHalfStroke,
+  glyphSpan,
   countDots,
   DEFAULT_HALFTONE,
   CMYK_ANGLES,

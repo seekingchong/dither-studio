@@ -1,5 +1,6 @@
 import type { RGBAFrame } from '../types';
-import { baseRadius, lineHalfWidth, rowShift, type HalftoneGeometry, type HalftoneScreen, type LatticeKind } from './geometry';
+import { baseRadius, glyphHalfStroke, glyphSpan, lineHalfWidth, rowShift, type HalftoneGeometry, type HalftoneScreen, type LatticeKind } from './geometry';
+import { glyphDistance } from './glyphs';
 import { shapeDistance, type HalftoneShape } from './shapes';
 
 /**
@@ -35,6 +36,14 @@ interface ScreenContext {
   reach: number;
   /** 上一次 distanceAt 时离得最近的那个格子下标（原图色模式取它的颜色） */
   best: number;
+  /** 符号网点：每格的符号编码、线的半粗、跨格线段的半长 */
+  glyph?: Uint8Array;
+  glyphHw: number;
+  spanX: number;
+  spanY: number;
+  /** 网格扰动：每格网点离格心的位移（格） */
+  dx?: Float32Array;
+  dy?: Float32Array;
 }
 
 /** 预处理一张网格：把每像素都要用的常量算好，并按网点最大尺寸与融合半径决定要看几圈邻格 */
@@ -48,11 +57,22 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
   const rMax = maxSize * r0;
   // 多项式 smooth-min 最多把距离往里拉 k / 4：融合度 100% 时 k 取一个格距，两个半格大的点刚好能接上
   const k = g.merge > 0 ? g.merge * minPitch : 0;
+  // 符号里的跨格线段伸到格子角上，邻格的线会探进来，至少看一圈
+  const spans = g.shape === 'line' || g.shape === 'glyph';
   let reach: number;
   if (k > 0 && rMax + k + 1 > minPitch) reach = 2;
-  else if (k === 0 && g.shape !== 'line' && rMax + 1 <= halfMin) reach = 0;
+  else if (k === 0 && !spans && rMax + 1 <= halfMin) reach = 0;
   else reach = 1;
+  // 网点被扰动挪开最多 warpMax 格：邻格的点可能探进来，也可能是更远一格的，按最大位移多看几圈
+  if (screen.warpMax && screen.warpMax > 0) reach = Math.max(reach, 1) + Math.ceil(screen.warpMax - 1e-6);
+  const [spanX, spanY] = glyphSpan(screen);
   return {
+    dx: screen.dx,
+    dy: screen.dy,
+    glyph: g.shape === 'glyph' ? screen.glyph : undefined,
+    glyphHw: glyphHalfStroke(g.glyphStroke, screen),
+    spanX,
+    spanY,
     screen,
     shape: g.shape,
     lattice: screen.lattice,
@@ -95,8 +115,16 @@ function distanceAt(c: ScreenContext, px: number, py: number): number {
       const idx = rowBase + ri;
       const sz = s.size[idx];
       if (sz <= 0) continue;
-      const lx = (u - (ii + 0.5 + shift)) * s.pitchX;
-      const dd = shapeDistance(c.shape, lx, ly, sz * c.r0, c.halfWidth);
+      const lx = (u - (ii + 0.5 + shift + (c.dx ? c.dx[idx] : 0))) * s.pitchX;
+      const lyy = c.dy ? ly - c.dy[idx] * s.pitchY : ly;
+      let dd: number;
+      if (c.glyph) {
+        const code = c.glyph[idx];
+        if (code === 0) continue;
+        dd = glyphDistance(code, lx, lyy, sz * c.r0, c.glyphHw, c.spanX, c.spanY);
+      } else {
+        dd = shapeDistance(c.shape, lx, lyy, sz * c.r0, c.halfWidth);
+      }
       d = c.k > 0 ? smoothMin(d, dd, c.k) : dd < d ? dd : d;
       if (dd < bestD) {
         bestD = dd;

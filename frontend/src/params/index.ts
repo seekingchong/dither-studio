@@ -3,7 +3,7 @@ import type { ParamDef, ParamValue, Params, StyleKind, VisibleWhen } from './typ
 
 export * from './types';
 export * from './help';
-export { PARAM_SCHEMA, DITHER_FAMILIES, STYLE_KINDS, GROUP_STYLE, HALFTONE_SHAPES } from './schema';
+export { PARAM_SCHEMA, DITHER_FAMILIES, STYLE_KINDS, GROUP_STYLE, HALFTONE_SHAPES, GLYPH_RAMP_OPTIONS } from './schema';
 
 const byId = new Map<string, ParamDef>(PARAM_SCHEMA.map((p) => [p.id, p]));
 

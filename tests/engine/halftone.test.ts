@@ -1,16 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACCENT_MIN_SIZE,
   CMYK_ANGLES,
+  GLYPH_CODE,
+  GLYPH_IDS,
+  GLYPH_RAMPS,
   MAX_SVG_DOTS,
   Pipeline,
   buildHalftone,
+  buildWarp,
   countDots,
   coverageToSize,
   DEFAULT_HALFTONE,
+  glyphBand,
+  glyphDistance,
   gridTransform,
   halftoneToSvg,
+  parseGlyphRamp,
   renderHalftone,
   renderImage,
+  resolveGlyphRamp,
   scaleParamsForPreview,
   shapeDistance,
   shapeVertices,
@@ -252,9 +261,268 @@ describe('SVG 导出', () => {
       paper: [255, 255, 255],
       merge: 0,
       antialias: true,
+      glyphStroke: 0.12,
       screens: [{ angle: 0, pitchX: 1, pitchY: 1, offsetX: 0, offsetY: 0, lattice: 'square', i0: 0, j0: 0, cols: MAX_SVG_DOTS + 1, rows: 1, size: new Float32Array(MAX_SVG_DOTS + 1).fill(1), ink: [0, 0, 0] }],
     };
     expect(() => halftoneToSvg(g)).toThrow(/网点/);
+  });
+});
+
+describe('符号网点', () => {
+  const glyph = (patch: Partial<HalftoneSettings> = {}): HalftoneSettings =>
+    opts({ shape: 'glyph', pitchX: 12, pitchY: 12, minSize: 0.5, size: 1, mapping: 'linear', glyphMix: 0, glyphAccent: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255], ...patch });
+  /** 从左（黑）到右（白）的渐变 */
+  const gradient = (width: number, height: number): HalftoneSource => {
+    const gray = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) gray[y * width + x] = x / (width - 1);
+    return { width, height, sample: 1, grayWidth: width, grayHeight: height, gray, linear: false };
+  };
+  /** 画布中线那一行格子，按列从左到右的符号编码 */
+  const middleRow = (g: HalftoneGeometry): number[] => {
+    const s = g.screens[0];
+    const [, v] = gridTransform(g.width, g.height, s).toGrid(g.width / 2, g.height / 2);
+    const row = Math.floor(v) - s.j0;
+    const out: number[] = [];
+    for (let c = 0; c < s.cols; c++) if (s.size[row * s.cols + c] > 0) out.push(s.glyph![row * s.cols + c]);
+    return out;
+  };
+
+  it('每种符号：格子里有墨，远处没有；「空」哪里都没有', () => {
+    const r = 5;
+    const hw = 0.7;
+    for (const id of GLYPH_IDS) {
+      const code = GLYPH_CODE[id];
+      expect(glyphDistance(code, 40, 40, r, hw, 6.5, 6.5), id).toBeGreaterThan(0);
+      let inside = 0;
+      for (let y = -6; y <= 6; y += 0.5) for (let x = -6; x <= 6; x += 0.5) if (glyphDistance(code, x, y, r, hw, 6.5, 6.5) < 0) inside++;
+      if (id === 'blank') expect(inside).toBe(0);
+      else expect(inside, id).toBeGreaterThan(0);
+    }
+    // 实心点是精确的圆；斜线过格心；圆圈的中心是空的
+    expect(glyphDistance(GLYPH_CODE.dot, 3, 4, 5, hw, 6.5, 6.5)).toBeCloseTo(0, 6);
+    expect(glyphDistance(GLYPH_CODE.slash, 0, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.slash, 3, 3, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.ring, 0, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.ring, r - hw, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+  });
+
+  it('自定义序列：全名与简写都认，认不出的跳过，空的退回草图', () => {
+    expect(parseGlyphRamp('. / + # *')).toEqual(['dot', 'slash', 'plus', 'hash', 'dotslash']);
+    expect(parseGlyphRamp('Dot, RING;bogus 4 6 %')).toEqual(['dot', 'ring', 'four', 'six', 'percent']);
+    expect(parseGlyphRamp('   ')).toEqual([...GLYPH_RAMPS.sketch]);
+    expect(resolveGlyphRamp('typewriter', 'x')).toEqual([...GLYPH_RAMPS.typewriter]);
+    expect(resolveGlyphRamp('custom', '_ -')).toEqual(['blank', 'dash']);
+  });
+
+  it('明暗分档均分，两端夹住；交界抖动最多挪半档', () => {
+    expect(glyphBand(0, 5, 0, 0.5)).toBe(0);
+    expect(glyphBand(0.5, 5, 0, 0.5)).toBe(2);
+    expect(glyphBand(1, 5, 0, 0.5)).toBe(4);
+    expect(glyphBand(1.2, 5, 0, 0.5)).toBe(4);
+    // 0.39 离 0.4 的界很近：噪声偏亮就跨到下一档，偏暗就留在原档；档中间的 0.5 怎么抖都不动
+    expect(glyphBand(0.39, 5, 1, 1)).toBe(2);
+    expect(glyphBand(0.39, 5, 1, 0)).toBe(1);
+    expect(glyphBand(0.5, 5, 1, 0.9)).toBe(2);
+    expect(glyphBand(0.5, 5, 1, 0.1)).toBe(2);
+  });
+
+  it('渐变上从暗到亮依次用完序列里的符号；打字机序列在白纸上留空', () => {
+    const g = buildHalftone(gradient(120, 24), glyph({ glyphRamp: 'sketch' }));
+    const row = middleRow(g);
+    const codes = GLYPH_RAMPS.sketch.map((id) => GLYPH_CODE[id]);
+    expect(row[0]).toBe(codes[4]);
+    expect(row[row.length - 1]).toBe(codes[0]);
+    // 只出现序列里的符号，且顺序单调
+    for (let k = 1; k < row.length; k++) expect(codes.indexOf(row[k])).toBeLessThanOrEqual(codes.indexOf(row[k - 1]));
+    expect(new Set(row).size).toBe(5);
+    const tw = buildHalftone(flatSource(24, 24, 1), glyph({ glyphRamp: 'typewriter' }));
+    expect(tw.screens[0].glyph!.every((c) => c === 0)).toBe(true);
+    expect(countDots(tw)).toBe(0);
+  });
+
+  it('交界混合只搅动两档交界附近的格子；点缀按密度撒圆圈 / 三角框并把格子撑大', () => {
+    const src = gradient(240, 24);
+    const clean = middleRow(buildHalftone(src, glyph()));
+    const mixed = middleRow(buildHalftone(src, glyph({ glyphMix: 1 })));
+    expect(mixed.length).toBe(clean.length);
+    let changed = 0;
+    for (let k = 0; k < clean.length; k++) {
+      if (mixed[k] === clean[k]) continue;
+      changed++;
+      // 换的只会是相邻那一档
+      const codes = GLYPH_RAMPS.sketch.map((id) => GLYPH_CODE[id]);
+      expect(Math.abs(codes.indexOf(mixed[k]) - codes.indexOf(clean[k]))).toBe(1);
+    }
+    expect(changed).toBeGreaterThan(0);
+    expect(changed).toBeLessThan(clean.length / 2);
+
+    const none = buildHalftone(flatSource(96, 96, 0.9), glyph({ glyphAccent: 0, minSize: 0.2 }));
+    const some = buildHalftone(flatSource(96, 96, 0.9), glyph({ glyphAccent: 1, minSize: 0.2 }));
+    const accents = new Set([GLYPH_CODE.ring, GLYPH_CODE.triline]);
+    expect([...none.screens[0].glyph!].some((c) => accents.has(c))).toBe(false);
+    const s = some.screens[0];
+    let n = 0;
+    for (let k = 0; k < s.glyph!.length; k++) {
+      if (!accents.has(s.glyph![k])) continue;
+      n++;
+      expect(s.size[k]).toBeGreaterThanOrEqual(ACCENT_MIN_SIZE);
+    }
+    expect(n).toBeGreaterThan(0);
+    // 换个种子落点不同
+    const other = buildHalftone(flatSource(96, 96, 0.9), glyph({ glyphAccent: 1, minSize: 0.2, glyphSeed: 7 }));
+    expect([...other.screens[0].glyph!]).not.toEqual([...s.glyph!]);
+  });
+
+  it('渲染：斜线过格心且相邻格子连成一条，网格铺满整行整列，线粗按格子比例', () => {
+    const slash = renderHalftone(buildHalftone(flatSource(36, 12, 0.5), glyph({ glyphRamp: 'custom', glyphCustom: '/' })));
+    // 画布中心 (18, 6) 是一格中心，斜线从左下到右上
+    expect(px(slash, 18, 6)).toEqual([0, 0, 0]);
+    expect(px(slash, 21, 3)).toEqual([0, 0, 0]);
+    expect(px(slash, 21, 9)).toEqual([255, 255, 255]);
+    // 跨到邻格：格角 (24, 0) 附近两格的斜线接上
+    expect(px(slash, 23, 0)).toEqual([0, 0, 0]);
+    const hash = renderHalftone(buildHalftone(flatSource(36, 24, 0.5), glyph({ glyphRamp: 'custom', glyphCustom: '#' })));
+    for (let x = 0; x < 36; x++) expect(px(hash, x, 12), `x=${x}`).toEqual([0, 0, 0]);
+    for (let y = 0; y < 24; y++) expect(px(hash, 18, y), `y=${y}`).toEqual([0, 0, 0]);
+    expect(px(hash, 15, 9)).toEqual([255, 255, 255]);
+    // 线粗 40% 的横线上下各 2.4px 都是墨，12% 的只有 0.72px：离格心 1.5px 的像素一个有墨一个没有
+    const thick = renderHalftone(buildHalftone(flatSource(24, 24, 0.5), glyph({ glyphRamp: 'custom', glyphCustom: '-', glyphStroke: 0.4 })));
+    const thin = renderHalftone(buildHalftone(flatSource(24, 24, 0.5), glyph({ glyphRamp: 'custom', glyphCustom: '-', glyphStroke: 0.12 })));
+    expect(px(thick, 12, 13)).toEqual([0, 0, 0]);
+    expect(px(thin, 12, 13)).toEqual([255, 255, 255]);
+    expect(px(thin, 12, 12)).toEqual([0, 0, 0]);
+  });
+
+  it('SVG：线段与圆圈带描边，线粗写在 <g> 上，「空」不出图形，原图色每笔各自带色', () => {
+    const g = buildHalftone(gradient(120, 24), glyph({ glyphRamp: 'sketch' }));
+    const svg = halftoneToSvg(g);
+    // 线粗 12% × 12px 格 = 1.44px，写在 <g> 上
+    expect(svg).toMatch(/<g [^>]*stroke-width="1\.44" stroke-linecap="round"/);
+    expect(svg).toContain('<line ');
+    expect(svg).toContain('<circle ');
+    expect(svg).toMatch(/<line [^>]*stroke="#000000"/);
+    const blank = halftoneToSvg(buildHalftone(flatSource(24, 24, 1), glyph({ glyphRamp: 'typewriter' })));
+    expect(blank).not.toMatch(/<(circle|line|polygon) /);
+    // 亮（墨量 0.1）落在序列第一档：圆圈；暗（墨量 0.9）落在最后一档：三角框
+    const ring = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.9), glyph({ glyphRamp: 'custom', glyphCustom: 'o ^ a' })));
+    expect(ring).toMatch(/<circle [^>]*fill="none" stroke="#000000"/);
+    const tri = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.1), glyph({ glyphRamp: 'custom', glyphCustom: '^ a' })));
+    expect(tri).toMatch(/<polygon [^>]*fill="none" stroke=/);
+    const filled = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.9), glyph({ glyphRamp: 'custom', glyphCustom: '^ a' })));
+    expect(filled).toMatch(/<polygon points="[^"]*"\/>/);
+    const colored = halftoneToSvg(buildHalftone(flatSource(24, 24, 0.5, [0.3, 0.6, 0.2]), glyph({ mode: 'source', glyphRamp: 'custom', glyphCustom: '+' })));
+    expect(colored).toMatch(/<line [^>]*stroke="#4D9933"/);
+  });
+
+  it('网格扰动：位移不超过强度，同种子可复现，涟漪 / 波浪 / 流动平滑而随机逐点独立', () => {
+    const cells = { cols: 40, rows: 30, i0: -20, j0: -15 };
+    const noShift = () => 0;
+    expect(buildWarp(cells, noShift, { warp: 'none', warpAmount: 0.5, warpScale: 10, warpSeed: 1 })).toBeUndefined();
+    expect(buildWarp(cells, noShift, { warp: 'ripple', warpAmount: 0, warpScale: 10, warpSeed: 1 })).toBeUndefined();
+    for (const warp of ['ripple', 'wave', 'noise', 'jitter'] as const) {
+      const a = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 1 })!;
+      const b = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 1 })!;
+      const c = buildWarp(cells, noShift, { warp, warpAmount: 0.5, warpScale: 10, warpSeed: 2 })!;
+      expect(a.max, warp).toBeGreaterThan(0.1);
+      expect(a.max, warp).toBeLessThanOrEqual(0.5 + 1e-6);
+      for (let k = 0; k < a.dx.length; k++) {
+        expect(Math.abs(a.dx[k]), warp).toBeLessThanOrEqual(0.5 + 1e-6);
+        expect(Math.abs(a.dy[k]), warp).toBeLessThanOrEqual(0.5 + 1e-6);
+      }
+      expect([...a.dx]).toEqual([...b.dx]);
+      expect([...a.dx]).not.toEqual([...c.dx]);
+      // 相邻格子的位移之差：平滑场里远小于强度，随机则常常接近整个范围
+      let maxStep = 0;
+      for (let k = 1; k < cells.cols; k++) maxStep = Math.max(maxStep, Math.abs(a.dx[k] - a.dx[k - 1]));
+      if (warp === 'jitter') expect(maxStep).toBeGreaterThan(0.5);
+      else expect(maxStep, warp).toBeLessThan(0.35);
+    }
+  });
+
+  it('网格扰动：点挪到哪就采哪一块画面，画在哪；SVG 的圆心跟着挪', () => {
+    // 左半黑右半白，随机扰动最多挪一格：每颗点的大小由它挪开后所在的位置决定
+    const width = 240;
+    const height = 48;
+    const gray = new Float32Array(width * height);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) gray[y * width + x] = x < width / 2 ? 0 : 1;
+    const src: HalftoneSource = { width, height, sample: 1, grayWidth: width, grayHeight: height, gray, linear: false };
+    const g = buildHalftone(src, opts({ pitchX: 12, pitchY: 12, minSize: 0, warp: 'jitter', warpAmount: 1, warpSeed: 3 }));
+    const s = g.screens[0];
+    expect(s.dx).toBeDefined();
+    expect(s.warpMax).toBeGreaterThan(0.9);
+    const t = gridTransform(width, height, s);
+    let checked = 0;
+    for (let jj = 0; jj < s.rows; jj++) {
+      for (let ii = 0; ii < s.cols; ii++) {
+        const k = jj * s.cols + ii;
+        const [x, y] = t.toCanvas(s.i0 + ii + 0.5 + s.dx![k], s.j0 + jj + 0.5 + s.dy![k]);
+        // 离黑白分界一格以内的格子会采到两边，挪出画布边缘的格子采不到画面，都跳过
+        if (Math.abs(x - width / 2) < 12 || x < 12 || x > width - 12 || y < 12 || y > height - 12) continue;
+        checked++;
+        if (x < width / 2) expect(s.size[k]).toBeCloseTo(1, 5);
+        else expect(s.size[k]).toBe(0);
+      }
+    }
+    expect(checked).toBeGreaterThan(20);
+
+    // 手动把画布中心那颗点右挪半格：墨落在挪开后的位置，原位空着；SVG 圆心同样右挪
+    const one = buildHalftone(flatSource(24, 24, 0), opts({ pitchX: 12, pitchY: 12, size: 0.5, minSize: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    const sc = one.screens[0];
+    const [u, v] = gridTransform(24, 24, sc).toGrid(12, 12);
+    const center = (Math.floor(v) - sc.j0) * sc.cols + (Math.floor(u) - sc.i0);
+    sc.dx = new Float32Array(sc.size.length);
+    sc.dy = new Float32Array(sc.size.length);
+    sc.dx[center] = 0.5;
+    sc.warpMax = 0.5;
+    const out = renderHalftone(one);
+    expect(px(out, 18, 12)).toEqual([0, 0, 0]);
+    expect(px(out, 12, 12)).toEqual([255, 255, 255]);
+    expect(halftoneToSvg(one)).toContain('<circle cx="6" cy="0" r="3"/>');
+  });
+
+  it('网格扰动：点挪出自己的格子后，渲染会多看几圈邻格把它找回来', () => {
+    // 36×12 的画布三个格子，只留最左边那颗点并把它整整右挪一格：没有多看邻格的话中间格子里就找不到它
+    const g = buildHalftone(flatSource(36, 12, 0), opts({ pitchX: 12, pitchY: 12, size: 0.5, minSize: 0, antialias: false, dot: [0, 0, 0], paper: [255, 255, 255] }));
+    const s = g.screens[0];
+    const t = gridTransform(36, 12, s);
+    const idxAt = (x: number) => {
+      const [u, v] = t.toGrid(x, 6);
+      return (Math.floor(v) - s.j0) * s.cols + (Math.floor(u) - s.i0);
+    };
+    const left = idxAt(6);
+    for (let k = 0; k < s.size.length; k++) if (k !== left) s.size[k] = 0;
+    s.dx = new Float32Array(s.size.length);
+    s.dy = new Float32Array(s.size.length);
+    s.dx[left] = 1;
+    s.warpMax = 1;
+    const out = renderHalftone(g);
+    expect(px(out, 18, 6)).toEqual([0, 0, 0]);
+    expect(px(out, 6, 6)).toEqual([255, 255, 255]);
+    expect(px(out, 30, 6)).toEqual([255, 255, 255]);
+  });
+
+  it('流水线：网格扰动能出图，Yellow Pop 预设带涟漪', () => {
+    const params = { ...defaultParams(), 'style.type': 'halftone', 'canvas.width': 48, 'canvas.height': 24, 'screen.pitchX': 6, 'screen.pitchY': 6, 'screen.warp': 'ripple', 'screen.warpAmount': 60 };
+    const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), params);
+    expect(out.width).toBe(48);
+    const p = new Pipeline();
+    p.run(makeFrame(64, 40, () => [128, 128, 128]), 'a', params);
+    expect(p.currentHalftone!.screens[0].dx).toBeDefined();
+    p.run(makeFrame(64, 40, () => [128, 128, 128]), 'a', { ...params, 'screen.warp': 'none' });
+    expect(p.lastStats.recomputed).toEqual(['halftone', 'render']);
+    expect(p.currentHalftone!.screens[0].dx).toBeUndefined();
+  });
+
+  it('流水线：形状选「符号」能出图，CMYK 四层各挑各的符号', () => {
+    const params = { ...defaultParams(), 'style.type': 'halftone', 'canvas.width': 48, 'canvas.height': 24, 'screen.pitchX': 6, 'screen.pitchY': 6, 'halftone.shape': 'glyph' };
+    const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), params);
+    expect(out.width).toBe(48);
+    let ink = 0;
+    for (let i = 0; i < out.data.length; i += 4) if (out.data[i] < 128) ink++;
+    expect(ink).toBeGreaterThan(0);
+    const cmyk = buildHalftone(flatSource(48, 48, 0.5, [0, 1, 1]), glyph({ mode: 'cmyk' }));
+    expect(cmyk.screens.length).toBe(4);
+    expect(cmyk.screens.every((s) => s.glyph !== undefined)).toBe(true);
   });
 });
 
