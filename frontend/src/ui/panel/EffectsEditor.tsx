@@ -1,22 +1,94 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { EFFECT_DEFS, defaultEffectInstance, parseStack, serializeStack, type EffectInstance, type EffectParamDef } from '@/engine';
+import {
+  EFFECT_DEFS,
+  defaultEffectInstance,
+  isEffectParamVisible,
+  parseColorList,
+  parseStack,
+  serializeStack,
+  type EffectInstance,
+  type EffectParamDef,
+  type EffectParamValues,
+} from '@/engine';
 import { useStudioStore } from '@/state';
-import { ColorField, HelpLabel, Icon, IconButton, Select, SliderField, ToggleField } from '@/ui/primitives';
-import { helpForEffect } from '@/ui/state/helpStore';
+import { ColorField, ColorPopover, HelpLabel, Icon, IconButton, Select, SliderField, TextField, ToggleField } from '@/ui/primitives';
+import { helpForEffect, helpForEffectParam } from '@/ui/state/helpStore';
 import { LevelMaskControl } from './LevelMaskControl';
 
 const STACK_ID = 'effects.stack';
 
-interface EffectParamControlProps {
-  def: EffectParamDef;
-  value: EffectInstance['params'][string];
-  /** 同一实例的全部参数：逐阶开关要看阶数 */
-  params: EffectInstance['params'];
-  onChange: (v: EffectInstance['params'][string]) => void;
+interface Editing {
+  index: number;
+  anchor: HTMLElement;
 }
 
-function EffectParamControl({ def, value, params, onChange }: EffectParamControlProps) {
+/**
+ * 一排色块型的子参数（叠加随机方块的「每块颜色」）：实际生效的颜色由定义里的 `resolve` 按当前实例参数展开，
+ * 点一块弹取色层，改动经 `edit` 写回（配色方案转为自定义）。
+ */
+function EffectSwatches({ effectId, def, params, onPatch }: { effectId: string; def: EffectParamDef; params: EffectParamValues; onPatch: (next: EffectParamValues) => void }) {
+  const colors = def.resolve ? def.resolve(params) : parseColorList(String(params[def.id] ?? ''));
+  const [editing, setEditing] = useState<Editing | null>(null);
+  const count = colors.length;
+  // 数量减少后正在编辑的那块没了就收起弹层
+  useEffect(() => {
+    if (editing && editing.index >= count) setEditing(null);
+  }, [editing, count]);
+  const titleOf = (i: number) => def.swatchTitle?.(i) ?? `第 ${i + 1} 色`;
+  const apply = (i: number, hex: string) => {
+    if (def.edit) return onPatch(def.edit(params, i, hex));
+    const next = colors.slice();
+    next[i] = hex;
+    onPatch({ ...params, [def.id]: next.join(' ') });
+  };
+  return (
+    <div className="tda-field tda-swatch-field param-span-2" data-param={`effect.${def.id}`}>
+      <HelpLabel content={helpForEffectParam(effectId, def)} className="tda-field__label">
+        {def.label}
+      </HelpLabel>
+      <div className="swatches swatches--editable" role="group" aria-label={def.label}>
+        {colors.map((hex, i) => (
+          <button
+            key={i}
+            type="button"
+            className={['swatch', 'swatch--btn', editing?.index === i ? 'is-editing' : ''].filter(Boolean).join(' ')}
+            style={{ background: hex }}
+            title={`${titleOf(i)} ${hex}`}
+            aria-label={`${titleOf(i)} ${hex}`}
+            data-index={i}
+            onClick={(e) => setEditing(editing?.index === i ? null : { index: i, anchor: e.currentTarget })}
+          />
+        ))}
+        {count === 0 && <span className="swatches__note">数量为 0，没有方块</span>}
+      </div>
+      {editing && colors[editing.index] !== undefined && (
+        <ColorPopover
+          anchor={editing.anchor}
+          value={colors[editing.index]}
+          title={titleOf(editing.index)}
+          onChange={(hex) => apply(editing.index, hex)}
+          onClose={() => setEditing(null)}
+          hint={def.editHint?.(params) ?? null}
+        />
+      )}
+    </div>
+  );
+}
+
+interface EffectParamControlProps {
+  effectId: string;
+  def: EffectParamDef;
+  /** 同一实例的全部参数：逐阶开关要看阶数，色块列表要按配色展开 */
+  params: EffectParamValues;
+  onChange: (v: EffectParamValues[string]) => void;
+  /** 一次改多个参数（改某块颜色时配色方案也要转自定义） */
+  onPatch: (next: EffectParamValues) => void;
+}
+
+function EffectParamControl({ effectId, def, params, onChange, onPatch }: EffectParamControlProps) {
+  const value = params[def.id];
+  const help = helpForEffectParam(effectId, def);
   switch (def.type) {
     case 'number':
       return (
@@ -28,15 +100,20 @@ function EffectParamControl({ def, value, params, onChange }: EffectParamControl
           step={def.step ?? 1}
           unit={def.unit}
           onChange={onChange}
+          help={help}
           data-param={`effect.${def.id}`}
         />
       );
     case 'select':
-      return <Select label={def.label} value={String(value)} options={def.options ?? []} onChange={onChange} data-param={`effect.${def.id}`} />;
+      return <Select label={def.label} value={String(value)} options={def.options ?? []} onChange={onChange} help={help} data-param={`effect.${def.id}`} />;
     case 'boolean':
-      return <ToggleField label={def.label} value={Boolean(value)} onChange={onChange} data-param={`effect.${def.id}`} />;
+      return <ToggleField label={def.label} value={Boolean(value)} onChange={onChange} help={help} data-param={`effect.${def.id}`} />;
+    case 'text':
+      return <TextField label={def.label} value={String(value ?? '')} placeholder={def.placeholder} onChange={onChange} help={help} data-param={`effect.${def.id}`} />;
     case 'color':
-      return <ColorField label={def.label} value={String(value)} onChange={onChange} data-param={`effect.${def.id}`} />;
+      return <ColorField label={def.label} value={String(value)} onChange={onChange} help={help} data-param={`effect.${def.id}`} />;
+    case 'colors':
+      return <EffectSwatches effectId={effectId} def={def} params={params} onPatch={onPatch} />;
     case 'levels':
       return (
         <LevelMaskControl
@@ -48,11 +125,6 @@ function EffectParamControl({ def, value, params, onChange }: EffectParamControl
         />
       );
   }
-}
-
-/** 参数在这个实例里露不露出：定义了 visibleWhen 的只在那个参数等于指定值时显示 */
-function paramVisible(def: EffectParamDef, params: EffectInstance['params']): boolean {
-  return !def.visibleWhen || params[def.visibleWhen.id] === def.visibleWhen.equals;
 }
 
 /** 特效栈编辑器：全部特效以选项芯片露出，点一下即添加；已添加的实例可启用、上下移动、删除，按定义生成控件 */
@@ -121,9 +193,16 @@ export function EffectsEditor() {
             </header>
             <div className="param-grid">
               {def.params
-                .filter((p) => paramVisible(p, inst.params))
+                .filter((p) => isEffectParamVisible(p, inst.params))
                 .map((p) => (
-                  <EffectParamControl key={p.id} def={p} value={inst.params[p.id]} params={inst.params} onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })} />
+                  <EffectParamControl
+                    key={p.id}
+                    effectId={def.id}
+                    def={p}
+                    params={inst.params}
+                    onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })}
+                    onPatch={(next) => update(index, { params: next })}
+                  />
                 ))}
             </div>
           </section>

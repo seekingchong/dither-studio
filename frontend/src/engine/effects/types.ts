@@ -3,24 +3,45 @@ import type { RGBAFrame } from '../types';
 
 export type EffectParamValues = Record<string, ParamValue>;
 
+/** 只在同一实例的另一个参数等于某值（equals）或属于某集合（in）时露出，如模糊半径只在开了模糊时显示 */
+export interface EffectVisibleWhen {
+  id: string;
+  equals?: ParamValue;
+  in?: ParamValue[];
+}
+
 export interface EffectParamDef {
   id: string;
   label: string;
   /**
-   * color：#RRGGBB；
-   * levels：逐阶开关，值是 '0' / '1' 组成的串（第 i 位是第 i 阶，0 最亮），缺位视为开，阶数取自 countFrom 指的那个参数
+   * number / select / boolean 是常规控件；text 是单行文本；color 是 #RRGGBB；
+   * colors 是一排色块——值是空格分隔的色值列表，由 `resolve` 展开成实际生效的每一块、`edit` 写回改动；
+   * levels 是逐阶开关，值是 '0' / '1' 组成的串（第 i 位是第 i 阶，0 最亮），缺位视为开，阶数取自 countFrom 指的那个参数
    */
-  type: 'number' | 'select' | 'boolean' | 'color' | 'levels';
+  type: 'number' | 'select' | 'boolean' | 'text' | 'color' | 'colors' | 'levels';
   min?: number;
   max?: number;
   step?: number;
   unit?: string;
   options?: Array<{ value: string; label: string }>;
+  default: ParamValue;
+  /** 标签上的解读浮层文案；特效子参数不进 PARAM_HELP，写在这里 */
+  hint?: string;
+  placeholder?: string;
+  /** text 的最长字符数，默认 200 */
+  maxLength?: number;
   /** levels 型：阶数取自同一实例里的哪个参数 */
   countFrom?: string;
-  /** 只在同一实例的另一个参数等于某值时露出（如模糊半径只在开了模糊时显示、底色只在「只留描边」时显示） */
-  visibleWhen?: { id: string; equals: ParamValue };
-  default: ParamValue;
+  /** 一个或多个条件，都满足才露出（如模糊半径只在开了模糊时显示、底色只在「只留描边」时显示） */
+  visibleWhen?: EffectVisibleWhen | EffectVisibleWhen[];
+  /** colors：按当前实例参数算出实际生效的颜色列表（配色方案展开到每一块） */
+  resolve?: (params: EffectParamValues) => string[];
+  /** colors：改第 index 块的颜色后要写回的参数补丁 */
+  edit?: (params: EffectParamValues, index: number, hex: string) => EffectParamValues;
+  /** colors：每一块叫什么（默认「第 N 块」） */
+  swatchTitle?: (index: number) => string;
+  /** colors：在非自定义方案下改色时的提示 */
+  editHint?: (params: EffectParamValues) => string | null;
 }
 
 /** 风格自己怎么分阶：round 是四舍五入到最近一级（抖动、网点分级），floor 是等宽分档（排线、符号） */
@@ -43,12 +64,27 @@ export interface ToneMap {
   bins: ToneBins;
 }
 
+/**
+ * 当前风格的「格子」在成品里有多大、网格从哪里起。
+ * 抖动是像素尺寸的方格，排线是横纵间距，网点 / 符号是网格间距；格子 (i, j) 覆盖像素 x ∈ [i·cellW − offsetX, (i+1)·cellW − offsetX)。
+ */
+export interface GridUnit {
+  cellW: number;
+  cellH: number;
+  offsetX: number;
+  offsetY: number;
+}
+
+export const DEFAULT_GRID_UNIT: GridUnit = { cellW: 1, cellH: 1, offsetX: 0, offsetY: 0 };
+
 /** 特效运行时能拿到的上下文：除了当前帧之外的素材；直接调 applyEffects 时可以不给，需要的特效各自回退 */
 export interface EffectContext {
   /** 适配到画布尺寸的原图（视频则是当前帧），与成品同尺寸（「叠加原图」用） */
   source?: RGBAFrame;
   /** 风格量化前的明暗分布（「灰度块描边」用） */
   tone?: ToneMap;
+  /** 当前风格的格子（「叠加随机方块」按它对齐、以它为单位）；没有就按 1px 方格 */
+  grid?: GridUnit;
 }
 
 export interface EffectDef {

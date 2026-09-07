@@ -43,7 +43,7 @@ test('特效栈：添加、堆叠、排序、关闭、删除', async ({ page }) 
   await expect(page.getByTestId('effects-editor')).toContainText('还没有特效');
   // 特效选项全部露出为芯片，不是下拉
   const chips = page.getByTestId('effects-add').getByRole('button');
-  await expect(chips).toHaveCount(11);
+  await expect(chips).toHaveCount(12);
   await expect(page.locator('[data-param="effects.add"]')).toHaveCount(0);
   const base = await canvasHash(page);
 
@@ -117,5 +117,45 @@ test('灰度块描边：阶数跟随风格，各阶芯片可开关，底色只�
   await expect(card.locator('[data-param="effect.paper"]')).toHaveCount(0);
   await pick(page, 'effect.fill', '只留描边');
   await expect(card.locator('[data-param="effect.paper"]')).toHaveCount(1);
+  await expect(page.locator('.tda-toast--error')).toHaveCount(0);
+});
+
+test('叠加随机方块：数量决定色块数，改样式露出字母，点色块改色转自定义', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await openSection(page, 'effects');
+  const base = await canvasHash(page);
+  await page.getByTestId('effects-add').getByRole('button', { name: '叠加随机方块' }).click();
+  const card = page.locator('.effect-card').first();
+  await expect(card).toContainText('叠加随机方块');
+  await expect.poll(() => canvasHash(page)).not.toBe(base);
+  // 默认 6 块，白色；数量改 3 就剩 3 块
+  const swatches = card.locator('[data-param="effect.colors"] .swatch');
+  await expect(swatches).toHaveCount(6);
+  await expect(swatches.first()).toHaveAttribute('aria-label', '第 1 块 #FFFFFF');
+  const count = card.locator('[data-param="effect.count"] .tda-slider__input');
+  await count.fill('3');
+  await count.press('Enter');
+  await expect(swatches).toHaveCount(3);
+  // 纯色块时没有字母框；切到「色块 + 字母」才露出
+  await expect(card.locator('[data-param="effect.letters"]')).toHaveCount(0);
+  await pick(page, 'effect.style', '色块 + 字母');
+  await expect(card.locator('[data-param="effect.letters"] input')).toHaveValue('A');
+  await expect(card.locator('[data-param="effect.letterHex"]')).toHaveCount(0);
+  await pick(page, 'effect.letterColor', '自定义');
+  await expect(card.locator('[data-param="effect.letterHex"]')).toHaveCount(1);
+  // 配色换成黑白：块交替；点第二块改色后方案转为自定义
+  await pick(page, 'effect.palette', '黑白');
+  await expect(swatches.nth(1)).toHaveAttribute('aria-label', '第 2 块 #000000');
+  await swatches.nth(1).click();
+  const popover = page.locator('.color-popover');
+  await expect(popover).toContainText('修改后会转为「自定义」配色');
+  await popover.getByRole('button', { name: 'HEX' }).click();
+  const hex = popover.locator('input[type="text"]').first();
+  await hex.fill('#FF00FF');
+  await hex.press('Enter');
+  await expect(swatches.nth(1)).toHaveAttribute('aria-label', '第 2 块 #FF00FF');
+  await expect(card.locator('[data-param="effect.palette"]')).toContainText('自定义');
+  await page.screenshot({ path: process.env.BLOCKS_SHOT ?? 'test-results/blocks.png' });
   await expect(page.locator('.tda-toast--error')).toHaveCount(0);
 });

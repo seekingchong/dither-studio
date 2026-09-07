@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { EffectParamDef } from '@/engine';
 import { getEffectHelp, getOptionHelp, getParamHelp, INLINE_OPTIONS_MAX, type ParamDef } from '@/params';
 
 export interface HelpValue {
@@ -82,6 +83,11 @@ export function helpForId(id: string, title: string): HelpContent | null {
 export function helpForOption(paramId: string, value: string, label: string): HelpContent | null {
   const desc = getOptionHelp(paramId, value);
   return desc ? { key: `${paramId}:${value}`, title: label, summary: desc, variant: 'option' } : null;
+}
+
+/** 特效子参数的解读：文案写在 EffectParamDef.hint 上，没写就不弹 */
+export function helpForEffectParam(effectId: string, def: EffectParamDef): HelpContent | null {
+  return def.hint ? { key: `effect:${effectId}.${def.id}`, title: def.label, summary: def.hint, variant: 'param' } : null;
 }
 
 /** 特效卡片标题的解读 */
