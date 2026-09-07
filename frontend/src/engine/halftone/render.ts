@@ -1,6 +1,7 @@
 import type { RGBAFrame } from '../types';
 import { baseRadius, glyphHalfStroke, glyphSpan, lineHalfWidth, rowShift, type HalftoneGeometry, type HalftoneScreen, type LatticeKind } from './geometry';
 import { glyphDistance } from './glyphs';
+import { ribbonProfile, type RibbonProfile } from './ribbon';
 import { shapeDistance, type HalftoneShape } from './shapes';
 
 /**
@@ -44,6 +45,10 @@ interface ScreenContext {
   /** 网格扰动：每格网点离格心的位移（格） */
   dx?: Float32Array;
   dy?: Float32Array;
+  /** 平滑线条：整行连成一条带子，距离按行算（`ribbonDistanceAt`）；`profile` 是逐像素复用的剖面缓冲 */
+  ribbon: boolean;
+  aa: boolean;
+  profile: RibbonProfile;
 }
 
 /** 预处理一张网格：把每像素都要用的常量算好，并按网点最大尺寸与融合半径决定要看几圈邻格 */
@@ -57,8 +62,8 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
   const rMax = maxSize * r0;
   // 多项式 smooth-min 最多把距离往里拉 k / 4：融合度 100% 时 k 取一个格距，两个半格大的点刚好能接上
   const k = g.merge > 0 ? g.merge * minPitch : 0;
-  // 符号里的跨格线段伸到格子角上，邻格的线会探进来，至少看一圈
-  const spans = g.shape === 'line' || g.shape === 'glyph';
+  // 符号里的跨格线段伸到格子角上，邻格的线会探进来，至少看一圈；线条 / 平滑线条整行连着，同理
+  const spans = g.shape === 'line' || g.shape === 'smoothline' || g.shape === 'glyph';
   let reach: number;
   if (k > 0 && rMax + k + 1 > minPitch) reach = 2;
   else if (k === 0 && !spans && rMax + 1 <= halfMin) reach = 0;
@@ -87,7 +92,45 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
     k,
     reach,
     best: -1,
+    ribbon: g.shape === 'smoothline',
+    aa: g.antialias,
+    profile: { r: 0, dr: 0, y: 0, dy: 0, near: 0 },
   };
+}
+
+/**
+ * 平滑线条：像素到附近每一行带子边缘的距离取最小（融合时揉在一起）。带子的半粗与中线沿行连续变化（`ribbon.ts`），
+ * 竖直方向量出的距离按边缘的斜率换算成垂直于边缘的距离，斜坡上的抗锯齿才不会被拉宽；
+ * 抗锯齿开着时，细过一个像素的带子按它盖住像素行的比例出墨（覆盖率 2r，而不是把它当成半像素粗），收尖到零的地方就真的没墨，
+ * 不会留一条半透明的发丝线。u / v 是网格坐标。
+ */
+function ribbonDistanceAt(c: ScreenContext, u: number, v: number): number {
+  const s = c.screen;
+  const j0 = Math.floor(v);
+  const R = c.reach;
+  const p = c.profile;
+  let d = Infinity;
+  let bestD = Infinity;
+  let best = -1;
+  for (let jj = j0 - R; jj <= j0 + R; jj++) {
+    const rj = jj - s.j0;
+    if (rj < 0 || rj >= s.rows) continue;
+    ribbonProfile(s, rj, u - 0.5 - rowShift(c.lattice, jj) - s.i0, p);
+    if (p.r <= 0) continue;
+    const rr = p.r * c.r0;
+    const ly = (v - (jj + 0.5) - p.y) * s.pitchY;
+    // 边缘的斜率（画布像素 / 画布像素）：上沿是中线减半粗，下沿是中线加半粗
+    const slope = (ly < 0 ? p.dy * s.pitchY - p.dr * c.r0 : p.dy * s.pitchY + p.dr * c.r0) * c.invPitchX;
+    let dd = (Math.abs(ly) - rr) / Math.sqrt(1 + slope * slope);
+    if (c.aa && rr < 0.5 && dd < 0.5 - 2 * rr) dd = 0.5 - 2 * rr;
+    d = c.k > 0 ? smoothMin(d, dd, c.k) : dd < d ? dd : d;
+    if (dd < bestD) {
+      bestD = dd;
+      best = rj * s.cols + p.near;
+    }
+  }
+  c.best = best;
+  return d;
 }
 
 /** 画布像素 (px, py) 到这张网格上最近网点边缘的有符号距离（融合时是揉过的距离） */
@@ -97,6 +140,7 @@ function distanceAt(c: ScreenContext, px: number, py: number): number {
   const dy = py - c.cy;
   const u = (c.cos * dx + c.sin * dy + s.offsetX) * c.invPitchX + 0.5;
   const v = (-c.sin * dx + c.cos * dy + s.offsetY) * c.invPitchY + 0.5;
+  if (c.ribbon) return ribbonDistanceAt(c, u, v);
   const j0 = Math.floor(v);
   const R = c.reach;
   let d = Infinity;

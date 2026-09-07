@@ -206,7 +206,7 @@ describe('预设与设置', () => {
     expect(BUILTIN_PRESETS[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('dither')[0].id).toBe(DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('halftone').length).toBe(12);
+    expect(builtinPresetsOf('halftone').length).toBe(13);
     expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('glyph').length).toBe(11);
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');

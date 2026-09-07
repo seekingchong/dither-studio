@@ -511,6 +511,27 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: HT,
   },
+  // Line Screen 的线一格一段，粗细在格子边界上打台阶；这一套换成「平滑线」——整行连成一条带子，
+  // 相邻格子之间按单调三次曲线过渡，连续变粗变细的几格是一整条平滑的坡，像钞票上的雕刻线
+  {
+    id: 'ht-line-flow',
+    name: 'Line Flow',
+    hint: '线网粗细顺滑起伏、不打台阶，像钞票上的雕刻线',
+    params: {
+      'style.type': 'halftone',
+      'halftone.shape': 'smoothline',
+      'halftone.size': 100,
+      'halftone.minSize': 8,
+      'halftone.mapping': 'linear',
+      'screen.pitchX': 6,
+      'screen.pitchY': 7,
+      'screen.angle': 20,
+      'ink.dot': '#1B1B1B',
+      'ink.paper': '#FFFFFF',
+      'tone.contrast': 10,
+    },
+    exposes: HT,
+  },
   {
     id: 'ht-mosaic',
     name: 'Mosaic',

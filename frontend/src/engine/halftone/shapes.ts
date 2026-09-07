@@ -6,10 +6,13 @@
  * 返回值负数在形状里面，绝对值就是到边缘的距离，渲染用它做 1px 抗锯齿，点融合用它做平滑最小值。
  */
 
-/** `glyph` 是符号网点：每格按明暗从一串符号里挑一个，图元与距离场在 `glyphs.ts`，这里只留一个占位的圆 */
-export type HalftoneShape = 'circle' | 'square' | 'roundsquare' | 'diamond' | 'triangle' | 'hexagon' | 'line' | 'cross' | 'glyph';
+/**
+ * `smoothline` 是平滑线条：整行连成一条粗细顺滑起伏的带子，曲线与距离场在 `ribbon.ts`，这里按「线条」的矩形占位；
+ * `glyph` 是符号网点：每格按明暗从一串符号里挑一个，图元与距离场在 `glyphs.ts`，这里只留一个占位的圆
+ */
+export type HalftoneShape = 'circle' | 'square' | 'roundsquare' | 'diamond' | 'triangle' | 'hexagon' | 'line' | 'smoothline' | 'cross' | 'glyph';
 
-export const HALFTONE_SHAPE_IDS: readonly HalftoneShape[] = ['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'cross', 'glyph'];
+export const HALFTONE_SHAPE_IDS: readonly HalftoneShape[] = ['circle', 'square', 'roundsquare', 'diamond', 'triangle', 'hexagon', 'line', 'smoothline', 'cross', 'glyph'];
 
 const SQRT3 = 1.7320508075688772;
 const SQRT1_2 = Math.SQRT1_2;
@@ -80,6 +83,8 @@ export function shapeDistance(shape: HalftoneShape, x: number, y: number, r: num
       return py > 0 ? len : -len;
     }
     case 'line':
+    // 平滑线条整行连成一条带子，距离场在 `ribbon.ts`（`render.ts` 不会走到这里）；万一走到就当一格一段的线条
+    case 'smoothline':
       return box(x, y, halfWidth, r);
     case 'cross': {
       // iq 的十字 SDF：b = (臂长, 臂半粗)
@@ -160,6 +165,7 @@ export function shapeVertices(shape: HalftoneShape, r: number, halfWidth: number
       ];
     }
     case 'line':
+    case 'smoothline':
       return [
         [-halfWidth, -r],
         [halfWidth, -r],
