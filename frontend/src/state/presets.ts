@@ -842,6 +842,57 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图三：黑底荧光绿的电路板——暗处一粒小点、短斜线、十字、小叉，亮处同心圆、圆角框、四叶草越来越粗大；
+  // 深底亮符号所以反相；亮部缩小让小记号真的小、大符号真的大；交界处大量掺杂，像元件随手排上去的
+  {
+    id: 'glyph-circuit',
+    name: 'Lime Circuit',
+    hint: '黑底荧光绿：小点、斜线、十字、叉到同心圆、圆角框、四叶草',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'slashshort', 'plus', 'xmark', 'rings', 'roundbox', 'clover']),
+      'glyph.size': 90,
+      'glyph.taper': 55,
+      'glyph.stroke': 15,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 16,
+      'tile.pitchY': 16,
+      'glyph.ink': '#C8FF1A',
+      'glyph.paper': '#0A0A0A',
+      'tone.invert': true,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
+  // 参考图四：墨绿底的「Checkmate」——淡紫小点与折线、中绿的六瓣花、薄荷绿的竖纹、棋盘格与城堡，每阶一色；
+  // 100% 大小让棋盘格与竖纹在邻格之间接得上；深底亮符号所以反相
+  {
+    id: 'glyph-checkmate',
+    name: 'Checkmate',
+    hint: '墨绿底：淡紫点与折线、六瓣花、竖纹、棋盘格到薄荷绿城堡',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'pip', 'flower', 'zigzag', 'stripes', 'checker', 'rook']),
+      'glyph.size': 100,
+      'glyph.taper': 0,
+      'glyph.stroke': 13,
+      'glyph.mix': 15,
+      'glyph.accent': 0,
+      'tile.pitchX': 18,
+      'tile.pitchY': 18,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#9C9FE9', '#9C9FE9', '#2F9E6B', '#9C9FE9', '#5EE6A2', '#5EE6A2', '#5EE6A2']),
+      'glyph.paper': '#0F5C3F',
+      'tone.invert': true,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

@@ -211,3 +211,66 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   expect((svg.match(/<circle /g) ?? []).length).toBeGreaterThan(100);
   expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });
+
+test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+
+  // 两套新预设排在折叠线以下，先展开卡片
+  await page.getByTestId('preset-more').click();
+
+  // Lime Circuit：8 阶自定义序列 空 → 小点 → 短斜线 → 十字 → 叉号 → 双圈 → 圆角框 → 四叶，荧光绿配黑纸
+  await page.locator('[data-preset="glyph-circuit"]').click();
+  await expect(page.locator('[data-preset="glyph-circuit"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashshort');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xmark');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'rings');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'roundbox');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'clover');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('四叶');
+  await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#C8FF1A');
+  await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#0A0A0A');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('55');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 选择器里新符号都在，各自在自己的组里：双圈在「点」、折线在「线」、城堡在「几何」
+  await rows.nth(5).locator('.glyph-level__shape').click();
+  const picker = page.getByTestId('glyph-picker');
+  await expect(picker).toBeVisible();
+  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
+  await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
+  await expect(picker.getByRole('group', { name: '几何' }).locator('[data-glyph="rook"]')).toHaveCount(1);
+  // 换成六边框：只改这一阶
+  await picker.locator('[data-glyph="hexline"]').click();
+  await expect(picker).toHaveCount(0);
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hexline');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'clover');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Lime Circuit · 已微调');
+
+  // Checkmate：7 阶 空 → 小点 → 花 → 折线 → 竖纹 → 棋盘 → 城堡，分级配色，色板 7 阶 + 背景
+  await page.locator('[data-preset="glyph-checkmate"]').click();
+  await expect(page.locator('[data-preset="glyph-checkmate"]')).toHaveClass(/is-active/);
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'flower');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'zigzag');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripes');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'rook');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('城堡');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(8);
+  await expect(swatches.nth(1)).toHaveAttribute('aria-label', '第 2 阶 #9C9FE9');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #5EE6A2');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #0F5C3F');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+});
