@@ -937,6 +937,14 @@ export const EFFECT_HELP: Readonly<Record<string, ParamHelp>> = {
   scatter: {
     summary: '像素随机小幅位移，边缘变毛，颗粒更松散。',
   },
+  sourceOverlay: {
+    summary: '把原图（视频就是当前帧）垫在成品下面当背景：正片叠底让亮部透出原图、墨色不动，滤色反过来。',
+    tip: '深底浅点的成品选「滤色」；不透明度定原图露出多少，缩放绕画布中心，偏移按画布尺寸的百分比。',
+  },
+  levelOutline: {
+    summary: '把画面按明暗分成几阶（默认跟随风格的灰阶数），同一阶连成的色块沿格子边缘描一圈线，每阶能单独开关。',
+    tip: '一条边两侧的阶都关了才不描；排在波形、桶形这类扭曲前面，线才跟着画面变形。',
+  },
 };
 
 export function getParamHelp(id: string): ParamHelp | undefined {

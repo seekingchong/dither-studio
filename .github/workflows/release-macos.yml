@@ -3,7 +3,7 @@
 # 触发方式（只在需要安装包时手动触发，日常推 main 不出包）：
 #   1. 打 tag：git tag v0.2.0 && git push origin v0.2.0  → 出包并发布到 GitHub Release
 #   2. Actions 页面手动 Run workflow（本文件进默认分支后才会出现在 UI 里）：
-#      填 tag 则建 Release，留空只产出 Actions artifact
+#      填 tag 则建 Release，留空只产出 Actions artifact；arch 可只打 arm64 或 x64，默认两个都打
 #
 # 包是未签名、未公证的：下载后首次打开要在「系统设置 → 隐私与安全性」里放行。
 name: Release macOS
@@ -15,6 +15,15 @@ on:
         description: '发布用 tag（如 v0.1.0）。留空则只产出 Actions artifact，不建 Release'
         required: false
         default: ''
+      arch:
+        description: '打哪种架构：both（arm64 + x64）/ arm64（Apple 芯片）/ x64（Intel）'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - arm64
+          - x64
   push:
     tags:
       - 'v*'
@@ -44,10 +53,18 @@ jobs:
       - name: 构建主进程与前端
         run: npm run build
 
-      - name: 打 dmg（arm64 + x64，未签名）
+      - name: 打 dmg（未签名；手动运行时按 arch 选架构，打 tag 时 arm64 + x64 都打）
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: npx electron-builder --mac dmg --arm64 --x64 --publish never
+          ARCH: ${{ inputs.arch || 'both' }}
+        run: |
+          case "$ARCH" in
+            arm64) FLAGS="--arm64" ;;
+            x64) FLAGS="--x64" ;;
+            *) FLAGS="--arm64 --x64" ;;
+          esac
+          echo "electron-builder --mac dmg $FLAGS"
+          npx electron-builder --mac dmg $FLAGS --publish never
 
       - name: 校验产物
         run: |
