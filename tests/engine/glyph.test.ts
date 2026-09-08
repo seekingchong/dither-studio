@@ -150,7 +150,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(67);
+    expect(GLYPH_IDS.length).toBe(69);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -352,7 +352,7 @@ describe('新增符号：横板与穿孔块', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(67);
+    expect(GLYPH_IDS.length).toBe(69);
     // 三档横条：比横线粗，越厚墨越多，最厚的也没到实心方
     expect(c('slabthin')).toBeGreaterThan(c('dash'));
     expect(c('slabthin')).toBeLessThan(c('slab'));
@@ -787,5 +787,133 @@ describe('流水线 符号 分支', () => {
     expect(leftBlack / (26 * 66)).toBeGreaterThan(0.8);
     expect(holeInBlack).toBeGreaterThan(0);
     expect(rightPaper / (26 * 66)).toBeGreaterThan(0.9);
+  });
+});
+
+describe('新增符号：丝网海报的短竖纹与叠圈', () => {
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('两种都在符号库里、接在老的 67 个后面，老符号编码不变；短竖纹的墨量在双竖与贯穿竖纹之间', () => {
+    for (const id of ['comb', 'ringpair'] as GlyphId[]) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(67);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    // 老的 67 个编码不动：新的两个接在半块后面
+    expect(GLYPH_CODE.stripes).toBe(59);
+    expect(GLYPH_CODE.rook).toBe(61);
+    expect(GLYPH_CODE.comb).toBe(67);
+    expect(GLYPH_CODE.ringpair).toBe(68);
+    // 三道短竖：比两道短竖多，比三道贯穿的竖纹少
+    expect(c('comb')).toBeGreaterThan(c('pipes'));
+    expect(c('comb')).toBeLessThan(c('stripes'));
+    // 叠圈是两个缩小的圆圈：比一道竖线多，比实心圆点少
+    expect(c('ringpair')).toBeGreaterThan(c('bar'));
+    expect(c('ringpair')).toBeLessThan(c('dot'));
+  });
+
+  it('渲染：短竖纹三道竖线上下留缝、不与邻格相连（贯穿的竖纹整列到底）；叠圈是左右错开的两个圆圈，横的比竖的宽', () => {
+    // 12px 格、两格竖排：一列上既有墨也有纸——上下邻格之间断开
+    const inCol = (img: { width: number; data: Uint8ClampedArray }, x: number, h: number) => {
+      let ink = 0;
+      for (let y = 0; y < h; y++) if (px(img, x, y)[0] < 128) ink++;
+      return ink;
+    };
+    // 一行上有几段墨：三道竖线就是三段
+    const runs = (img: { width: number; data: Uint8ClampedArray }, y: number, w: number) => {
+      let n = 0;
+      let prev = false;
+      for (let x = 0; x < w; x++) {
+        const ink = px(img, x, y)[0] < 128;
+        if (ink && !prev) n++;
+        prev = ink;
+      }
+      return n;
+    };
+    const comb = renderHalftone(buildGlyphScreen(flatSource(12, 24, 0.5), custom(['comb', 'comb'])));
+    const stripes = renderHalftone(buildGlyphScreen(flatSource(12, 24, 0.5), custom(['stripes', 'stripes'])));
+    // 中间那道所在的列：竖纹整列到底，短竖纹留出横缝
+    expect(inCol(stripes, 6, 24)).toBe(24);
+    expect(inCol(comb, 6, 24)).toBeGreaterThan(0);
+    expect(inCol(comb, 6, 24)).toBeLessThan(24);
+    // 有墨的那一行上是三段，与竖纹一样的三道间距
+    expect(runs(comb, 1, 12)).toBe(3);
+    expect(runs(stripes, 1, 12)).toBe(3);
+
+    // 叠圈：两个圆心在 x = ±0.4r、半径 0.62r，圆周相交——横向铺到 1.02r，纵向只到 0.62r
+    const r = 6;
+    const hw = 0.72;
+    const d = (x: number, y: number) => glyphDistance(GLYPH_CODE.ringpair, x, y, r, hw, 6.5, 6.5);
+    // 左右两圈的外缘是墨，两个圆心是纸（描边不是实心）
+    expect(d(-1.02 * r + hw, 0)).toBeLessThan(0);
+    expect(d(1.02 * r - hw, 0)).toBeLessThan(0);
+    expect(d(-0.4 * r, 0)).toBeGreaterThan(0);
+    expect(d(0.4 * r, 0)).toBeGreaterThan(0);
+    // 横向比纵向铺得远
+    const reach = (dir: 'x' | 'y') => {
+      let far = 0;
+      for (let t = 0; t <= 2 * r; t += 0.1) if ((dir === 'x' ? d(t, 0) : d(0, t)) < 0) far = t;
+      return far;
+    };
+    expect(reach('x')).toBeGreaterThan(reach('y'));
+    // 出了两圈的范围就没墨了
+    expect(d(1.02 * r + hw + 0.5, 0)).toBeGreaterThan(0);
+
+    // SVG：短竖纹出三条 <line>，叠圈出两个描边 <circle>
+    const combSvg = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['comb', 'comb'])));
+    expect((combSvg.match(/<line /g) ?? []).length).toBe(3);
+    const pairSvg = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['ringpair', 'ringpair'])));
+    expect((pairSvg.match(/<circle [^>]*fill="none"/g) ?? []).length).toBe(2);
+  });
+
+  it('Riso Signal 预设：8 阶自定义序列黑色占 6 阶，第 3 阶橙、第 4 阶绿；米白纸不反相，渲染后三色都在且黑最多', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-riso')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'tri', 'dot', 'ring', 'ringpair', 'comb', 'dot']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    // 只有第 3 / 4 阶是彩色，其余六阶都是黑
+    expect(p[glyphColorId(3)]).toBe('#F0562C');
+    expect(p[glyphColorId(4)]).toBe('#3FAF6B');
+    for (const k of [1, 2, 5, 6, 7, 8]) expect(p[glyphColorId(k)], `第 ${k} 阶`).toBe('#1A1A1A');
+    expect(p['glyph.paper']).toBe('#EDEAE3');
+    expect(p['tone.invert']).toBe(false);
+    // 亮部缩小：橙三角小、暗处的黑圆点满格
+    expect(Number(p['glyph.taper'])).toBeGreaterThan(0);
+    // 最暗一阶的圆点刚好挨上而不糊成一团
+    expect(Number(p['glyph.size'])).toBeLessThan(100);
+    // 纸纹：胶片颗粒
+    expect(String(p['effects.stack'])).toContain('grain');
+
+    // 源图与画布同尺寸的灰度渐变：左黑右白
+    const out = renderImage(makeFrame(216, 108, (x) => [Math.round((x / 215) * 255), Math.round((x / 215) * 255), Math.round((x / 215) * 255)]), {
+      ...p,
+      'canvas.width': 216,
+      'canvas.height': 108,
+    });
+    expect(out.width).toBe(216);
+    let leftInk = 0;
+    let rightInk = 0;
+    let green = 0;
+    let orange = 0;
+    let black = 0;
+    for (let y = 0; y < 108; y++) {
+      for (let x = 0; x < 216; x++) {
+        const [r, g, b] = px(out, x, y);
+        // 颗粒会把纸色抖开一点，放宽到 24
+        const paperish = r > 200 && g > 200 && b > 200;
+        if (x < 54 && !paperish) leftInk++;
+        if (x >= 162 && !paperish) rightInk++;
+        if (g > 120 && r < 120 && b < 140) green++;
+        if (r > 170 && g > 40 && g < 140 && b < 110) orange++;
+        if (r < 70 && g < 70 && b < 70) black++;
+      }
+    }
+    // 浅底深墨：左（暗）边墨多，右（亮）边几乎是纸
+    expect(leftInk).toBeGreaterThan(rightInk);
+    // 三种颜色都上了画，黑色是主色
+    expect(green).toBeGreaterThan(0);
+    expect(orange).toBeGreaterThan(0);
+    expect(black).toBeGreaterThan(green + orange);
   });
 });
