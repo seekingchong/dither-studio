@@ -209,12 +209,13 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone').length).toBe(13);
     expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('glyph').length).toBe(23);
+    expect(builtinPresetsOf('glyph').length).toBe(24);
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-typewriter');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-circuit');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-checkmate');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-petscii');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-swiss');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-cipher');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-desync');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-riso');
