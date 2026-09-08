@@ -9,6 +9,7 @@ import {
   HISTORY_LIMIT,
   builtinPresetParams,
   builtinPresetsOf,
+  copyPresetName,
   defaultPresetIdFor,
   findBuiltinPreset,
   isParamExposed,
@@ -208,12 +209,16 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone').length).toBe(13);
     expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('glyph').length).toBe(15);
+    expect(builtinPresetsOf('glyph').length).toBe(19);
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-typewriter');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-circuit');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-checkmate');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-petscii');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-cipher');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-desync');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-riso');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-grille');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-system');
     for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
     // 网点的默认露出自己的全部分组与共用分组，不露出抖动 / 排线专属的
@@ -308,17 +313,19 @@ describe('预设与设置', () => {
 
   it('用户预设与设置的存储校验', () => {
     const list = sanitizeUserPresets([
-      { id: 'a', name: 'x'.repeat(100), params: { 'pixel.size': 3 }, createdAt: 5, base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9 },
-      { id: 'b', name: 'y', params: {}, createdAt: 1, base: 'not-a-preset', thumbnail: 'javascript:alert(1)' },
+      { id: 'a', name: 'x'.repeat(100), params: { 'pixel.size': 3 }, createdAt: 5, base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9, starred: true },
+      { id: 'b', name: 'y', params: {}, createdAt: 1, base: 'not-a-preset', thumbnail: 'javascript:alert(1)', starred: 'yes' },
       { bad: true },
       null,
       { id: 1 },
     ]);
     expect(list.length).toBe(2);
     expect(list[0].name.length).toBe(60);
-    expect(list[0]).toMatchObject({ base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9 });
+    expect(list[0]).toMatchObject({ base: 'gameboy', thumbnail: 'data:image/png;base64,AAAA', updatedAt: 9, starred: true });
     expect(list[1].base).toBeUndefined();
     expect(list[1].thumbnail).toBeUndefined();
+    // 星标只认 true，别的值一律当没标
+    expect(list[1].starred).toBeUndefined();
     expect(sanitizeUserPresets('nope')).toEqual([]);
     expect(sanitizeSettings({ slotCount: 4, gpu: false, theme: 'dark' })).toEqual({ slotCount: 4, gpu: false, theme: 'dark', paneWidth: null });
     expect(sanitizeSettings({ slotCount: 3, theme: 'purple' })).toEqual({ slotCount: 1, gpu: true, theme: 'light', paneWidth: null });
@@ -329,6 +336,14 @@ describe('预设与设置', () => {
     expect(sanitizeSettings({ paneWidth: 99999 }).paneWidth).toBe(1200);
     expect(sanitizeSettings({ paneWidth: 'wide' }).paneWidth).toBeNull();
     expect(sanitizeSettings({ paneWidth: Number.NaN }).paneWidth).toBeNull();
+  });
+
+  it('副本名字重名往后排号', () => {
+    expect(copyPresetName('我的 GB', [])).toBe('我的 GB 副本');
+    expect(copyPresetName('我的 GB', ['我的 GB 副本'])).toBe('我的 GB 副本 2');
+    expect(copyPresetName('我的 GB', ['我的 GB 副本', '我的 GB 副本 2'])).toBe('我的 GB 副本 3');
+    // 名字上限 60 字，排号后也不能超
+    expect(copyPresetName('长'.repeat(60), []).length).toBe(60);
   });
 
   it('切换坑位数时活动坑位回到范围内', () => {

@@ -1,14 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { copyPresetName } from '@/state';
 import { Button, IconButton } from '@/ui/primitives';
 import { usePresets } from '@/ui/state/usePresets';
-
-/** 预填的名字：当前方案名 + 「副本」，重名就往后排号 */
-function defaultPresetName(base: string, taken: Set<string>): string {
-  const stem = `${base} 副本`;
-  if (!taken.has(stem)) return stem;
-  for (let i = 2; i < 1000; i++) if (!taken.has(`${stem} ${i}`)) return `${stem} ${i}`;
-  return `${stem} ${Date.now()}`;
-}
 
 /**
  * 左栏操作行右端的两个预设动作：「还原」（丢掉微调，只有图标）与「保存预设」。
@@ -42,7 +35,7 @@ export function PresetActions() {
   // 每次打开都重新预填并选中，改过再关掉不会留下上次的残稿
   const toggle = () => {
     setOpen((was) => {
-      if (!was) setName(defaultPresetName(activeName, takenNames));
+      if (!was) setName(copyPresetName(activeName, takenNames));
       return !was;
     });
   };
