@@ -23,6 +23,10 @@ export type GlyphId =
   | 'clover'
   | 'flower'
   | 'ringpair'
+  | 'ringtiny'
+  | 'rings3'
+  | 'ringthick'
+  | 'ringorb'
   // 线
   | 'tick'
   | 'minus'
@@ -188,6 +192,10 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'grillebold', label: '竖栅·粗', group: 'lines', desc: '三道贯穿格子的实心粗竖带，缝比带窄，栅距不变' },
   { id: 'grillefull', label: '竖栅·满', group: 'lines', desc: '三道贯穿格子的实心宽竖带，只剩三道细缝，栅距不变' },
   { id: 'block', label: '实心格', group: 'geometry', desc: '填满整格的实心块，邻格拼成一整片，不留缝' },
+  { id: 'ringtiny', label: '小圈', group: 'dots', desc: '不到一半大的空心小圆，比圆圈轻一档' },
+  { id: 'rings3', label: '三环', group: 'dots', desc: '三个同心圆一圈套一圈，圈与圈之间留等宽的缝' },
+  { id: 'ringorb', label: '环心球', group: 'dots', desc: '粗圆环中间悬一个实心圆，环与球之间留一圈纸色' },
+  { id: 'ringthick', label: '粗圈', group: 'dots', desc: '加粗的圆环，中间只剩一个小孔；带宽按符号半径算，不跟线粗走' },
   // 几何系统（参考图：奶白纸上的平涂色块——小方点、杉树、小屋，横板那一家已经在上面）
   { id: 'tinysquare', label: '小方点', group: 'geometry', desc: '不到一半大的实心小方块，像撒开的像素' },
   { id: 'pillar', label: '竖板', group: 'lines', desc: '贯穿格子的竖条，占格宽约四成，上下邻格接成一条粗线' },
@@ -242,6 +250,7 @@ type Prim =
   | { k: 'g' }
   | { k: 'G' }
   | { k: 'V'; x: number; w: number }
+  | { k: 'O'; r: number; w: number }
   | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
@@ -403,6 +412,19 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   grillefull: grille(0.29),
   // 实心格：竖带铺满整格（半宽就是半格再多半像素），邻格拼成一整片
   block: [{ k: 'V', x: 0, w: 1 }],
+  // 圆环一家：小圈补在小点与圆圈之间；三环、环心球、粗圈把暗部撑起来——
+  // 同一个圆形骨架从一粒点长到几乎填满格子的粗环，墨量一路递增，成片时是一张圆形的密文
+  ringtiny: [{ k: 'o', x: 0, y: 0, r: 0.62 }],
+  rings3: [
+    { k: 'o', x: 0, y: 0, r: 1 },
+    { k: 'o', x: 0, y: 0, r: 0.62 },
+    { k: 'o', x: 0, y: 0, r: 0.26 },
+  ],
+  ringorb: [
+    { k: 'O', r: 1, w: 0.2 },
+    { k: 'c', x: 0, y: 0, r: 0.45 },
+  ],
+  ringthick: [{ k: 'O', r: 1, w: 0.36 }],
   // 城堡：平底、直边，顶上中间开一个豁口分成两个齿
   rook: [
     {
@@ -602,6 +624,13 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
         dd = dx > dy ? dx : dy;
         break;
       }
+      case 'O': {
+        // 粗环：外缘落在 p.r·r 上，带的半宽是 w 乘这个半径——带宽不跟线粗走，w = 0.5 就填满整个圆
+        const rr = p.r * r;
+        const half = p.w * rr;
+        dd = Math.abs(Math.sqrt(x * x + y * y) - (rr - half)) - half;
+        break;
+      }
       case 'P':
         dd = polygonDistance(x, y, p.pts, r);
         break;
@@ -705,6 +734,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'V':
         out.push(`<rect x="${f(cx + (p.x - p.w) * spanX)}" y="${f(cy - spanY)}" width="${f(2 * p.w * spanX)}" height="${f(2 * spanY)}"${fill}/>`);
         break;
+      case 'O': {
+        const rr = p.r * r;
+        const half = p.w * rr;
+        out.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(rr - half)}" fill="none" stroke-width="${f(2 * half)}"${stroke}/>`);
+        break;
+      }
       case 'P':
         out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
         break;
