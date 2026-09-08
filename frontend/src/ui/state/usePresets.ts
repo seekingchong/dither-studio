@@ -5,6 +5,7 @@ import { sanitizeParams, styleOf } from '@/params';
 import {
   PRESETS_STORAGE_KEY,
   builtinPresetParams,
+  copyPresetName,
   defaultPresetIdFor,
   findBuiltinPreset,
   newPresetId,
@@ -49,7 +50,7 @@ async function captureThumbnail(client: RenderClient | null): Promise<string | u
 
 /**
  * 预设：当前方案基于哪个预设、是否已在它基础上改过；应用内置 / 用户预设；
- * 用户预设的保存（带来源与缩略图）、覆盖、重命名、删除与持久化。
+ * 用户预设的保存（带来源与缩略图）、覆盖、重命名、复制、星标、删除与持久化。
  */
 export function usePresets() {
   const platform = usePlatform();
@@ -142,6 +143,37 @@ export function usePresets() {
     [persist],
   );
 
+  /** 复制一份：同样的参数、来源与缩略图，名字是「原名 副本」；当前用哪套方案不变 */
+  const duplicate = useCallback(
+    async (id: string) => {
+      const list = useStudioStore.getState().presets;
+      const source = list.find((p) => p.id === id);
+      if (!source) return null;
+      const copy: UserPreset = {
+        ...source,
+        id: newPresetId(),
+        name: copyPresetName(source.name, list.map((p) => p.name)),
+        createdAt: Date.now(),
+        starred: false,
+      };
+      delete copy.updatedAt;
+      // 排在原件后面，免得副本跑到列表另一头去找
+      const at = list.findIndex((p) => p.id === id);
+      await persist([...list.slice(0, at + 1), copy, ...list.slice(at + 1)]);
+      show(`已复制为「${copy.name}」`);
+      return copy;
+    },
+    [persist, show],
+  );
+
+  /** 星标开关：星标过的排在「我的预设」最前面 */
+  const toggleStar = useCallback(
+    async (id: string) => {
+      await persist(useStudioStore.getState().presets.map((p) => (p.id === id ? { ...p, starred: !p.starred } : p)));
+    },
+    [persist],
+  );
+
   /** 删除；正在使用的预设被删掉时，当前参数保留，来源退回它所基于的内置预设 */
   const remove = useCallback(
     async (id: string) => {
@@ -153,5 +185,5 @@ export function usePresets() {
     [persist],
   );
 
-  return { presets, activeId, activeUser, activeName, base, reference, dirty, applyBuiltin, applyUser, revert, save, update, rename, remove };
+  return { presets, activeId, activeUser, activeName, base, reference, dirty, applyBuiltin, applyUser, revert, save, update, rename, duplicate, toggleStar, remove };
 }

@@ -22,6 +22,7 @@ export type GlyphId =
   | 'rings'
   | 'clover'
   | 'flower'
+  | 'ringpair'
   // 线
   | 'tick'
   | 'minus'
@@ -42,6 +43,10 @@ export type GlyphId =
   | 'xmark'
   | 'zigzag'
   | 'stripes'
+  | 'slabthin'
+  | 'slab'
+  | 'slabwide'
+  | 'comb'
   | 'grillehair'
   | 'grillefine'
   | 'grillemid'
@@ -65,6 +70,8 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'blockhole'
+  | 'blockhalf'
   | 'block'
   // 字符
   | 'one'
@@ -161,7 +168,16 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
-  // 竖栅（参考图三：黑底上的假彩色扫描图，整幅盖着一层等距竖线栅，越亮的地方栅线越粗）
+  // 失步（参考图：白纸上的横向扫描线与黑色像素块）——粗细分档的横条与被冲掉一块的实心方
+  { id: 'slabthin', label: '细板', group: 'lines', desc: '贯穿格子的细横条，比横线粗一点，邻格接成一条' },
+  { id: 'slab', label: '横板', group: 'lines', desc: '贯穿格子的横条，占格高约四成，邻格接成一条粗线' },
+  { id: 'slabwide', label: '厚板', group: 'lines', desc: '贯穿格子的厚横条，上下各留一线缝，成片时是带白缝的黑带' },
+  { id: 'blockhole', label: '穿孔块', group: 'geometry', desc: '实心方块中间冲掉一个小方孔，孔里露出纸色' },
+  { id: 'blockhalf', label: '半块', group: 'geometry', desc: '实心方块的下半截，与邻格拼出半格高的台阶' },
+  // 丝网海报（米白纸上黑色的叠圈与短竖纹打底，绿圆点与橙三角点缀）
+  { id: 'comb', label: '短竖纹', group: 'lines', desc: '三道不出格的短竖线，上下邻格之间留缝，连成一片短竖笔触' },
+  { id: 'ringpair', label: '叠圈', group: 'dots', desc: '两个左右错开的圆圈，像交叠的两个环' },
+  // 竖栅（参考图：黑底上的假彩色扫描图，整幅盖着一层等距竖线栅，越亮的地方栅线越粗）
   { id: 'grillehair', label: '竖栅·微', group: 'lines', desc: '三道贯穿格子的实心细竖线，与竖纹同一个栅距，邻格接成等距竖栅' },
   { id: 'grillefine', label: '竖栅·细', group: 'lines', desc: '三道贯穿格子的实心竖带，比「微」粗一档，栅距不变' },
   { id: 'grillemid', label: '竖栅·中', group: 'lines', desc: '三道贯穿格子的实心竖带，比「细」粗一档，栅距不变' },
@@ -195,7 +211,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
+ * `b` 是挪开中心的实心方（棋盘格用），`r` 是挪开中心的实心矩形（半宽 w、半高 h 分开给，横板与穿孔块用），
+ * `R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
  * `V` 是跨格竖带：上下贯穿整格，中心与半宽都以半格为 1，粗细不随符号大小与线粗变。
  */
 type Prim =
@@ -209,6 +226,7 @@ type Prim =
   | { k: 'q'; h: number }
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
+  | { k: 'r'; x: number; y: number; w: number; h: number }
   | { k: 'R'; h: number }
   | { k: 'd' }
   | { k: 'D' }
@@ -239,6 +257,20 @@ const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
   const a = (Math.PI / 3) * k + Math.PI / 6;
   return { k: 'c', x: 0.62 * Math.cos(a), y: 0.62 * Math.sin(a), r: 0.36 } as const;
 });
+
+/** 贯穿格子的横条：半宽取满一个符号半径，邻格之间接得上；半高 h 决定这一档有多粗 */
+const slab = (h: number): Prim => ({ k: 'r', x: 0, y: 0, w: 1, h });
+/** 穿孔块：BOX 见方的实心块中间留一个半边为 g 的方孔，四条边各是一个矩形，孔里露出纸色 */
+const holed = (g: number): readonly Prim[] => {
+  const t = (BOX - g) / 2;
+  const m = (BOX + g) / 2;
+  return [
+    { k: 'r', x: 0, y: -m, w: BOX, h: t },
+    { k: 'r', x: 0, y: m, w: BOX, h: t },
+    { k: 'r', x: -m, y: 0, w: t, h: g },
+    { k: 'r', x: m, y: 0, w: t, h: g },
+  ];
+};
 
 const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   blank: [],
@@ -378,6 +410,20 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 失步：横条按半高分三档，成片时厚板之间留一线纸色，像扫描线之间的缝
+  slabthin: [slab(0.22)],
+  slab: [slab(0.4)],
+  slabwide: [slab(0.66)],
+  blockhole: holed(0.26),
+  blockhalf: [{ k: 'r', x: 0, y: BOX / 2, w: BOX, h: BOX / 2 }],
+  // 短竖纹：三道等距的短竖线，和「竖纹」一样的间距，但用不出格的线段，上下只画到八成半径——
+  // 邻格之间留下一道明显的横缝，整片下来是一笔笔断开的短竖，而不是通到底的长线
+  comb: [seg(-2 / 3, -0.8, -2 / 3, 0.8), seg(0, -0.8, 0, 0.8), seg(2 / 3, -0.8, 2 / 3, 0.8)],
+  // 叠圈：两个半径 0.62 的圆圈左右各挪 0.4，圆周相交，画出丝网海报里那种叠在一起的环
+  ringpair: [
+    { k: 'o', x: -0.4, y: 0, r: 0.62 },
+    { k: 'o', x: 0.4, y: 0, r: 0.62 },
+  ],
 };
 
 /** 按编码取图元表 */
@@ -481,6 +527,15 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'b':
         dd = shapeDistance('square', x - p.x * r, y - p.y * r, p.h * r, 0);
         break;
+      case 'r': {
+        // 矩形的有符号距离：先取到两条中轴的距离减半边，外面按两轴的正分量取模长，里面取较大的那个（负值）
+        const ex = Math.abs(x - p.x * r) - p.w * r;
+        const ey = Math.abs(y - p.y * r) - p.h * r;
+        const ox = ex > 0 ? ex : 0;
+        const oy = ey > 0 ? ey : 0;
+        dd = Math.min(Math.max(ex, ey), 0) + Math.sqrt(ox * ox + oy * oy);
+        break;
+      }
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
@@ -581,6 +636,11 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         out.push(`<rect x="${f(cx + p.x * r - h)}" y="${f(cy + p.y * r - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
         break;
       }
+      case 'r':
+        out.push(
+          `<rect x="${f(cx + (p.x - p.w) * r)}" y="${f(cy + (p.y - p.h) * r)}" width="${f(2 * p.w * r)}" height="${f(2 * p.h * r)}"${fill}/>`,
+        );
+        break;
       case 'R': {
         const h = frameHalf(p.h * r, hw);
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);
