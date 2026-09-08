@@ -942,6 +942,35 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：米白纸上的丝网海报——大片黑色的叠圈与短竖笔触打底，中间零星的绿圆点与橙三角点缀，像 riso 三色套印。
+  // 8 阶自定义序列 空 → 小点 → 三角 → 圆点 → 圆圈 → 叠圈 → 短竖纹 → 圆点：黑色占了 6 阶（最亮的小点、圈、叠圈、
+  // 短竖纹到最暗的实心圆点），只把第 3 阶给橙、第 4 阶给绿，两种彩色各占一阶，画面就还是黑白打底、彩色点缀。
+  // 亮部缩小 42% 让橙三角小、绿圆点中等、暗处的黑圆点满格；96% 大小让最暗一阶的圆点刚好挨上而不糊成一团。
+  // 交界混合 70% 把相邻两阶掺开，彩色不会连成整块；点缀 12% 再撒一些圆圈与三角框；胶片颗粒当纸纹
+  {
+    id: 'glyph-riso',
+    name: 'Riso Signal',
+    hint: '米白纸上黑色的圆圈、叠圈与短竖纹打底，绿圆点与橙三角点缀',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'tri', 'dot', 'ring', 'ringpair', 'comb', 'dot']),
+      'glyph.size': 96,
+      'glyph.taper': 42,
+      'glyph.stroke': 13,
+      'glyph.mix': 70,
+      'glyph.accent': 12,
+      'tile.pitchX': 18,
+      'tile.pitchY': 18,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#1A1A1A', '#1A1A1A', '#F0562C', '#3FAF6B', '#1A1A1A', '#1A1A1A', '#1A1A1A', '#1A1A1A']),
+      'glyph.paper': '#EDEAE3',
+      'tone.contrast': 12,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 18, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

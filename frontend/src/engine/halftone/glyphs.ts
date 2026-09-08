@@ -22,6 +22,7 @@ export type GlyphId =
   | 'rings'
   | 'clover'
   | 'flower'
+  | 'ringpair'
   // 线
   | 'tick'
   | 'minus'
@@ -42,6 +43,7 @@ export type GlyphId =
   | 'xmark'
   | 'zigzag'
   | 'stripes'
+  | 'comb'
   // 几何
   | 'tri'
   | 'triline'
@@ -155,6 +157,9 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 丝网海报（米白纸上黑色的叠圈与短竖纹打底，绿圆点与橙三角点缀）
+  { id: 'comb', label: '短竖纹', group: 'lines', desc: '三道不出格的短竖线，上下邻格之间留缝，连成一片短竖笔触' },
+  { id: 'ringpair', label: '叠圈', group: 'dots', desc: '两个左右错开的圆圈，像交叠的两个环' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -345,6 +350,14 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
         [0.8, 0.95],
       ],
     },
+  ],
+  // 短竖纹：三道等距的短竖线，和「竖纹」一样的间距，但用不出格的线段，上下只画到八成半径——
+  // 邻格之间留下一道明显的横缝，整片下来是一笔笔断开的短竖，而不是通到底的长线
+  comb: [seg(-2 / 3, -0.8, -2 / 3, 0.8), seg(0, -0.8, 0, 0.8), seg(2 / 3, -0.8, 2 / 3, 0.8)],
+  // 叠圈：两个半径 0.62 的圆圈左右各挪 0.4，圆周相交，画出丝网海报里那种叠在一起的环
+  ringpair: [
+    { k: 'o', x: -0.4, y: 0, r: 0.62 },
+    { k: 'o', x: 0.4, y: 0, r: 0.62 },
   ],
 };
 
