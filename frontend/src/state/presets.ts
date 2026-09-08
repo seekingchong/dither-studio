@@ -942,21 +942,77 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图六：米纸上橙蓝双色的丝网 / riso 海报——几何形状按明暗排成一片像素状的构成。
-  // 亮处零星的黑小点，中间调橙色的圆点、三角、实心方，暗处蓝的棋盘格、竖纹到成片的实心方。
-  // 100% 大小让实心方在邻格之间只留一道纸色缝，暗部读成一整块像素砖；亮部缩小 60% 让小点真的小；
-  // 交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，点缀撒一点圆圈与三角框；胶片颗粒当纸纹
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
+  // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
+  // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
   {
-    id: 'glyph-riso-blocks',
-    name: 'Riso Blocks',
-    hint: '米纸上橙蓝双色：黑小点、圆点、三角、方块到棋盘格、竖纹与蓝方块',
+    id: 'glyph-cipher',
+    name: 'Acid Cipher',
+    hint: '柠檬绿底墨色 8 阶：小点、短斜线、十字、圆圈、叉号到靶心、圈十、圈叉',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
       'glyph.levels': 8,
-      ...glyphShapes(['blank', 'pip', 'dot', 'tri', 'square', 'checker', 'stripes', 'square']),
+      ...glyphShapes(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']),
+      'glyph.size': 74,
+      'glyph.taper': 30,
+      'glyph.stroke': 12,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'glyph.ink': '#0E150A',
+      'glyph.paper': '#C9F52C',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  // 参考图七：白纸上的「失步」海报——主体被拆成横向扫描线与黑色像素块，荧光黄绿的像素散在暗部，几行整体错位像信号丢帧。
+  // 亮到暗：留白 → 短横（一格一段，留缝像点线）→ 横线（贯穿邻格，交界掺杂后断成长短不一的线）→ 双横 → 荧光黄绿实心方 → 黑实心方；
+  // 黄绿夹在双横与黑块之间，交界混合 70% 把它打散成暗部里的碎片。符号大小 130% 配亮部缩小 45%：
+  // 短横那一阶缩到 83% 留出缝，实心方那两阶 ≥ 118% 正好盖满格子、相邻块之间不留线；
+  // 特效栈一条「扫描行位移」，带高与格子等高、只错位 6% 的行，整行的方块一起挪，不切碎符号
+  {
+    id: 'glyph-desync',
+    name: 'Desync',
+    hint: '白纸黑块：短横、横线、双横到黑方块，荧光黄绿像素散在暗部，扫描行错位',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 6,
+      ...glyphShapes(['blank', 'minus', 'dash', 'equals', 'square', 'square']),
+      'glyph.size': 130,
+      'glyph.taper': 45,
+      'glyph.stroke': 22,
+      'glyph.mix': 70,
+      'glyph.accent': 0,
+      'tile.pitchX': 10,
+      'tile.pitchY': 10,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#111111']),
+      'glyph.paper': '#F2F2EE',
+      'tone.contrast': 20,
+      'effects.stack': effects([{ type: 'rowShift', enabled: true, params: { probability: 6, maxShift: 36, band: 10, rgbSplit: 0, seed: 3 } }]),
+    },
+    exposes: GL,
+  },
+  // 参考图：米纸上橙蓝双色的丝网 / riso 海报——几何形状按明暗排成一片像素状的构成。
+  // 亮处零星的黑小点，中间调橙色的小方、三角、圆点，暗处蓝的棋盘格、密竖纹到成片的实心方。
+  // 小方与密竖纹是为这套新加的符号：参考图里满是不到半格的实心小方，条纹那一块也比原来的竖纹密一倍。
+  // 100% 大小让实心方在邻格之间只留一道纸色缝、密竖纹与棋盘格在邻格之间接上，暗部读成一整块像素砖；
+  // 亮部缩小 55% 让小方真的小；交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，
+  // 点缀撒一点圆圈与三角框；胶片颗粒当纸纹
+  {
+    id: 'glyph-riso-blocks',
+    name: 'Riso Blocks',
+    hint: '米纸上橙蓝双色：黑小点、小方、三角、圆点到棋盘格、密竖纹与蓝方块',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'pixel', 'tri', 'dot', 'checker', 'bars', 'square']),
       'glyph.size': 100,
-      'glyph.taper': 60,
+      'glyph.taper': 55,
       'glyph.stroke': 14,
       'glyph.mix': 60,
       'glyph.accent': 5,

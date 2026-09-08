@@ -212,7 +212,7 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });
 
-test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
+test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(66);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -292,9 +292,59 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Acid Cipher：8 阶 小点 → 短斜线 → 十字 → 圆圈 → 叉号 → 靶心 → 圈十 → 圈叉，统一墨色配柠檬绿纸，不反相
+  await page.locator('[data-preset="glyph-cipher"]').click();
+  await expect(page.locator('[data-preset="glyph-cipher"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashshort');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ring');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xmark');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circleplus');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circlex');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('圈叉');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('统一色');
+  await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#0E150A');
+  await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#C9F52C');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
 
-test('符号：Riso Blocks 预设是米纸上的橙蓝双色方块，带一层胶片颗粒', async ({ page }) => {
+test('符号：Desync 预设——短横、横线、双横到实心方，分级配色里第五阶荧光黄绿，特效栈里一条扫描行位移', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  await page.getByTestId('preset-more').click();
+  await page.locator('[data-preset="glyph-desync"]').click();
+  await expect(page.locator('[data-preset="glyph-desync"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+  await expect(rows).toHaveCount(6);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'minus');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dash');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'equals');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(7);
+  await expect(swatches.nth(4)).toHaveAttribute('aria-label', '第 5 阶 #D6FF1A');
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #111111');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '背景色 #F2F2EE');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('130');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('45');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('70');
+  // 特效栈里带着一条扫描行位移，带高与格子等高
+  await openSection(page, 'effects');
+  await expect(page.locator('.effect-card')).toHaveCount(1);
+  await expect(page.locator('.effect-card[data-effect="rowShift"]')).toContainText('扫描行位移');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+});
+
+test('符号：Riso Blocks 预设是米纸上的橙蓝双色方块，用上新符号小方与密竖纹，带一层胶片颗粒', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -304,17 +354,30 @@ test('符号：Riso Blocks 预设是米纸上的橙蓝双色方块，带一层�
   await expect(page.locator('[data-preset="glyph-riso-blocks"]')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Riso Blocks');
 
-  // 8 阶 空 → 小点 → 圆点 → 三角 → 实心方 → 棋盘 → 竖纹 → 实心方
+  // 8 阶 空 → 小点 → 小方 → 三角 → 圆点 → 棋盘 → 密竖纹 → 实心方
   const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
-  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pixel');
+  await expect(rows.nth(2).locator('.glyph-level__label')).toHaveText('小方');
   await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
-  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
   await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripes');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bars');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('密竖纹');
   await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
   await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心方');
+
+  // 新符号在选择器里各就各位：密竖纹在「线」，小方 / 横砖 / 竖砖在「几何」
+  await rows.nth(6).locator('.glyph-level__shape').click();
+  const picker = page.getByTestId('glyph-picker');
+  await expect(picker.locator('[data-glyph]')).toHaveCount(66);
+  await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="bars"]')).toHaveCount(1);
+  await expect(picker.getByRole('group', { name: '几何' }).locator('[data-glyph="pixel"]')).toHaveCount(1);
+  await expect(picker.getByRole('group', { name: '几何' }).locator('[data-glyph="hbrick"]')).toHaveCount(1);
+  await expect(picker.getByRole('group', { name: '几何' }).locator('[data-glyph="vbrick"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
 
   // 分级配色：中间调橙、暗处蓝，纸是米色
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
@@ -325,7 +388,7 @@ test('符号：Riso Blocks 预设是米纸上的橙蓝双色方块，带一层�
   await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #4E5CAE');
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #EBE7DD');
   await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
-  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('60');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('55');
 
   // 特效栈里有一枚胶片颗粒
   await expect(page.locator('[data-effect="grain"]')).toHaveCount(1);

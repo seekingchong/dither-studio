@@ -1,5 +1,5 @@
 import { hash2 } from '../util/random';
-import { ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
+import { box, ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
 
 /**
  * 符号库：「符号」风格（`style.type = glyph`）每个格子里画的图元。
@@ -42,6 +42,7 @@ export type GlyphId =
   | 'xmark'
   | 'zigzag'
   | 'stripes'
+  | 'bars'
   // 几何
   | 'tri'
   | 'triline'
@@ -60,6 +61,9 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'pixel'
+  | 'hbrick'
+  | 'vbrick'
   // 字符
   | 'one'
   | 'four'
@@ -155,6 +159,10 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  { id: 'bars', label: '密竖纹', group: 'lines', desc: '五道贯穿格子的细竖线，比竖纹更密，邻格接成一片等距条纹' },
+  { id: 'pixel', label: '小方', group: 'geometry', desc: '不到一半大的实心小方块，像一颗像素' },
+  { id: 'hbrick', label: '横砖', group: 'geometry', desc: '贯穿左右的扁实心块，与左右邻格接成一条横带' },
+  { id: 'vbrick', label: '竖砖', group: 'geometry', desc: '贯穿上下的窄实心块，与上下邻格接成一条竖带' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -182,7 +190,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`B` 是横纵半边各给一个的实心矩形（横砖 / 竖砖用，某一边取 1 就在那个方向与邻格接上），
+ * `R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -195,6 +204,7 @@ type Prim =
   | { k: 'q'; h: number }
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
+  | { k: 'B'; hx: number; hy: number }
   | { k: 'R'; h: number }
   | { k: 'd' }
   | { k: 'D' }
@@ -346,6 +356,19 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 密竖纹：五道等距的贯穿竖线，间距是格宽的五分之一，邻格接上后整片等距
+  bars: [
+    { k: 'S', x1: -0.8, y1: -1, x2: -0.8, y2: 1 },
+    { k: 'S', x1: -0.4, y1: -1, x2: -0.4, y2: 1 },
+    BAR,
+    { k: 'S', x1: 0.4, y1: -1, x2: 0.4, y2: 1 },
+    { k: 'S', x1: 0.8, y1: -1, x2: 0.8, y2: 1 },
+  ],
+  // 小方：实心方的小号版，墨量约为它的三分之一
+  pixel: [{ k: 'q', h: 0.48 }],
+  // 横砖 / 竖砖：一边占满格子与邻格接成带，另一边只有三分之一格宽
+  hbrick: [{ k: 'B', hx: 1, hy: 0.34 }],
+  vbrick: [{ k: 'B', hx: 0.34, hy: 1 }],
 };
 
 /** 按编码取图元表 */
@@ -449,6 +472,9 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'b':
         dd = shapeDistance('square', x - p.x * r, y - p.y * r, p.h * r, 0);
         break;
+      case 'B':
+        dd = box(x, y, p.hx * r, p.hy * r);
+        break;
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
@@ -540,6 +566,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'b': {
         const h = p.h * r;
         out.push(`<rect x="${f(cx + p.x * r - h)}" y="${f(cy + p.y * r - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
+        break;
+      }
+      case 'B': {
+        const hx = p.hx * r;
+        const hy = p.hy * r;
+        out.push(`<rect x="${f(cx - hx)}" y="${f(cy - hy)}" width="${f(2 * hx)}" height="${f(2 * hy)}"${fill}/>`);
         break;
       }
       case 'R': {
