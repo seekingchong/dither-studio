@@ -1637,6 +1637,18 @@ body.is-resizing * {
   height: 16px;
 }
 
+/* 更小一档：贴在卡片角上的动作图标 */
+.tda-iconbtn--xs {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--tda-radius-xs);
+}
+
+.tda-iconbtn--xs svg {
+  width: 14px;
+  height: 14px;
+}
+
 .tda-iconbtn:disabled {
   opacity: 0.3;
   cursor: default;
@@ -1927,6 +1939,7 @@ body.is-resizing * {
 /* ---------- 预设 ---------- */
 
 .preset-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -1938,6 +1951,7 @@ body.is-resizing * {
   background: var(--tda-color-white);
   text-align: left;
   color: var(--tda-color-text-primary);
+  cursor: pointer;
 }
 
 .preset-card:hover {
@@ -1956,6 +1970,98 @@ body.is-resizing * {
 
 .preset-card--user .preset-card__hint {
   color: var(--tda-color-text-secondary);
+}
+
+/*
+ * 我的预设卡片右上角那排动作（复制 / 星标 / 删除）：平时藏着，鼠标移到卡片上、键盘聚焦进来、
+ * 或删除气泡开着时才露出。背景跟着卡片走（`inherit` 拿到的正是卡片当前的底色），
+ * 盖住底下的名字比给名字留一块永久的空白好——不 hover 时名字能用满整行。
+ */
+.preset-card__actions {
+  position: absolute;
+  top: var(--tda-spacing-xs);
+  right: var(--tda-spacing-xs);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: var(--tda-spacing-2xs);
+  border-radius: var(--tda-radius-sm);
+  background: inherit;
+}
+
+.preset-card__action {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  color: var(--tda-color-text-secondary);
+}
+
+.preset-card:hover .preset-card__action,
+.preset-card:focus-within .preset-card__action,
+.preset-card.is-confirming .preset-card__action {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 星标过的那颗星一直亮着——不 hover 也得看得出哪几套是常用的 */
+.preset-card__action.is-starred {
+  visibility: visible;
+  opacity: 1;
+  color: var(--tda-color-text-primary);
+}
+
+.preset-card__action.is-starred svg {
+  fill: currentColor;
+}
+
+.preset-card__action:hover {
+  color: var(--tda-color-text-primary);
+}
+
+/* 气泡开着时那只垃圾桶标成警示红，提示这一下要动真格的 */
+.preset-card__action.is-confirming,
+.preset-card__action.is-confirming:hover {
+  color: var(--tda-color-danger);
+  background: var(--tda-color-control-muted);
+}
+
+/* 删除的二次确认：气泡贴在那排图标下面，问一句再删 */
+.preset-confirm {
+  position: absolute;
+  top: calc(100% + var(--tda-spacing-2xs));
+  right: 0;
+  z-index: 120;
+  width: 232px;
+  padding: var(--tda-spacing-sm);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-md);
+  background: var(--tda-color-white);
+  box-shadow: var(--tda-shadow-tile);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tda-spacing-sm);
+  cursor: default;
+}
+
+.preset-confirm__text {
+  margin: 0;
+  color: var(--tda-color-text-primary);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: var(--tda-typography-body-sm-line);
+  white-space: normal;
+}
+
+.preset-confirm__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--tda-spacing-xs);
+}
+
+/* 删除是不可逆的，确认键用警示红（深色主题下的文字反色在 theme.css 里换） */
+.tda-btn-primary.preset-confirm__ok {
+  background: var(--tda-color-danger);
+  color: var(--tda-color-white);
 }
 
 .preset-status {
