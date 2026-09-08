@@ -73,6 +73,10 @@ export type GlyphId =
   | 'blockhole'
   | 'blockhalf'
   | 'block'
+  | 'tinysquare'
+  | 'pillar'
+  | 'fir'
+  | 'hut'
   // 字符
   | 'one'
   | 'four'
@@ -184,6 +188,11 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'grillebold', label: '竖栅·粗', group: 'lines', desc: '三道贯穿格子的实心粗竖带，缝比带窄，栅距不变' },
   { id: 'grillefull', label: '竖栅·满', group: 'lines', desc: '三道贯穿格子的实心宽竖带，只剩三道细缝，栅距不变' },
   { id: 'block', label: '实心格', group: 'geometry', desc: '填满整格的实心块，邻格拼成一整片，不留缝' },
+  // 几何系统（参考图：奶白纸上的平涂色块——小方点、杉树、小屋，横板那一家已经在上面）
+  { id: 'tinysquare', label: '小方点', group: 'geometry', desc: '不到一半大的实心小方块，像撒开的像素' },
+  { id: 'pillar', label: '竖板', group: 'lines', desc: '贯穿格子的竖条，占格宽约四成，上下邻格接成一条粗线' },
+  { id: 'fir', label: '杉树', group: 'geometry', desc: '两层三角叠成的杉树，尖朝上，两层之间收一道腰' },
+  { id: 'hut', label: '小屋', group: 'geometry', desc: '三角屋顶盖在方身上，屋檐两侧探出，像一间小房子' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -416,6 +425,41 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   slabwide: [slab(0.66)],
   blockhole: holed(0.26),
   blockhalf: [{ k: 'r', x: 0, y: BOX / 2, w: BOX, h: BOX / 2 }],
+  // 几何系统：平涂的色块，靠形状与大小分层，不靠线粗
+  tinysquare: [{ k: 'q', h: 0.38 }],
+  // 竖板：横板转 90°，半高取满一个符号半径，上下邻格接得上
+  pillar: [{ k: 'r', x: 0, y: 0, w: 0.4, h: 1 }],
+  // 杉树：上小下大两层三角，下层的顶盖住上层的底边，两片接成一棵树
+  fir: [
+    {
+      k: 'P',
+      pts: [
+        [0, -1],
+        [0.56, -0.12],
+        [-0.56, -0.12],
+      ],
+    },
+    {
+      k: 'P',
+      pts: [
+        [0, -0.5],
+        [0.92, 0.8],
+        [-0.92, 0.8],
+      ],
+    },
+  ],
+  // 小屋：三角屋顶压在方身上，屋顶两侧探出一截当屋檐
+  hut: [
+    {
+      k: 'P',
+      pts: [
+        [0, -0.95],
+        [0.95, -0.15],
+        [-0.95, -0.15],
+      ],
+    },
+    { k: 'r', x: 0, y: 0.4, w: 0.72, h: 0.55 },
+  ],
   // 短竖纹：三道等距的短竖线，和「竖纹」一样的间距，但用不出格的线段，上下只画到八成半径——
   // 邻格之间留下一道明显的横缝，整片下来是一笔笔断开的短竖，而不是通到底的长线
   comb: [seg(-2 / 3, -0.8, -2 / 3, 0.8), seg(0, -0.8, 0, 0.8), seg(2 / 3, -0.8, 2 / 3, 0.8)],

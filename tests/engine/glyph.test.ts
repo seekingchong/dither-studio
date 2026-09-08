@@ -150,7 +150,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -352,7 +352,7 @@ describe('新增符号：横板与穿孔块', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     // 三档横条：比横线粗，越厚墨越多，最厚的也没到实心方
     expect(c('slabthin')).toBeGreaterThan(c('dash'));
     expect(c('slabthin')).toBeLessThan(c('slab'));
@@ -420,7 +420,7 @@ describe('新增符号：竖栅一家', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(69);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     for (let k = 1; k < WEIGHTS.length; k++) expect(c(WEIGHTS[k]), WEIGHTS[k]).toBeGreaterThan(c(WEIGHTS[k - 1]));
     expect(c('grillehair')).toBeGreaterThan(c('bar'));
     expect(c('grillefull')).toBeLessThan(c('block'));
@@ -1004,5 +1004,118 @@ describe('新增符号：丝网海报的短竖纹与叠圈', () => {
     expect(green).toBeGreaterThan(0);
     expect(orange).toBeGreaterThan(0);
     expect(black).toBeGreaterThan(green + orange);
+  });
+});
+
+describe('新增符号：几何系统的小方点、杉树与小屋', () => {
+  const NEW: GlyphId[] = ['tinysquare', 'pillar', 'fir', 'hut'];
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('4 种都在符号库里且排在老的 75 个后面，编码不变；墨量关系：小方点最少，竖板与横板一样多，杉树比实心三角略少、小屋比杉树多', () => {
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(75);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    expect(c('tinysquare')).toBeLessThan(c('square'));
+    expect(c('tinysquare')).toBeLessThan(c('pip'));
+    // 竖板就是横板转 90°，墨量一样
+    expect(c('pillar')).toBeCloseTo(c('slab'), 2);
+    // 杉树是收了腰、上层又窄的两片三角，比一整个实心三角略少；空心的三角框自然更少
+    expect(c('fir')).toBeLessThan(c('tri'));
+    expect(c('fir')).toBeGreaterThan(c('triline'));
+    expect(c('hut')).toBeGreaterThan(c('fir'));
+    expect(c('hut')).toBeLessThan(c('square'));
+  });
+
+  it('渲染：竖板上下接成一道长条，小方点四周留白，杉树两层之间收一道腰、小屋屋檐探出身子', () => {
+    // 12px 格、三格上下排：竖板铺满整列，格间接缝也是实的
+    const pillar = renderHalftone(buildGlyphScreen(flatSource(12, 36, 0.5), custom(['pillar', 'pillar'])));
+    for (const y of [0, 6, 11, 12, 18, 23, 24, 30, 35]) expect(px(pillar, 6, y), `y=${y}`).toEqual([0, 0, 0]);
+    expect(px(pillar, 0, 6)).toEqual([255, 255, 255]);
+    // 小方点：格心是墨，四周留白
+    const tiny = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['tinysquare', 'tinysquare'])));
+    expect(px(tiny, 6, 6)).toEqual([0, 0, 0]);
+    expect(px(tiny, 1, 6)).toEqual([255, 255, 255]);
+    expect(px(tiny, 6, 1)).toEqual([255, 255, 255]);
+    const inkRow = (f: { width: number; data: Uint8ClampedArray }, y: number) => {
+      let n = 0;
+      for (let x = 0; x < f.width; x++) if (px(f, x, y)[0] < 128) n++;
+      return n;
+    };
+    // 杉树：上层的底比下层的顶宽，两层之间收一道腰，再往下一路变宽
+    const fir = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['fir', 'fir'])));
+    expect(inkRow(fir, 4)).toBeGreaterThan(inkRow(fir, 5));
+    expect(inkRow(fir, 10)).toBeGreaterThan(inkRow(fir, 4));
+    // 小屋：屋檐那一行比身子宽，身子往下一样宽
+    const hut = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['hut', 'hut'])));
+    expect(inkRow(hut, 4)).toBeGreaterThan(inkRow(hut, 6));
+    expect(inkRow(hut, 6)).toBe(inkRow(hut, 10));
+  });
+
+  it('SVG：小方点与竖板出 <rect>，杉树两个 <polygon>，小屋一个 <polygon> 加一个 <rect>', () => {
+    const pillar = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['pillar', 'pillar'])));
+    // 铺底一个 + 一条竖板
+    expect((pillar.match(/<rect /g) ?? []).length).toBe(2);
+    const tiny = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['tinysquare', 'tinysquare'])));
+    expect((tiny.match(/<rect /g) ?? []).length).toBe(2);
+    const fir = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['fir', 'fir'])));
+    expect((fir.match(/<polygon /g) ?? []).length).toBe(2);
+    const hut = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['hut', 'hut'])));
+    expect((hut.match(/<polygon /g) ?? []).length).toBe(1);
+    expect((hut.match(/<rect /g) ?? []).length).toBe(2);
+  });
+
+  it('Shape System 预设：8 阶平涂几何，小方点、粉圆、橙三角、绿杉树、蓝小屋与横板到砖红实心方，奶白纸不反相，亮部缩小拉开大小差，末尾叠一层纸纹颗粒', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-system')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'tinysquare', 'dot', 'tri', 'fir', 'hut', 'slab', 'square']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    expect([2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphColorId(k)])).toEqual(['#EF6C1F', '#F3BAD0', '#EF6C1F', '#17643F', '#4A79CE', '#4A79CE', '#9C6161']);
+    expect(p['glyph.paper']).toBe('#EDE9E2');
+    // 浅纸深墨，不反相
+    expect(p['tone.invert']).toBe(false);
+    // 亮部缩小到最暗一阶的一半不到，同一张画里既有小方点又有整块的色块
+    const sizes = levelSizes(Number(p['glyph.size']) / 100, Number(p['glyph.taper']) / 100, 8);
+    expect(sizes[0]).toBeLessThan(sizes[7] / 2);
+    // 符号大于一格：暗部的方块之间只剩一道纸色细缝
+    expect(Number(p['glyph.size'])).toBeGreaterThan(100);
+    // 纸纹：末尾一层轻颗粒
+    const stack = parseStack(p['effects.stack']);
+    expect(stack.map((e) => e.type)).toEqual(['grain']);
+    expect(stack[0].enabled).toBe(true);
+
+    // 左黑右白的渐变，源图与画布同尺寸
+    const out = renderImage(makeFrame(440, 220, (x) => [Math.round((x / 439) * 255), Math.round((x / 439) * 255), Math.round((x / 439) * 255)]), {
+      ...p,
+      'canvas.width': 440,
+      'canvas.height': 220,
+    });
+    expect(out.width).toBe(440);
+    // 颗粒的振幅远小于色块与纸色的差，离纸色 40 以上才算落了墨
+    const paper = hexToRgb('#EDE9E2');
+    let leftInk = 0;
+    let rightInk = 0;
+    let pink = 0;
+    let green = 0;
+    let blue = 0;
+    let brick = 0;
+    for (let y = 0; y < 220; y++) {
+      for (let x = 0; x < 440; x++) {
+        const [r, g, b] = px(out, x, y);
+        const ink = Math.max(Math.abs(r - paper[0]), Math.abs(g - paper[1]), Math.abs(b - paper[2])) > 40;
+        if (x < 110 && ink) leftInk++;
+        if (x >= 330 && ink) rightInk++;
+        if (r > 210 && g > 150 && g < 210 && b > 170) pink++;
+        if (r < 90 && g > 70 && g < 140 && b < 100) green++;
+        if (r < 120 && g > 90 && g < 160 && b > 170) blue++;
+        if (r > 120 && r < 190 && g > 60 && g < 120 && b > 60 && b < 120) brick++;
+      }
+    }
+    // 暗的一头是接成片的实心方，亮的一头只有零星的小方点
+    expect(leftInk).toBeGreaterThan(rightInk * 5);
+    // 一张画里粉、绿、蓝、砖红都在
+    for (const [name, count] of [['粉', pink], ['绿', green], ['蓝', blue], ['砖红', brick]] as const) expect(count, name).toBeGreaterThan(200);
   });
 });

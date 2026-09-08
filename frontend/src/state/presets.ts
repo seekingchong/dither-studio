@@ -1065,6 +1065,37 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图：奶白纸上的「几何系统」海报——一套平涂的图形按明暗铺开：亮处零星的小方点，往暗处依次是粉圆、橙三角、
+  // 绿杉树、蓝小屋、蓝横板，最暗一阶是接成片的砖红实心方。图里的小方点、杉树、小屋符号库里原来没有，一并补齐。
+  // 三处让它像丝网印而不像马赛克：亮部缩小 62% 拉开大小差（最亮一阶不到最暗一阶的四成，同一张画里既有小方点又有整块的色块）；
+  // 符号大小 110% 让暗部的方块之间只剩一道纸色细缝、横板左右接成长条（实心方的边长是符号的 85%，100% 时缝太宽）；
+  // 交界混合 50% 把相邻两阶掺在一起，边界像手摆出来的而不是等高线。
+  // 再叠一层轻颗粒出纸纹，点缀 5% 让成片的色块里偶尔漏出一个空心圆或三角框
+  {
+    id: 'glyph-system',
+    name: 'Shape System',
+    hint: '奶白纸上的平涂几何：小方点、粉圆、橙三角、绿杉树、蓝小屋到砖红实心方，带纸纹颗粒',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'tinysquare', 'dot', 'tri', 'fir', 'hut', 'slab', 'square']),
+      'glyph.size': 110,
+      'glyph.taper': 62,
+      'glyph.stroke': 14,
+      'glyph.mix': 50,
+      'glyph.accent': 5,
+      'tile.pitchX': 22,
+      'tile.pitchY': 22,
+      'glyph.colorMode': 'levels',
+      // 第 1 阶是留白，配色跟第 2 阶同色，色板上不至于出现一块纸色
+      ...glyphColors(['#EF6C1F', '#EF6C1F', '#F3BAD0', '#EF6C1F', '#17643F', '#4A79CE', '#4A79CE', '#9C6161']),
+      'glyph.paper': '#EDE9E2',
+      'tone.contrast': 10,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 12, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
