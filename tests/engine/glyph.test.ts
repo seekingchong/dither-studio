@@ -305,6 +305,63 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
   });
+
+  it('Ultramarine Bitmap 预设：8 阶自定义序列从小点、四点到棋盘格、密网与实心块，同族群青逐阶变深，浅纸深墨不反相，暗处近乎实心', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-ultramarine')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'quad', 'plus', 'xmark', 'checker', 'hashx', 'square']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    expect(p['glyph.paper']).toBe('#F0EEF7');
+    // 浅纸深墨，不反相；点缀符号关掉，大片实心里不掺圈和三角
+    expect(p['tone.invert']).toBe(false);
+    expect(p['glyph.accent']).toBe(0);
+    // 实心块、密网与棋盘格要在邻格之间接上
+    expect(p['glyph.size']).toBe(100);
+    expect(p['glyph.taper']).toBe(0);
+    // 交界处两阶的符号掺在一起，边界才碎得开
+    expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(50);
+
+    // 分级配色是同一族群青：每一阶都蓝得明显，第 2 阶起逐阶变深
+    const hex = (h: string): [number, number, number] => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+    const levelHexes = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => String(p[glyphColorId(k)]));
+    const lum = (h: string) => {
+      const [r, g, b] = hex(h);
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    };
+    for (const h of levelHexes) {
+      const [r, g, b] = hex(h);
+      expect(b, h).toBeGreaterThan(r + 60);
+      expect(b, h).toBeGreaterThan(g + 60);
+    }
+    for (let k = 2; k < levelHexes.length; k++) expect(lum(levelHexes[k]), levelHexes[k]).toBeLessThan(lum(levelHexes[k - 1]));
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端
+    const out = renderImage(makeFrame(176, 66, (x) => [Math.round((x / 175) * 255), Math.round((x / 175) * 255), Math.round((x / 175) * 255)]), { ...p, 'canvas.width': 176, 'canvas.height': 66 });
+    expect(out.width).toBe(176);
+    const paper = px(out, 175, 0);
+    // 右上角是最亮的一端，落在「空」阶上，看到的就是纸色
+    expect(paper).toEqual([240, 238, 247]);
+    let darkInk = 0;
+    let lightInk = 0;
+    for (let y = 0; y < 66; y++) {
+      for (let x = 0; x < 176; x++) {
+        const [r, g, b] = px(out, x, y);
+        const same = Math.abs(r - paper[0]) < 8 && Math.abs(g - paper[1]) < 8 && Math.abs(b - paper[2]) < 8;
+        if (!same) {
+          // 墨都是群青
+          expect(b).toBeGreaterThan(r);
+          expect(b).toBeGreaterThan(g);
+        }
+        if (x < 22 && !same) darkInk++;
+        if (x >= 154 && !same) lightInk++;
+      }
+    }
+    // 浅纸：左（黑）边几乎铺满实心块，右（白）边只剩零星小点
+    expect(darkInk).toBeGreaterThan(22 * 66 * 0.8);
+    expect(lightInk).toBeLessThan(22 * 66 * 0.1);
+  });
 });
 
 describe('推荐序列', () => {
