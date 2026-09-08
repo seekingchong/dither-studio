@@ -39,6 +39,7 @@ export type GlyphId =
   | 'hashx'
   | 'dotslash'
   | 'slashshort'
+  | 'slashdash'
   | 'xmark'
   | 'zigzag'
   | 'stripes'
@@ -56,6 +57,7 @@ export type GlyphId =
   | 'circlex'
   | 'circleplus'
   | 'roundbox'
+  | 'roundsquare'
   | 'boxdot'
   | 'hexline'
   | 'checker'
@@ -155,6 +157,9 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 图谱（参考图七：白纸黑符号的符号图谱）——斜线要断得开、暗处的方块要磨圆，都不是现成符号能顶的
+  { id: 'slashdash', label: '断斜线', group: 'lines', desc: '跨格的斜线两头各收一截，邻格排成一串留着断口的斜线，不糊成整条' },
+  { id: 'roundsquare', label: '圆角方', group: 'geometry', desc: '实心的圆角方块；铺满时格点上留出小小的纸色星芒' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -182,7 +187,7 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框、`r` 是实心圆角方，`P` 是任意实心多边形（顶点按顺序给）。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -196,6 +201,7 @@ type Prim =
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
   | { k: 'R'; h: number }
+  | { k: 'r'; h: number }
   | { k: 'd' }
   | { k: 'D' }
   | { k: 'g' }
@@ -212,6 +218,8 @@ const DIAG: Prim = { k: 's', x1: -0.85, y1: 0.85, x2: 0.85, y2: -0.85 };
 const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
+/** 断斜线的半长（跨格单位）：比半格短一截，邻格之间就留下断口 */
+const DASH_SPAN = 0.78;
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
 /** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
 const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
@@ -346,6 +354,10 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 断斜线：跨格斜线两头各收 22%，邻格之间留下一道断口——成片时是一串朝同一个方向的短斜线，不会糊成整条长线
+  slashdash: [{ k: 'S', x1: -DASH_SPAN, y1: DASH_SPAN, x2: DASH_SPAN, y2: -DASH_SPAN }],
+  // 圆角方：实心方磨圆四角，和它一样留 BOX 的缝；铺满时四个圆角在格点上凑出一小块纸色星芒
+  roundsquare: [{ k: 'r', h: BOX }],
 };
 
 /** 按编码取图元表 */
@@ -452,6 +464,9 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
+      case 'r':
+        dd = shapeDistance('roundsquare', x, y, p.h * r, 0);
+        break;
       case 'd':
         dd = shapeDistance('diamond', x, y, r, 0);
         break;
@@ -545,6 +560,11 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'R': {
         const h = frameHalf(p.h * r, hw);
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);
+        break;
+      }
+      case 'r': {
+        const h = p.h * r;
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}"${fill}/>`);
         break;
       }
       case 'd':
