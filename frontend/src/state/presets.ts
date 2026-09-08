@@ -41,6 +41,8 @@ export interface UserPreset {
   base?: string;
   /** 保存时的结果缩略图（PNG data URL），没有媒体时缺省 */
   thumbnail?: string;
+  /** 星标：预设模块里排在其它我的预设前面 */
+  starred?: boolean;
 }
 
 const effects = (stack: unknown[]) => JSON.stringify(stack);
@@ -1158,9 +1160,22 @@ export function sanitizeUserPresets(input: unknown): UserPreset[] {
     if (typeof rec.updatedAt === 'number') preset.updatedAt = rec.updatedAt;
     if (typeof rec.base === 'string' && builtinById.has(rec.base)) preset.base = rec.base;
     if (typeof rec.thumbnail === 'string' && rec.thumbnail.startsWith('data:image/')) preset.thumbnail = rec.thumbnail;
+    if (rec.starred === true) preset.starred = true;
     out.push(preset);
   }
   return out;
+}
+
+/** 副本的名字：「原名 副本」，重名就往后排号。存预设的预填名与卡片上的「复制」共用一套叫法 */
+export function copyPresetName(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  const stem = `${base} 副本`.slice(0, 60);
+  if (!used.has(stem)) return stem;
+  for (let i = 2; i < 1000; i++) {
+    const next = `${stem} ${i}`.slice(0, 60);
+    if (!used.has(next)) return next;
+  }
+  return `${stem} ${Date.now()}`.slice(0, 60);
 }
 
 export function newPresetId(): string {
