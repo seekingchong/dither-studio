@@ -242,7 +242,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(89);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -300,16 +300,17 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
-  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashshort');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ringtiny');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'quad');
   await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ring');
-  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xmark');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circleplus');
-  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circlex');
-  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('圈叉');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circlex');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'rings3');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ringthick');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('粗圈');
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('统一色');
   await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#0E150A');
   await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#C9F52C');
-  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('38');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 
   // Riso Signal：8 阶 空 → 小点 → 三角 → 圆点 → 圆圈 → 叠圈 → 短竖纹 → 圆点，米白纸上只有第 3 / 4 阶是彩色
@@ -336,7 +337,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 新符号在选择器里各自的组：叠圈在「点」、短竖纹在「线」
   await rows.nth(6).locator('.glyph-level__shape').click();
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(89);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="ringpair"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="comb"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
@@ -412,7 +413,7 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
   await rows.nth(2).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(89);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
   for (const id of ['slabthin', 'slab', 'slabwide']) {
     await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }

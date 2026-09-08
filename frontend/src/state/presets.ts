@@ -945,20 +945,20 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
-  // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
-  // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——满屏都是圆，亮处一粒小点，往暗处长成小圈、四点、圆圈、靶心，
+  // 再到圈叉、三环，最暗是几乎填满格子的粗环。八阶用的是同一个圆形骨架，墨量 10% → 47% 一路匀速递增，
+  // 所以画面从通透到厚重是连着的，暗部也还看得清一个个环。12px 方格、交界处大量掺杂；浅底深符号，不反相
   {
     id: 'glyph-cipher',
     name: 'Acid Cipher',
-    hint: '柠檬绿底墨色 8 阶：小点、短斜线、十字、圆圈、叉号到靶心、圈十、圈叉',
+    hint: '柠檬绿底墨色 8 阶：一粒点长到粗环，小点、小圈、四点、圆圈到靶心、圈叉、三环、粗圈',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
       'glyph.levels': 8,
-      ...glyphShapes(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']),
-      'glyph.size': 74,
-      'glyph.taper': 30,
+      ...glyphShapes(['pip', 'ringtiny', 'quad', 'ring', 'ringdot', 'circlex', 'rings3', 'ringthick']),
+      'glyph.size': 82,
+      'glyph.taper': 38,
       'glyph.stroke': 12,
       'glyph.mix': 45,
       'glyph.accent': 0,
@@ -966,7 +966,8 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
       'tile.pitchY': 12,
       'glyph.ink': '#0E150A',
       'glyph.paper': '#C9F52C',
-      'tone.contrast': 20,
+      'tone.brightness': 22,
+      'tone.contrast': 15,
     },
     exposes: GL,
   },
