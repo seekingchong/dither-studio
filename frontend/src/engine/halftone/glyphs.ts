@@ -47,6 +47,11 @@ export type GlyphId =
   | 'slab'
   | 'slabwide'
   | 'comb'
+  | 'grillehair'
+  | 'grillefine'
+  | 'grillemid'
+  | 'grillebold'
+  | 'grillefull'
   // 几何
   | 'tri'
   | 'triline'
@@ -67,6 +72,7 @@ export type GlyphId =
   | 'rook'
   | 'blockhole'
   | 'blockhalf'
+  | 'block'
   // 字符
   | 'one'
   | 'four'
@@ -171,6 +177,13 @@ export const GLYPHS: readonly GlyphInfo[] = [
   // 丝网海报（米白纸上黑色的叠圈与短竖纹打底，绿圆点与橙三角点缀）
   { id: 'comb', label: '短竖纹', group: 'lines', desc: '三道不出格的短竖线，上下邻格之间留缝，连成一片短竖笔触' },
   { id: 'ringpair', label: '叠圈', group: 'dots', desc: '两个左右错开的圆圈，像交叠的两个环' },
+  // 竖栅（参考图：黑底上的假彩色扫描图，整幅盖着一层等距竖线栅，越亮的地方栅线越粗）
+  { id: 'grillehair', label: '竖栅·微', group: 'lines', desc: '三道贯穿格子的实心细竖线，与竖纹同一个栅距，邻格接成等距竖栅' },
+  { id: 'grillefine', label: '竖栅·细', group: 'lines', desc: '三道贯穿格子的实心竖带，比「微」粗一档，栅距不变' },
+  { id: 'grillemid', label: '竖栅·中', group: 'lines', desc: '三道贯穿格子的实心竖带，比「细」粗一档，栅距不变' },
+  { id: 'grillebold', label: '竖栅·粗', group: 'lines', desc: '三道贯穿格子的实心粗竖带，缝比带窄，栅距不变' },
+  { id: 'grillefull', label: '竖栅·满', group: 'lines', desc: '三道贯穿格子的实心宽竖带，只剩三道细缝，栅距不变' },
+  { id: 'block', label: '实心格', group: 'geometry', desc: '填满整格的实心块，邻格拼成一整片，不留缝' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -199,7 +212,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
  * `b` 是挪开中心的实心方（棋盘格用），`r` 是挪开中心的实心矩形（半宽 w、半高 h 分开给，横板与穿孔块用），
- * `R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
+ * `V` 是跨格竖带：上下贯穿整格，中心与半宽都以半格为 1，粗细不随符号大小与线粗变。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -218,6 +232,7 @@ type Prim =
   | { k: 'D' }
   | { k: 'g' }
   | { k: 'G' }
+  | { k: 'V'; x: number; w: number }
   | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
@@ -231,6 +246,12 @@ const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
+/** 竖栅：三道贯穿格子的实心竖带，中心在 0 与 ±2/3 半格，半宽 w 半格——带宽正好是格宽的 w，缝也等宽 */
+const grille = (w: number): readonly Prim[] => [
+  { k: 'V', x: -2 / 3, w },
+  { k: 'V', x: 0, w },
+  { k: 'V', x: 2 / 3, w },
+];
 /** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
 const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
   const a = (Math.PI / 3) * k + Math.PI / 6;
@@ -362,6 +383,17 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
     { k: 'b', x: -0.5, y: -0.5, h: 0.5 },
     { k: 'b', x: 0.5, y: 0.5, h: 0.5 },
   ],
+  // 竖栅一家：与竖纹同一个栅距（三道，中心在 0 与 ±2/3 半格，也就是每格宽的三分之一一道），
+  // 只是带子越来越粗——微 15% → 细 33% → 中 51% → 粗 69% → 满 87%，五档等差，缝始终等宽，
+  // 整幅画面接成一片栅距不变、只有粗细在变的竖栅，像显像管的荫罩栅。
+  // 用跨格竖带 `V` 而不是线段：粗细写死在符号里，不跟「线粗」「符号大小」走，颜色才不会被抗锯齿冲淡。
+  grillehair: grille(0.05),
+  grillefine: grille(0.11),
+  grillemid: grille(0.17),
+  grillebold: grille(0.23),
+  grillefull: grille(0.29),
+  // 实心格：竖带铺满整格（半宽就是半格再多半像素），邻格拼成一整片
+  block: [{ k: 'V', x: 0, w: 1 }],
   // 城堡：平底、直边，顶上中间开一个豁口分成两个齿
   rook: [
     {
@@ -519,6 +551,13 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'G':
         dd = Math.abs(shapeDistance('hexagon', x, y, frameHalf(r, hw * HEX_INSET), 0)) - hw;
         break;
+      case 'V': {
+        // 跨格竖带：横向是中心 x、半宽 w（都以半格为单位），纵向铺满整格
+        const dx = Math.abs(x - p.x * spanX) - p.w * spanX;
+        const dy = Math.abs(y) - spanY;
+        dd = dx > dy ? dx : dy;
+        break;
+      }
       case 'P':
         dd = polygonDistance(x, y, p.pts, r);
         break;
@@ -618,6 +657,9 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         break;
       case 'G':
         out.push(`<polygon points="${hexagonPoints(cx, cy, frameHalf(r, hw * HEX_INSET))}" fill="none"${stroke}/>`);
+        break;
+      case 'V':
+        out.push(`<rect x="${f(cx + (p.x - p.w) * spanX)}" y="${f(cy - spanY)}" width="${f(2 * p.w * spanX)}" height="${f(2 * spanY)}"${fill}/>`);
         break;
       case 'P':
         out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
