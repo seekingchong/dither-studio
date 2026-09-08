@@ -1,6 +1,6 @@
 export * from './types';
 export { EFFECT_DEFS, getEffectDef, barrelDistort } from './defs';
-export { sourceOverlay, overlayPlacement, type OverlayBlend, type OverlayPlacement } from './overlay';
+export { sourceOverlay, overlayPlacement, paperWeight, PAPER_TOLERANCE, type OverlayBlend, type OverlayLayer, type OverlayPlacement } from './overlay';
 export {
   parseStack,
   serializeStack,
@@ -20,8 +20,14 @@ export {
   drawBlocks,
   resolveBlockColors,
   editBlockColor,
+  resolveBlockTexts,
+  editBlockText,
+  cleanBlockText,
+  parseTextList,
+  serializeTextList,
+  BLOCK_TEXT_MAX,
   letterStyleOf,
-  letterCells,
+  textCells,
   letterColorFor,
   blocksSvgFragment,
   type BlockRect,

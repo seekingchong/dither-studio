@@ -10,7 +10,7 @@ import { resolveAlgorithm } from './dither/registry';
 import type { AlgorithmDef, DitherInput } from './dither/types';
 import { applyEffects, parseStack } from './effects/stack';
 import { toneMapOf } from './effects/tone';
-import type { EffectInstance, GridUnit, ToneBins, ToneMap } from './effects/types';
+import type { EffectInstance, GridUnit, RGBTriple, ToneBins, ToneMap } from './effects/types';
 import { gridUnitOf, keyOf, keyOfExcept, toPipelineOptions, type PipelineOptions } from './options';
 import { backgroundMask, backgroundTarget, forceBackgroundGray, forceBackgroundRgb, isLightBackground } from './preprocess/background';
 import { fitFrame } from './preprocess/fit';
@@ -134,6 +134,8 @@ export class Pipeline {
   /** 最近一次运行的特效栈与它拿到的网格 */
   private effects?: EffectsState;
   private hatch?: HatchState;
+  /** 抖动风格最近一次的纸色（最亮一级）与墨色（最暗一级），交给特效栈分前景 / 背景 */
+  private ditherColors: { paper: RGBTriple; ink: RGBTriple } = { paper: [255, 255, 255], ink: [0, 0, 0] };
   private ht = new ScreenCache();
   private gl = new ScreenCache();
   /** 最近一次运行走的是哪种风格 */
@@ -250,8 +252,9 @@ export class Pipeline {
 
   /**
    * 渲染之后的收尾：特效栈（独立缓存）+ 复制一份输出（输出会被 Worker 转移给主线程，缓存里保留副本）。
-   * 特效能拿到适配画布后的原图（「叠加原图」用它当背景）、量化前的明暗分布（「灰度块描边」沿格子边描线）
-   * 与当前风格的格子（「叠加随机方块」按它对齐）；渲染键里已经含源帧与画布参数，换素材或换帧时特效缓存自然失效，格子另写进键里。
+   * 特效能拿到适配画布后的原图与当前风格的底色 / 墨色（「叠加原图」靠它们把原图夹在背景与前景之间）、
+   * 量化前的明暗分布（「灰度块描边」沿格子边描线）与当前风格的格子（「叠加随机方块」按它对齐）；
+   * 渲染键里已经含源帧、画布参数与各风格的颜色，换素材或换帧时特效缓存自然失效，格子另写进键里。
    */
   private finish(rendered: Cached<RGBAFrame>, source: RGBAFrame, params: Params, opts: PipelineOptions, ctx: RunContext, tone: Cached<ToneMap>): RGBAFrame {
     const stackJson = typeof params['effects.stack'] === 'string' ? (params['effects.stack'] as string) : '';
@@ -259,13 +262,31 @@ export class Pipeline {
     const effectsKey = `${rendered.key}|${tone.key}|grid=${grid.cellW}x${grid.cellH}@${grid.offsetX},${grid.offsetY}|${stackJson}`;
     if (this.effected?.key !== effectsKey) {
       const stack = parseStack(stackJson);
-      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { source, tone: tone.value, grid }) : rendered.value;
+      const { paper, ink } = this.styleColors(opts);
+      const value = stack.some((e) => e.enabled) ? applyEffects(rendered.value, stack, { source, tone: tone.value, grid, paper, ink }) : rendered.value;
       this.effected = { key: effectsKey, value };
       this.effects = { stack, grid };
       if (value !== rendered.value) ctx.recomputed.push('effects');
     }
     const cached = this.effected.value;
     return { width: cached.width, height: cached.height, data: new Uint8ClampedArray(cached.data) };
+  }
+
+  /**
+   * 当前风格成品里的底色（纸）与主墨色：排线 / 网点 / 符号是各自参数里的纸色与墨色，
+   * 抖动是颜色映射后最亮与最暗的那一级（网格反向时底是墨、点是纸，对调）。
+   */
+  private styleColors(opts: PipelineOptions): { paper: RGBTriple; ink: RGBTriple } {
+    switch (opts.style) {
+      case 'hatch':
+        return { paper: opts.hatch.paper, ink: opts.hatch.ink };
+      case 'halftone':
+        return { paper: opts.halftone.paper, ink: opts.halftone.dot };
+      case 'glyph':
+        return { paper: opts.glyph.paper, ink: opts.glyph.ink };
+      default:
+        return opts.grid.invert ? { paper: this.ditherColors.ink, ink: this.ditherColors.paper } : this.ditherColors;
+    }
   }
 
   /**
@@ -489,6 +510,7 @@ export class Pipeline {
       ctx.recomputed.push('color');
     }
 
+    this.ditherColors = { paper, ink };
     const { size, offsetX, offsetY } = opts.pixel;
     const renderKey = `${cellsKey}|${keyOf(params, 'grid.')}|paper=${paper.join()}|ink=${ink.join()}|size=${size}|${offsetX},${offsetY}|${opts.canvas.width}x${opts.canvas.height}`;
     if (this.rendered?.key !== renderKey) {

@@ -8,12 +8,16 @@ import { DEFAULT_GRID_UNIT, type EffectDef, type EffectParamValues, type GridUni
 /**
  * 叠加随机方块：在成品上按当前风格的网格随机撒几块实色块，像界面出错时掉出来的碎片。
  * 方块的尺寸以「格子」（抖动的像素尺寸、排线 / 网点 / 符号的间距）为最小单位，永远对齐网格；
- * 可以是纯色块，也可以在色块里放一个点阵字母；颜色按配色方案展开到每一块，每一块都能单独改。
+ * 可以是纯色块，也可以在色块里放点阵文字；颜色按配色方案展开到每一块、文字按字母串展开到每一块，每一块都能单独改。
  */
 
 export const BLOCK_MAX_COUNT = 16;
 /** 「尺寸」的上限：比例里 1 份最多对应几格 */
 export const BLOCK_MAX_SIZE = 16;
+/** 一块里最多放几个字 */
+export const BLOCK_TEXT_MAX = 8;
+/** 相邻两个字之间空几个点阵格 */
+const FONT_GAP = 1;
 
 export interface BlockRatio {
   value: string;
@@ -86,6 +90,49 @@ export function editBlockColor(params: EffectParamValues, index: number, hex: st
   return { ...params, palette: 'custom', colors: next.join(' ') };
 }
 
+/** texts 型参数的值：JSON 字符串数组；不是数组、解析不了、空串都当没有列表 */
+export function parseTextList(json: string | undefined): string[] | null {
+  if (typeof json !== 'string' || !json.trim()) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  return Array.isArray(raw) ? raw.map((t) => (typeof t === 'string' ? t : '')) : null;
+}
+
+/** 一块的文字：只留画得出来的字（大写），截到上限 */
+export function cleanBlockText(text: string, maxLength = BLOCK_TEXT_MAX): string {
+  return drawableChars(text).join('').slice(0, maxLength);
+}
+
+/** texts 型参数写回：每块清洗一遍，最多 64 块；没有列表就是空串（按批量字母展开） */
+export function serializeTextList(list: string[] | null, maxLength = BLOCK_TEXT_MAX): string {
+  if (!list) return '';
+  return JSON.stringify(list.slice(0, 64).map((t) => cleanBlockText(t, maxLength)));
+}
+
+/**
+ * 当前实例实际生效的每一块文字：逐块改过（texts 列表）就沿着列表轮流，否则把「字母」串按顺序一块一个字轮流放；
+ * 正好 count 个，空串表示这块只画色块。
+ */
+export function resolveBlockTexts(params: EffectParamValues): string[] {
+  const count = blockCount(params);
+  const custom = parseTextList(s(params, 'texts', ''));
+  const base = custom && custom.length ? custom.map((t) => cleanBlockText(t)) : drawableChars(s(params, 'letters', 'A'));
+  return Array.from({ length: count }, (_, i) => (base.length ? base[i % base.length] : ''));
+}
+
+/** 改第 index 块的文字：把当前展开的列表整个写进 texts，之后每一块各是各的 */
+export function editBlockText(params: EffectParamValues, index: number, text: string): EffectParamValues {
+  const texts = resolveBlockTexts(params);
+  if (index < 0 || index >= texts.length) return params;
+  const next = texts.slice();
+  next[index] = cleanBlockText(text);
+  return { ...params, texts: serializeTextList(next) };
+}
+
 export interface BlockRect {
   x: number;
   y: number;
@@ -93,8 +140,8 @@ export interface BlockRect {
   h: number;
   /** #RRGGBB */
   color: string;
-  /** 放在块里的字，纯色块为 null */
-  letter: string | null;
+  /** 放在块里的字（一个或几个），纯色块为 null */
+  text: string | null;
 }
 
 /** 字母怎么画：占块短边的比例，颜色（null 表示按块的明暗自动取黑或白） */
@@ -124,7 +171,7 @@ export function layoutBlocks(width: number, height: number, params: EffectParamV
   const ratio = BLOCK_RATIOS.find((r) => r.value === s(params, 'ratio', '1:1')) ?? BLOCK_RATIOS[0];
   const size = clampInt(n(params, 'size', 4), 1, BLOCK_MAX_SIZE);
   const jitter = b(params, 'jitter', false);
-  const letters = s(params, 'style', 'solid') === 'letter' ? drawableChars(s(params, 'letters', 'A')) : [];
+  const texts = s(params, 'style', 'solid') === 'letter' ? resolveBlockTexts(params) : null;
   const colors = resolveBlockColors(params);
   const rand = mulberry32(clampInt(n(params, 'seed', 1), 0, 0xffffffff));
 
@@ -150,18 +197,24 @@ export function layoutBlocks(width: number, height: number, params: EffectParamV
       w,
       h,
       color: colors[i],
-      letter: letters.length ? letters[i % letters.length] : null,
+      text: texts && texts[i] ? texts[i] : null,
     });
   }
   return out;
 }
 
-/** 字母在块里的点阵格：放大倍率与左上角；块太小放不下时为 null */
-export function letterCells(rect: BlockRect, style: LetterStyle): { scale: number; x: number; y: number } | null {
-  if (!rect.letter) return null;
-  const scale = Math.floor(Math.min((rect.w * style.size) / FONT_COLS, (rect.h * style.size) / FONT_ROWS));
+/**
+ * 文字在块里的点阵格：整行（几个字并排、字间空 FONT_GAP 格）按块短边比例放大到整数倍、居中；
+ * 返回放大倍率、整行左上角与第 k 个字的横向起点；块太小放不下时为 null。
+ */
+export function textCells(rect: BlockRect, style: LetterStyle): { scale: number; x: number; y: number; charX: (k: number) => number } | null {
+  if (!rect.text) return null;
+  const n = rect.text.length;
+  const cols = n * FONT_COLS + (n - 1) * FONT_GAP;
+  const scale = Math.floor(Math.min((rect.w * style.size) / cols, (rect.h * style.size) / FONT_ROWS));
   if (scale < 1) return null;
-  return { scale, x: rect.x + Math.floor((rect.w - FONT_COLS * scale) / 2), y: rect.y + Math.floor((rect.h - FONT_ROWS * scale) / 2) };
+  const x = rect.x + Math.floor((rect.w - cols * scale) / 2);
+  return { scale, x, y: rect.y + Math.floor((rect.h - FONT_ROWS * scale) / 2), charX: (k) => x + k * (FONT_COLS + FONT_GAP) * scale };
 }
 
 /** 字母的颜色：指定了就用指定的，否则浅块配黑字、深块配白字 */
@@ -193,39 +246,43 @@ export function drawBlocks(frame: RGBAFrame, rects: BlockRect[], style: LetterSt
   const out: RGBAFrame = { width: frame.width, height: frame.height, data: new Uint8ClampedArray(frame.data) };
   for (const rect of rects) {
     fillRect(out, rect.x, rect.y, rect.w, rect.h, hexToRgb(rect.color));
-    const cells = letterCells(rect, style);
-    const glyph = rect.letter ? glyphOf(rect.letter) : null;
-    if (!cells || !glyph) continue;
+    const cells = textCells(rect, style);
+    if (!cells) continue;
     const ink = letterColorFor(rect.color, style);
-    for (let row = 0; row < FONT_ROWS; row++) {
-      for (let col = 0; col < FONT_COLS; col++) {
-        if (glyph[row][col]) fillRect(out, cells.x + col * cells.scale, cells.y + row * cells.scale, cells.scale, cells.scale, ink);
-      }
-    }
+    forEachInkCell(rect.text!, cells, (x, y) => fillRect(out, x, y, cells.scale, cells.scale, ink));
   }
   return out;
 }
 
+/** 走一遍文字里每个墨格的左上角坐标 */
+function forEachInkCell(text: string, cells: { scale: number; y: number; charX: (k: number) => number }, visit: (x: number, y: number) => void) {
+  for (let k = 0; k < text.length; k++) {
+    const glyph = glyphOf(text[k]);
+    if (!glyph) continue;
+    const x0 = cells.charX(k);
+    for (let row = 0; row < FONT_ROWS; row++) {
+      for (let col = 0; col < FONT_COLS; col++) {
+        if (glyph[row][col]) visit(x0 + col * cells.scale, cells.y + row * cells.scale);
+      }
+    }
+  }
+}
+
 /**
- * 同一批块的 SVG 片段：一块一个 rect，字母的每个点阵格并进一条 path。
+ * 同一批块的 SVG 片段：一块一个 rect，文字的每个点阵格并进一条 path。
  * 排线 / 网点 / 符号的矢量导出从几何直接出图形、不经过位图，特效栈里的方块靠这个补上。
  */
 export function blocksSvgFragment(rects: BlockRect[], style: LetterStyle): string {
   const parts: string[] = [];
   for (const rect of rects) {
     parts.push(`<rect x="${rect.x}" y="${rect.y}" width="${rect.w}" height="${rect.h}" fill="${rect.color}"/>`);
-    const cells = letterCells(rect, style);
-    const glyph = rect.letter ? glyphOf(rect.letter) : null;
-    if (!cells || !glyph) continue;
+    const cells = textCells(rect, style);
+    if (!cells) continue;
     const [r, g, bl] = letterColorFor(rect.color, style);
     const fill = `#${((r << 16) | (g << 8) | bl).toString(16).padStart(6, '0').toUpperCase()}`;
     const d: string[] = [];
-    for (let row = 0; row < FONT_ROWS; row++) {
-      for (let col = 0; col < FONT_COLS; col++) {
-        if (glyph[row][col]) d.push(`M${cells.x + col * cells.scale} ${cells.y + row * cells.scale}h${cells.scale}v${cells.scale}h-${cells.scale}z`);
-      }
-    }
-    parts.push(`<path d="${d.join('')}" fill="${fill}"/>`);
+    forEachInkCell(rect.text!, cells, (x, y) => d.push(`M${x} ${y}h${cells.scale}v${cells.scale}h-${cells.scale}z`));
+    if (d.length) parts.push(`<path d="${d.join('')}" fill="${fill}"/>`);
   }
   return parts.join('');
 }
@@ -262,7 +319,7 @@ export const blocks: EffectDef = {
         { value: 'solid', label: '纯色块' },
         { value: 'letter', label: '色块 + 字母' },
       ],
-      hint: '纯色块，或在色块里放一个点阵字母。',
+      hint: '纯色块，或在色块里放点阵文字。',
     },
     {
       id: 'letters',
@@ -272,7 +329,21 @@ export const blocks: EffectDef = {
       maxLength: 32,
       placeholder: 'A',
       visibleWhen: onLetter,
-      hint: '写一个字就每块都是它，写一串就按顺序轮流放。支持字母、数字与常用符号，块太小放不下时只画色块。',
+      hint: '批量填字：写一个字就每块都是它，写一串就按顺序一块一个轮流放；改这里会重新填满下面每一块。支持字母、数字与常用符号，块太小放不下时只画色块。',
+      // 批量字母一改，逐块改过的文字作废，重新按它展开
+      patch: (params, value) => ({ ...params, letters: value, texts: '' }),
+    },
+    {
+      id: 'texts',
+      label: '每块文字',
+      type: 'texts',
+      default: '',
+      maxLength: BLOCK_TEXT_MAX,
+      visibleWhen: onLetter,
+      resolve: resolveBlockTexts,
+      edit: editBlockText,
+      swatchTitle: (i) => `第 ${i + 1} 块`,
+      hint: `一块一个框，单独改这一块的字：可以写几个字母连成一个词（最多 ${BLOCK_TEXT_MAX} 个），清空就是纯色块。上面「字母」一改会重新按它填满每一块。`,
     },
     { id: 'letterSize', label: '字母大小', type: 'number', min: 20, max: 100, step: 5, default: 60, unit: '%', visibleWhen: onLetter, hint: '字母占块短边的比例。20–100%，默认 60。' },
     {

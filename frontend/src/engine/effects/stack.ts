@@ -1,7 +1,7 @@
 import type { ParamValue } from '@/params';
 import { parseColorList } from '../color/palettes';
 import type { RGBAFrame } from '../types';
-import { blocksSvgFragment, layoutBlocks, letterStyleOf } from './blocks';
+import { blocksSvgFragment, layoutBlocks, letterStyleOf, parseTextList, serializeTextList } from './blocks';
 import { EFFECT_DEFS, getEffectDef } from './defs';
 import { DEFAULT_GRID_UNIT, type EffectContext, type EffectDef, type EffectInstance, type EffectParamDef, type EffectParamValues, type GridUnit } from './types';
 
@@ -39,6 +39,10 @@ export function coerceEffectParams(def: EffectDef, input: unknown): EffectParamV
         break;
       case 'colors':
         out[p.id] = typeof v === 'string' ? parseColorList(v).slice(0, 64).join(' ') : p.default;
+        break;
+      case 'texts':
+        // 逐块文字列表：JSON 数组，每块只留画得出来的字；不是列表就退回空串（按批量字母展开）
+        out[p.id] = typeof v === 'string' ? serializeTextList(parseTextList(v), p.maxLength) : p.default;
         break;
       case 'levels':
         // 只留 0 / 1，长度不按阶数裁：阶数改多了新阶默认开，改少了多出的位忽略

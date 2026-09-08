@@ -205,3 +205,30 @@ test('导出图片出 PNG、导出帧出 SVG，Ctrl+C 复制当前帧 PNG 到剪
   await page.keyboard.press('Control+c');
   await expect(page.getByRole('status')).toContainText('已复制');
 });
+
+test('预览头「保存」一键把当前方案存进历史；没改动再点不重复存，改过再点再存一条', async ({ page }) => {
+  await page.goto('/');
+  await dropSyntheticImage(page);
+  // 紧挨着主导出按钮左边
+  const tools = page.locator('.preview-tools');
+  const buttons = tools.getByRole('button');
+  await expect(buttons.nth(await buttons.count() - 2)).toHaveText('保存');
+  await expect(buttons.last()).toHaveText('导出图片');
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast')).toContainText('已保存预设');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item')).toHaveCount(1);
+  await expect(page.locator('.history-item__name')).toContainText('副本');
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
+  // 当前方案就是刚存的那条、没微调过：再点不重复存
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast').last()).toContainText('已在历史中');
+  await expect(page.locator('.history-item')).toHaveCount(1);
+  // 改一个参数再存：多一条
+  await page.getByRole('tab', { name: '抖动' }).click();
+  await pick(page, 'dither.family', '阈值');
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast').last()).toContainText('已保存预设');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item')).toHaveCount(2);
+});
