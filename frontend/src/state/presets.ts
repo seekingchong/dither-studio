@@ -1189,6 +1189,67 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图：瑞士风格的双色方块海报——整幅画就是一张方格网，暗处的格子填满、与邻格连成整片实色，
+  // 往亮处先退成留缝的方块，再缩成三分之一格的小方，最后散成零星几粒落在纸上，中间调点缀几个药房十字。
+  // 三段规矩靠方块一家：实心格 `block` 跨格填满（成片的暗部连成一整块，亮一档的方块落在里面就成了纸色的洞），
+  // 实心方 `square` 留出格线一样的纸缝，新符号像素方 `pixel` 只有三分之一格、像素十字 `pixcross` 是五个小方拼的十字。
+  // 颜色只有绿与蓝两支：分级配色让第 4、6 阶是蓝、第 5 阶回到绿，交界混合 85% 再把相邻两阶搅在一起，
+  // 成片的蓝里就掺进绿方块、绿的一片里也落几粒蓝，像参考图那样两色交错
+  {
+    id: 'glyph-swiss',
+    name: 'Swiss Mosaic',
+    hint: '淡灰纸上的绿蓝方块马赛克：暗处连成整片实色，亮处退成小方后散开',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'pixel', 'pixcross', 'square', 'square', 'square', 'block']),
+      'glyph.size': 90,
+      'glyph.taper': 20,
+      'glyph.stroke': 20,
+      'glyph.mix': 85,
+      'glyph.accent': 0,
+      'tile.pitchX': 20,
+      'tile.pitchY': 20,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#4FD08F', '#35C182', '#00A05B', '#0F5FC4', '#00A05B', '#0F5FC4', '#0B4FA8']),
+      'glyph.paper': '#EFEFEF',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  // 参考图：黑底上竖排光栅的瑞士海报——整幅画盖着一层很细的竖栅，横向被切成一条条厚墩墩的色带，
+  // 大块色域彼此硬碰硬：暗处几乎全黑、只有一格一条的细竖线，往亮处竖栅一档档变粗。
+  // 第 6 阶（粗档）留给淡黄——带宽约七成、缝还看得见，成片就是海报上那片透着细竖线的淡黄大色域；
+  // 最亮的满档只剩不到一个像素的缝，配米白，读起来是一块实的。
+  // 与 Aperture Grille 同用一家竖栅符号（符号库没动），差别在格子与配色：那套是 16px 方格的显像管扫描图，
+  // 这套是 12×7 的扁格子——竖栅密（一格三道、栅距 4px）、横向分层粗，读起来是海报而不是屏幕。
+  // 线粗只管第 2 阶那条细竖线，竖栅的粗细写死在符号里。深底亮符号所以反相，再叠一层轻胶片颗粒压住大片纯黑
+  {
+    id: 'glyph-raster',
+    name: 'Raster Poster',
+    hint: '黑底细竖栅：一条细竖线到越来越粗的竖栅，藏蓝、绿、青到淡黄与米白的厚色带',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'bar', 'grillehair', 'grillefine', 'grillemid', 'grillebold', 'grillefull']),
+      'glyph.size': 100,
+      'glyph.taper': 0,
+      'glyph.stroke': 14,
+      'glyph.mix': 40,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 7,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#0E2A5E', '#1B57C8', '#2C86EE', '#3FAE5E', '#63DEFF', '#F2EC9A', '#FAF7EA']),
+      'glyph.paper': '#05080D',
+      'tone.invert': true,
+      'tone.contrast': 20,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 14, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

@@ -789,6 +789,7 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
       letters: '字母：1、T、V、Z、N、E、M，笔画越多越暗',
       dots: '点阵：小点、双点、四点、圆圈、靶心、圆点、点线',
       terminal: '终端字符：逗号、双点、C、K、%、Ø、实心块',
+      mosaic: '马赛克：像素方、像素阶、像素十字、棋盘、像素回、实心方，最暗一阶满格连片',
       custom: '每一阶自己挑，下面「符号」节的阶梯表里改',
     },
     tip: '在阶梯表里改任何一阶的形状，序列就变成「自定义」。',
