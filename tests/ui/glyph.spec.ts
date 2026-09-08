@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher 预设用
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(67);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -312,7 +312,7 @@ test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher 预设用
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
 
-test('符号：Desync 预设——短横、横线、双横到实心方，分级配色里第五阶荧光黄绿，特效栈里一条扫描行位移', async ({ page }) => {
+test('符号：Desync 预设——短横、细板、横板到穿孔块与实心方，第 5、6 阶荧光黄绿，特效栈里扫描行位移加颗粒', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -321,25 +321,50 @@ test('符号：Desync 预设——短横、横线、双横到实心方，分级�
   await expect(page.locator('[data-preset="glyph-desync"]')).toHaveClass(/is-active/);
   await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
   const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
-  await expect(rows).toHaveCount(6);
-  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
-  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'minus');
-  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dash');
-  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'equals');
-  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
-  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows).toHaveCount(8);
+  for (const [k, id] of [
+    [0, 'blank'],
+    [1, 'minus'],
+    [2, 'slabthin'],
+    [3, 'slab'],
+    [4, 'blockhole'],
+    [5, 'square'],
+    [6, 'blockhole'],
+    [7, 'square'],
+  ] as const) {
+    await expect(rows.nth(k).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', id);
+  }
+  await expect(rows.nth(2).locator('.glyph-level__label')).toHaveText('细板');
+  await expect(rows.nth(4).locator('.glyph-level__label')).toHaveText('穿孔块');
+  // 分级配色：第 5、6 阶荧光黄绿成片，其余墨黑，最后一格是纸色
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
   const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
-  await expect(swatches).toHaveCount(7);
+  await expect(swatches).toHaveCount(9);
   await expect(swatches.nth(4)).toHaveAttribute('aria-label', '第 5 阶 #D6FF1A');
-  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #111111');
-  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '背景色 #F2F2EE');
-  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('130');
-  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('45');
-  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('70');
-  // 特效栈里带着一条扫描行位移，带高与格子等高
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #D6FF1A');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #111111');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #F2F2EE');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('140');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('35');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
+  // 特效栈：扫描行位移的带高与格子等高，后面跟一点颗粒
   await openSection(page, 'effects');
-  await expect(page.locator('.effect-card')).toHaveCount(1);
-  await expect(page.locator('.effect-card[data-effect="rowShift"]')).toContainText('扫描行位移');
+  await expect(page.locator('.effect-card')).toHaveCount(2);
+  await expect(page.locator('.effect-card').nth(0)).toContainText('扫描行位移');
+  await expect(page.locator('.effect-card').nth(1)).toContainText('胶片颗粒');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
+  await rows.nth(2).locator('.glyph-level__shape').click();
+  const picker = page.getByTestId('glyph-picker');
+  await expect(picker.locator('[data-glyph]')).toHaveCount(67);
+  for (const id of ['slabthin', 'slab', 'slabwide']) {
+    await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
+  }
+  for (const id of ['blockhole', 'blockhalf']) {
+    await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
+  }
+  await picker.locator('[data-glyph="slabwide"]').click();
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slabwide');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Desync · 已微调');
 });

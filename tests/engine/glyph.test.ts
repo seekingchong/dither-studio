@@ -150,7 +150,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(62);
+    expect(GLYPH_IDS.length).toBe(67);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -340,6 +340,74 @@ describe('新增符号：荧光电路与棋盘', () => {
     }
     expect(leftInk).toBeGreaterThan(rightInk);
     expect(rightInk).toBeGreaterThan(0);
+  });
+});
+
+describe('新增符号：横板与穿孔块', () => {
+  const NEW: GlyphId[] = ['slabthin', 'slab', 'slabwide', 'blockhole', 'blockhalf'];
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('5 种都在符号库里且排在老的 62 个后面，编码不变；墨量关系：横条越厚越多，穿孔块比实心方少、比横板多', () => {
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    expect(GLYPH_IDS.length).toBe(67);
+    // 三档横条：比横线粗，越厚墨越多，最厚的也没到实心方
+    expect(c('slabthin')).toBeGreaterThan(c('dash'));
+    expect(c('slabthin')).toBeLessThan(c('slab'));
+    expect(c('slab')).toBeLessThan(c('slabwide'));
+    expect(c('slabwide')).toBeLessThan(c('square'));
+    // 穿孔块：实心方冲掉一个孔，所以比实心方少；孔很小，仍比横板多
+    expect(c('blockhole')).toBeLessThan(c('square'));
+    expect(c('blockhole')).toBeGreaterThan(c('slab'));
+    // 半块正好是实心方的一半上下
+    expect(c('blockhalf')).toBeGreaterThan(c('square') * 0.4);
+    expect(c('blockhalf')).toBeLessThan(c('square') * 0.6);
+  });
+
+  it('渲染：横条按档变粗、左右邻格接成一条，厚板上下留缝；穿孔块中间是纸、四边是墨；半块只有下半截', () => {
+    // 12px 方格、符号 100% → 半宽正好半格：三格并排（格心在 6 / 18 / 30）时格间那道缝也是墨，接成一条长线
+    const thin = renderHalftone(buildGlyphScreen(flatSource(36, 12, 0.5), custom(['slabthin', 'slabthin'])));
+    expect(px(thin, 6, 6)).toEqual([0, 0, 0]);
+    expect(px(thin, 12, 6)).toEqual([0, 0, 0]);
+    expect(px(thin, 18, 6)).toEqual([0, 0, 0]);
+    // 细板半高 0.22 × 6 = 1.32px：格心那一行是墨，离格心 3px 已经是纸
+    expect(px(thin, 6, 3)).toEqual([255, 255, 255]);
+    // 横板半高 0.4 × 6 = 2.4px：离格心 2px 还是墨，4px 是纸
+    const mid = renderHalftone(buildGlyphScreen(flatSource(36, 12, 0.5), custom(['slab', 'slab'])));
+    expect(px(mid, 6, 4)).toEqual([0, 0, 0]);
+    expect(px(mid, 6, 2)).toEqual([255, 255, 255]);
+    expect(px(mid, 12, 6)).toEqual([0, 0, 0]);
+    // 厚板半高 0.66 × 6 = 3.96px：格心上下 3px 是墨，格子上下两头是纸——成片时是带白缝的黑带
+    const wide = renderHalftone(buildGlyphScreen(flatSource(12, 36, 0.5), custom(['slabwide', 'slabwide'])));
+    expect(px(wide, 6, 3)).toEqual([0, 0, 0]);
+    expect(px(wide, 6, 9)).toEqual([0, 0, 0]);
+    expect(px(wide, 6, 0)).toEqual([255, 255, 255]);
+    expect(px(wide, 6, 11)).toEqual([255, 255, 255]);
+    // 穿孔块：中间那一小块是纸，四边是墨，块外还是纸
+    const holed = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['blockhole', 'blockhole'])));
+    expect(px(holed, 6, 6)).toEqual([255, 255, 255]);
+    expect(px(holed, 9, 6)).toEqual([0, 0, 0]);
+    expect(px(holed, 6, 9)).toEqual([0, 0, 0]);
+    expect(px(holed, 0, 0)).toEqual([255, 255, 255]);
+    // 半块：下半截是墨、上半截是纸
+    const half = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['blockhalf', 'blockhalf'])));
+    expect(px(half, 6, 9)).toEqual([0, 0, 0]);
+    expect(px(half, 6, 3)).toEqual([255, 255, 255]);
+  });
+
+  it('SVG：横板是一个实心 <rect>，穿孔块是围着孔的四个 <rect>，孔里不出图形', () => {
+    const bg = (svg: string) => (svg.match(/<rect /g) ?? []).length;
+    // 铺底一个 + 图元
+    expect(bg(halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['slab', 'slab']))))).toBe(2);
+    expect(bg(halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['blockhole', 'blockhole']))))).toBe(5);
+    expect(bg(halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['blockhalf', 'blockhalf']))))).toBe(2);
+    // 横板：宽是整格、高是半高的两倍
+    const slab = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['slab', 'slab'])));
+    const rect = [...slab.matchAll(/<rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].at(-1)!;
+    expect(Number(rect[3])).toBeCloseTo(12, 5);
+    expect(Number(rect[4])).toBeCloseTo(4.8, 5);
   });
 });
 
@@ -653,50 +721,71 @@ describe('流水线 符号 分支', () => {
     expect(out.width).toBe(52);
   });
 
-  it('Desync 预设：白纸黑块加荧光黄绿像素——短横、横线、双横到实心方，分级配色，扫描行位移', () => {
+  it('Desync 预设：横板分档、黑块冲孔、黄绿占两阶——分级配色，扫描行位移与颗粒', () => {
     const desync = builtinPresetParams(findBuiltinPreset('glyph-desync')!);
     expect(desync['style.type']).toBe('glyph');
     expect(desync['glyph.ramp']).toBe('custom');
-    expect(desync['glyph.levels']).toBe(6);
-    expect([1, 2, 3, 4, 5, 6].map((k) => desync[glyphShapeId(k)])).toEqual(['blank', 'minus', 'dash', 'equals', 'square', 'square']);
+    expect(desync['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => desync[glyphShapeId(k)])).toEqual([
+      'blank',
+      'minus',
+      'slabthin',
+      'slab',
+      'blockhole',
+      'square',
+      'blockhole',
+      'square',
+    ]);
+    // 横条那三阶按墨量从少到多，暗处的横板真的更粗
+    const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+    expect(c('minus')).toBeLessThan(c('slabthin'));
+    expect(c('slabthin')).toBeLessThan(c('slab'));
+    expect(c('slab')).toBeLessThan(c('blockhole'));
+    // 荧光黄绿占第 5、6 两阶，成片而不是一条细边；其余都是墨黑
     expect(desync['glyph.colorMode']).toBe('levels');
     expect(desync['glyph.color5']).toBe('#D6FF1A');
-    expect(desync['glyph.color6']).toBe('#111111');
+    expect(desync['glyph.color6']).toBe('#D6FF1A');
+    for (const k of [1, 2, 3, 4, 7, 8]) expect(desync[glyphColorId(k)], `第 ${k} 阶`).toBe('#111111');
     expect(desync['glyph.paper']).toBe('#F2F2EE');
     // 白纸深符号，不反相
     expect(desync['tone.invert']).toBe(false);
-    // 亮部缩小把两头拉开：短横那一阶要留缝（≤ 85%），实心方的两阶要盖满格子、相邻块之间不留线（≥ 118%）
-    const sizes = levelSizes(Number(desync['glyph.size']) / 100, Number(desync['glyph.taper']) / 100, 6);
-    expect(sizes[1]).toBeLessThanOrEqual(0.85);
-    expect(sizes[4]).toBeGreaterThanOrEqual(1.18);
-    expect(sizes[5]).toBeGreaterThanOrEqual(1.18);
-    // 特效栈只有一条扫描行位移，带高与格子等高，整行的方块一起挪
+    // 亮部缩小把两头拉开：短横那一阶断成虚线（≤ 95%），实心方与穿孔块盖满格子、邻格之间不留线（≥ 118%）
+    const sizes = levelSizes(Number(desync['glyph.size']) / 100, Number(desync['glyph.taper']) / 100, 8);
+    expect(sizes[1]).toBeLessThanOrEqual(0.99);
+    for (const k of [4, 5, 6, 7]) expect(sizes[k], `第 ${k + 1} 阶`).toBeGreaterThanOrEqual(1.18);
+    // 特效栈：扫描行位移的带高与格子等高，整行的块一起挪；再加一点颗粒
     const stack = parseStack(desync['effects.stack']);
-    expect(stack.map((e) => e.type)).toEqual(['rowShift']);
-    expect(stack[0].enabled).toBe(true);
+    expect(stack.map((e) => e.type)).toEqual(['rowShift', 'grain']);
+    expect(stack.every((e) => e.enabled)).toBe(true);
     expect(stack[0].params.band).toBe(desync['tile.pitchY']);
-    // 左黑右白的渐变：左边是黑块、右边是纸色、中间有荧光黄绿（先关掉行位移，免得整行绕到另一边）
+    // 左黑右白的渐变：左边是黑块、右边是纸色，中间有黄绿，黑块里能找到纸色的孔
+    // （先关掉特效，行位移会把整行绕到另一边、颗粒会让颜色不再是纯色）
     const out = renderImage(
-      makeFrame(240, 60, (x) => {
-        const v = Math.round((x / 239) * 255);
+      makeFrame(264, 66, (x) => {
+        const v = Math.round((x / 263) * 255);
         return [v, v, v];
       }),
-      { ...desync, 'effects.stack': '', 'canvas.width': 240, 'canvas.height': 60 },
+      { ...desync, 'effects.stack': '', 'canvas.width': 264, 'canvas.height': 66 },
     );
-    const near = (p: number[], hex: string) => hexToRgb(hex).every((v, i) => Math.abs(p[i] - v) < 8);
+    const near = (q: number[], hex: string) => hexToRgb(hex).every((v, i) => Math.abs(q[i] - v) < 8);
+    const ink = (x: number, y: number) => near(px(out, x, y), '#111111');
     let lime = 0;
     let leftBlack = 0;
     let rightPaper = 0;
-    for (let y = 0; y < 60; y++) {
-      for (let x = 0; x < 240; x++) {
-        const p = px(out, x, y);
-        if (near(p, '#D6FF1A')) lime++;
-        if (x < 24 && near(p, '#111111')) leftBlack++;
-        if (x >= 216 && near(p, '#F2F2EE')) rightPaper++;
+    // 穿孔块的孔：一粒纸色，上下左右 3px 都还在墨里——横板之间的白缝左右也是纸，不会误判
+    let holeInBlack = 0;
+    for (let y = 0; y < 66; y++) {
+      for (let x = 0; x < 264; x++) {
+        const q = px(out, x, y);
+        if (near(q, '#D6FF1A')) lime++;
+        if (x < 26 && near(q, '#111111')) leftBlack++;
+        if (x >= 238 && near(q, '#F2F2EE')) rightPaper++;
+        if (x >= 3 && x < 261 && y >= 3 && y < 63 && near(q, '#F2F2EE') && ink(x - 3, y) && ink(x + 3, y) && ink(x, y - 3) && ink(x, y + 3)) holeInBlack++;
       }
     }
     expect(lime).toBeGreaterThan(0);
-    expect(leftBlack / (24 * 60)).toBeGreaterThan(0.8);
-    expect(rightPaper / (24 * 60)).toBeGreaterThan(0.9);
+    expect(leftBlack / (26 * 66)).toBeGreaterThan(0.8);
+    expect(holeInBlack).toBeGreaterThan(0);
+    expect(rightPaper / (26 * 66)).toBeGreaterThan(0.9);
   });
 });

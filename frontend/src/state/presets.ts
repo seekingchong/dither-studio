@@ -967,32 +967,39 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图七：白纸上的「失步」海报——主体被拆成横向扫描线与黑色像素块，荧光黄绿的像素散在暗部，几行整体错位像信号丢帧。
-  // 亮到暗：留白 → 短横（一格一段，留缝像点线）→ 横线（贯穿邻格，交界掺杂后断成长短不一的线）→ 双横 → 荧光黄绿实心方 → 黑实心方；
-  // 黄绿夹在双横与黑块之间，交界混合 70% 把它打散成暗部里的碎片。符号大小 130% 配亮部缩小 45%：
-  // 短横那一阶缩到 83% 留出缝，实心方那两阶 ≥ 118% 正好盖满格子、相邻块之间不留线；
-  // 特效栈一条「扫描行位移」，带高与格子等高、只错位 6% 的行，整行的方块一起挪，不切碎符号
+  // 参考图七：白纸上的「失步」海报——主体被拆成粗细分档的横向扫描线与黑色像素块，
+  // 黑块里冲出一粒粒纸色的孔，荧光黄绿的块夹在暗调里，几行整体错位像信号丢帧。
+  // 亮到暗：留白 → 短横（不出格，断成一节节的虚线）→ 细板 → 横板（越暗越粗的横条，邻格接成长线）
+  //       → 穿孔块（黄绿）→ 实心方（黄绿）→ 穿孔块（黑）→ 实心方（黑）；
+  // 黄绿占两阶，成片而不是一条细边；穿孔块与实心方交替，黑块与黄绿块里都留着纸色的孔。
+  // 符号大小 140% 配亮部缩小 35%：短横那一阶缩到 98% 断成虚线；实心方的边长是符号的 85%，要 ≥ 118% 才盖满格子，
+  // 最暗那四阶（穿孔块与实心方）正好都在这条线以上，成片时邻格之间不留纸缝。
+  // 特效栈两条：「扫描行位移」带高与格子等高，整行的块一起挪、不切碎符号；一点「胶片颗粒」给纸面上一层印刷的糙感
   {
     id: 'glyph-desync',
     name: 'Desync',
-    hint: '白纸黑块：短横、横线、双横到黑方块，荧光黄绿像素散在暗部，扫描行错位',
+    hint: '白纸黑块：越暗越粗的横板、冲出纸色小孔的黑块，荧光黄绿成片夹在暗调里，扫描行错位',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
-      'glyph.levels': 6,
-      ...glyphShapes(['blank', 'minus', 'dash', 'equals', 'square', 'square']),
-      'glyph.size': 130,
-      'glyph.taper': 45,
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'minus', 'slabthin', 'slab', 'blockhole', 'square', 'blockhole', 'square']),
+      'glyph.size': 140,
+      'glyph.taper': 35,
       'glyph.stroke': 22,
-      'glyph.mix': 70,
+      'glyph.mix': 80,
       'glyph.accent': 0,
-      'tile.pitchX': 10,
-      'tile.pitchY': 10,
+      'tile.pitchX': 11,
+      'tile.pitchY': 11,
       'glyph.colorMode': 'levels',
-      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#111111']),
+      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#D6FF1A', '#111111', '#111111']),
       'glyph.paper': '#F2F2EE',
-      'tone.contrast': 20,
-      'effects.stack': effects([{ type: 'rowShift', enabled: true, params: { probability: 6, maxShift: 36, band: 10, rgbSplit: 0, seed: 3 } }]),
+      'tone.contrast': 30,
+      'tone.midtones': 12,
+      'effects.stack': effects([
+        { type: 'rowShift', enabled: true, params: { probability: 7, maxShift: 36, band: 11, rgbSplit: 0, seed: 3 } },
+        { type: 'grain', enabled: true, params: { amount: 10, size: 1, color: false, seed: 1 } },
+      ]),
     },
     exposes: GL,
   },
