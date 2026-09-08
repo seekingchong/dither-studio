@@ -942,7 +942,32 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图六：暖白纸上墨蓝色的符号图谱——亮处一粒小点，往暗处依次是斜线、十字、实心三角、圆点，最暗一阶铺满实心方。
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
+  // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
+  // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
+  {
+    id: 'glyph-cipher',
+    name: 'Acid Cipher',
+    hint: '柠檬绿底墨色 8 阶：小点、短斜线、十字、圆圈、叉号到靶心、圈十、圈叉',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']),
+      'glyph.size': 74,
+      'glyph.taper': 30,
+      'glyph.stroke': 12,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'glyph.ink': '#0E150A',
+      'glyph.paper': '#C9F52C',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  // 参考图七：暖白纸上墨蓝色的符号图谱——亮处一粒小点，往暗处依次是斜线、十字、实心三角、圆点，最暗一阶铺满实心方。
   // 符号大小 118%：实心方的半边是 0.85r，1.18 × 0.85 刚好抵到格子边，成片的黑里只剩一道发丝细的纸色缝，黑块上就浮出一层网格；
   // 同一个 118% 下圆点会糊成一片，所以亮部缩小拉满到 90%——最暗的方块仍是 118%，圆点落到 100%（刚好一格宽、彼此相切不粘连），
   // 三角 83%、十字 65%、小点 30%（十几像素的格子里只有两三像素），一眼就能把六种符号的层级分开。
