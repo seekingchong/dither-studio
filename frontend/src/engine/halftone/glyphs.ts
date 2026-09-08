@@ -44,6 +44,7 @@ export type GlyphId =
   | 'hashx'
   | 'dotslash'
   | 'slashshort'
+  | 'slashdash'
   | 'xmark'
   | 'zigzag'
   | 'stripes'
@@ -72,6 +73,7 @@ export type GlyphId =
   | 'circlex'
   | 'circleplus'
   | 'roundbox'
+  | 'roundsquare'
   | 'boxdot'
   | 'hexline'
   | 'checker'
@@ -236,6 +238,9 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
   // 丝网像素海报（米纸上橙蓝双色的几何构成）——比竖纹与竖栅都密一倍的竖线
   { id: 'bars', label: '密竖纹', group: 'lines', desc: '五道贯穿格子的细竖线，栅距是竖纹与竖栅的一半，邻格接成一片更密的条纹' },
+  // 图谱（参考图：暖白纸上墨蓝的符号图谱）——斜线要断得开、暗处的方块要磨圆，都不是现成符号能顶的
+  { id: 'slashdash', label: '断斜线', group: 'lines', desc: '跨格的斜线两头各收一截，邻格排成一串留着断口的斜线，不糊成整条' },
+  { id: 'roundsquare', label: '圆角方', group: 'geometry', desc: '实心的圆角方块；铺满时格点上留出小小的纸色星芒' },
   // 位图（参考图：淡紫白纸上一片群青的位图海报）。灰阶不靠线条疏密，靠成块的方格：
   // 角块 ¼ → 棋盘 ² ⁄ ₄（已有）→ 缺角块 ¾ → 实心格 4/4（已有）自成一族密度阶，填的象限层层包含，
   // 越暗只是多墨、不挪位置，一路从稀疏点阵铺到整片实底；小叉是亮处那些一格一颗的小记号
@@ -270,6 +275,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
  * `b` 是挪开中心的实心方（棋盘格用），`r` 是挪开中心的实心矩形（半宽 w、半高 h 分开给，横板与穿孔块用），
+ * `R` 是圆角方框、`u` 是实心圆角方，`P` 是任意实心多边形（顶点按顺序给）；
+ * `V` 是跨格竖带：上下贯穿整格，中心与半宽都以半格为 1，粗细不随符号大小与线粗变。
  * `R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
  * `V` 是跨格实心块：中心与半边都以半格为 1（跟 `S` 一样两头多出半像素），所以它按格铺、
  * 不随符号大小与线粗缩放，邻格的块接得严丝合缝。纵向缺省是贯穿整格的竖带（竖栅与实心格用），
@@ -288,6 +295,7 @@ type Prim =
   | { k: 'b'; x: number; y: number; h: number }
   | { k: 'r'; x: number; y: number; w: number; h: number }
   | { k: 'R'; h: number }
+  | { k: 'u'; h: number }
   | { k: 'd' }
   | { k: 'D' }
   | { k: 'g' }
@@ -306,6 +314,8 @@ const DIAG: Prim = { k: 's', x1: -0.85, y1: 0.85, x2: 0.85, y2: -0.85 };
 const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
+/** 断斜线的半长（跨格单位）：比半格短一截，邻格之间就留下断口 */
+const DASH_SPAN = 0.78;
 /** 象限块的半边（半格为 1）：正好半个象限再多一丝，格内与邻格的块之间都叠上一点，接缝上不留半墨的发丝线 */
 const QUAD = 0.56;
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
@@ -559,6 +569,10 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
     { k: 'o', x: -0.4, y: 0, r: 0.62 },
     { k: 'o', x: 0.4, y: 0, r: 0.62 },
   ],
+  // 断斜线：跨格斜线两头各收 22%，邻格之间留下一道断口——成片时是一串朝同一个方向的短斜线，不会糊成整条长线
+  slashdash: [{ k: 'S', x1: -DASH_SPAN, y1: DASH_SPAN, x2: DASH_SPAN, y2: -DASH_SPAN }],
+  // 圆角方：实心方磨圆四角，和它一样留 BOX 的缝；铺满时四个圆角在格点上凑出一小块纸色星芒
+  roundsquare: [{ k: 'u', h: BOX }],
   // 位图：小叉比「叉号」再小一圈，亮处一格一颗、彼此不粘连
   xdot: [seg(-0.45, 0.45, 0.45, -0.45), seg(-0.45, -0.45, 0.45, 0.45)],
   // 有序抖动的密度阶：象限块用跨格实心块，按格铺、不随符号大小缩放，半边比半格的一半多一点点，
@@ -685,6 +699,9 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
+      case 'u':
+        dd = shapeDistance('roundsquare', x, y, p.h * r, 0);
+        break;
       case 'd':
         dd = shapeDistance('diamond', x, y, r, 0);
         break;
@@ -799,6 +816,11 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'R': {
         const h = frameHalf(p.h * r, hw);
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);
+        break;
+      }
+      case 'u': {
+        const h = p.h * r;
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}"${fill}/>`);
         break;
       }
       case 'd':

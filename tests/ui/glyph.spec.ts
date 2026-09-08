@@ -212,7 +212,7 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });
 
-test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher / Riso Signal / Aperture Grille / Ultramarine Bitmap）用上新符号，选择器里能挑到它们', async ({ page }) => {
+test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher / Riso Signal / Aperture Grille / Ink Atlas）用上新符号，选择器里能挑到它们', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -242,7 +242,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(103);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -337,7 +337,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 新符号在选择器里各自的组：叠圈在「点」、短竖纹在「线」
   await rows.nth(6).locator('.glyph-level__shape').click();
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(103);
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="ringpair"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="comb"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
@@ -391,7 +391,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 位图密度阶在选择器里也挑得到：小叉在「线」，角块 / 缺角块在「几何」
   await rows.nth(6).locator('.glyph-level__shape').click();
   const bitmapPicker = page.getByTestId('glyph-picker');
-  await expect(bitmapPicker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(bitmapPicker.locator('[data-glyph]')).toHaveCount(103);
   await expect(bitmapPicker.locator('[data-glyph="trio"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(bitmapPicker.getByRole('group', { name: '线' }).locator('[data-glyph="xdot"]')).toHaveCount(1);
   await expect(bitmapPicker.getByRole('group', { name: '几何' }).locator('[data-glyph="quarter"]')).toHaveCount(1);
@@ -446,7 +446,7 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
   await rows.nth(2).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(103);
   for (const id of ['slabthin', 'slab', 'slabwide']) {
     await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -456,6 +456,37 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   await picker.locator('[data-glyph="slabwide"]').click();
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slabwide');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Desync · 已微调');
+
+  // Ink Atlas：7 阶 空 → 小点 → 断斜线 → 十字 → 三角 → 圆点 → 圆角方，两个新符号都在，暖白纸配墨蓝、单色
+  await page.locator('[data-preset="glyph-atlas"]').click();
+  await expect(page.locator('[data-preset="glyph-atlas"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ink Atlas');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashdash');
+  await expect(rows.nth(2).locator('.glyph-level__label')).toHaveText('断斜线');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'plus');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'roundsquare');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('圆角方');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('统一色');
+  await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#16202D');
+  await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#FAF7F1');
+  // 符号大小 122% 让圆角方抵过格子边，亮部缩小拉满把小点压到几像素
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('122');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('90');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 两个新符号在选择器里各自归了组：断斜线在「线」、圆角方在「几何」
+  await rows.nth(6).locator('.glyph-level__shape').click();
+  const atlasPicker = page.getByTestId('glyph-picker');
+  await expect(atlasPicker.locator('[data-glyph]')).toHaveCount(103);
+  await expect(atlasPicker.getByRole('group', { name: '线' }).locator('[data-glyph="slashdash"]')).toHaveCount(1);
+  await expect(atlasPicker.getByRole('group', { name: '几何' }).locator('[data-glyph="roundsquare"]')).toHaveCount(1);
+  await expect(atlasPicker.locator('[data-glyph="roundsquare"]')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(atlasPicker).toHaveCount(0);
 });
 
 test('符号：Shape System 预设——小方点、圆点、三角、杉树、小屋、横板到实心方，奶白纸不反相，末尾一层胶片颗粒', async ({ page }) => {
@@ -494,7 +525,7 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
   // 新符号在选择器里各归各组：小方点 / 杉树 / 小屋在「几何」，竖板在「线」
   await rows.nth(4).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(103);
   for (const id of ['tinysquare', 'fir', 'hut']) {
     await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -538,7 +569,7 @@ test('符号：Pixel Blocks 预设是米纸上的橙蓝双色方块，用上新�
   // 新符号密竖纹在选择器的「线」一组里
   await rows.nth(6).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(103);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="bars"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(picker).toHaveCount(0);
