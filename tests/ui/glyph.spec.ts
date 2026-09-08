@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(66);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -292,4 +292,38 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Raster Spectrum：7 阶 空 → 虚竖线 → 竖线 → 双竖纹 → 竖纹 → 密竖纹 → 竖带，分级配色藏蓝到淡黄，近黑纸
+  await page.locator('[data-preset="glyph-raster"]').click();
+  await expect(page.locator('[data-preset="glyph-raster"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Raster Spectrum');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bardash');
+  await expect(rows.nth(1).locator('.glyph-level__label')).toHaveText('虚竖线');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bar');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripe2');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripes');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripe4');
+  await expect(rows.nth(5).locator('.glyph-level__label')).toHaveText('密竖纹');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'band');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('竖带');
+  await expect(swatches).toHaveCount(8);
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #F2EC9A');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #05080D');
+  // 扁格子：竖线细、横向分层粗
+  await expect(page.locator('[data-param="tile.pitchX"] input[type="range"]')).toHaveValue('9');
+  await expect(page.locator('[data-param="tile.pitchY"] input[type="range"]')).toHaveValue('6');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 新符号在选择器里各归各组：虚竖线 / 双竖纹 / 密竖纹在「线」，竖带在「几何」
+  await rows.nth(6).locator('.glyph-level__shape').click();
+  const picker2 = page.getByTestId('glyph-picker');
+  await expect(picker2.locator('[data-glyph]')).toHaveCount(66);
+  await expect(picker2.locator('[data-glyph="band"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(picker2.getByRole('group', { name: '线' }).locator('[data-glyph="bardash"]')).toHaveCount(1);
+  await expect(picker2.getByRole('group', { name: '线' }).locator('[data-glyph="stripe2"]')).toHaveCount(1);
+  await expect(picker2.getByRole('group', { name: '线' }).locator('[data-glyph="stripe4"]')).toHaveCount(1);
+  await expect(picker2.getByRole('group', { name: '几何' }).locator('[data-glyph="band"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(picker2).toHaveCount(0);
 });

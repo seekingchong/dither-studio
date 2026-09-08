@@ -942,6 +942,36 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：黑底上竖排光栅的海报——整幅画由疏到密的竖线拼成，暗处几乎全黑，往亮处依次是零星的虚竖线、
+  // 一格一条的竖线、双竖纹、竖纹、密竖纹，最亮一阶换成实心竖带（上下与邻格接成整条、左右留一条缝，
+  // 成片之后就是「一片实色里透着细竖线」，正是参考图里那种大色域）。颜色按阶从藏蓝、亮蓝、草绿、青
+  // 一路走到米白，最亮的实心竖带留给淡黄，成片之后就是参考图左边那种发光的淡黄大色域；
+  // 9×6 的扁格子让竖线细、横向分层粗；深底亮符号所以反相，再加一层轻胶片颗粒压住大片纯黑
+  {
+    id: 'glyph-raster',
+    name: 'Raster Spectrum',
+    hint: '黑底竖光栅：虚竖线、竖线、双竖纹、竖纹、密竖纹到实心竖带，藏蓝、绿、青到米白与淡黄',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'bardash', 'bar', 'stripe2', 'stripes', 'stripe4', 'band']),
+      'glyph.size': 125,
+      'glyph.taper': 0,
+      'glyph.stroke': 20,
+      'glyph.mix': 38,
+      'glyph.accent': 0,
+      'tile.pitchX': 9,
+      'tile.pitchY': 6,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#123A7A', '#1B4FB8', '#2C86EE', '#43B15C', '#63DEFF', '#FAF7EA', '#F2EC9A']),
+      'glyph.paper': '#05080D',
+      'tone.invert': true,
+      'tone.contrast': 30,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 14, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

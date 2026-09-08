@@ -6,7 +6,8 @@ import { ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
  * 格子里画的不是同一种形状的放大缩小，而是按明暗从一串符号里挑一个——亮处是小点、中间调是斜线、暗处是十字与网格，
  * 像手绘的图例或打字机敲出来的字符画。
  * 每个符号由几条基本图元拼成（实心圆、圆圈、线段、三角、方、圆角框、菱、六边、多边形），图元只有两种尺寸参照：
- * `r` 是这一格的符号半径（随灰阶变化），"跨格"线段则以半格为单位、两头各多出半像素，让相邻格子的线连成一条。
+ * `r` 是这一格的符号半径（随灰阶变化），"跨格"线段则以半格为单位——位置正好按格宽 / 格高等分，
+ * 两头再沿线段方向各多出 `extra`（默认半像素）盖住格间接缝，让相邻格子的线连成一条。
  * 所有图元都给出有符号距离，渲染与融合沿用网点那一套；SVG 导出用同一张表出 <circle> / <line> / <polygon>。
  */
 
@@ -42,6 +43,9 @@ export type GlyphId =
   | 'xmark'
   | 'zigzag'
   | 'stripes'
+  | 'bardash'
+  | 'stripe2'
+  | 'stripe4'
   // 几何
   | 'tri'
   | 'triline'
@@ -60,6 +64,7 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'band'
   // 字符
   | 'one'
   | 'four'
@@ -155,6 +160,11 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 竖光栅（参考图三：黑底上疏密不同的竖条纹拼出整幅画）
+  { id: 'bardash', label: '虚竖线', group: 'lines', desc: '半格长的竖线段，上下邻格之间断开，接成一条虚线' },
+  { id: 'stripe2', label: '双竖纹', group: 'lines', desc: '两道贯穿格子的细竖线，间距半格，邻格接成等距条纹' },
+  { id: 'stripe4', label: '密竖纹', group: 'lines', desc: '四道贯穿格子的细竖线，间距四分之一格，邻格接成最密的条纹' },
+  { id: 'band', label: '竖带', group: 'geometry', desc: '上下贯穿格子的实心竖带，宽随符号大小，邻格接成一整条' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -180,9 +190,10 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
 
 /**
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
- * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
+ * `S` 是跨格线段，以半格为 1（位置正好按格宽 / 格高等分），两头再沿线段方向各多出 `extra` 盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
+ * `V` 是跨格实心竖带：横向的半宽按 r 算（随符号大小），纵向铺满整格再多出 `extra`，上下邻格接成一整条。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -196,6 +207,7 @@ type Prim =
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
   | { k: 'R'; h: number }
+  | { k: 'V'; h: number }
   | { k: 'd' }
   | { k: 'D' }
   | { k: 'g' }
@@ -319,12 +331,27 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
     { k: 'S', x1: 1, y1: -1, x2: -1, y2: 0 },
     { k: 'S', x1: -1, y1: 0, x2: 1, y2: 1 },
   ],
-  // 竖纹：三道等距的贯穿竖线，间距是格宽的三分之二，邻格接上后整片等距
+  // 竖纹：三道等距的贯穿竖线，间距是格宽的三分之一，邻格接上后整片等距
   stripes: [
     { k: 'S', x1: -2 / 3, y1: -1, x2: -2 / 3, y2: 1 },
     BAR,
     { k: 'S', x1: 2 / 3, y1: -1, x2: 2 / 3, y2: 1 },
   ],
+  // 虚竖线：只画半格高、居中，上下邻格各留半格空，接成一条虚线；长度不随符号大小变，扁格子上也是稳定的半格
+  bardash: [{ k: 'S', x1: 0, y1: -0.5, x2: 0, y2: 0.5 }],
+  // 双竖纹 / 密竖纹：与「竖纹」同一家，只是一格里两道 / 四道，间距分别是半格与四分之一格，邻格接上后整片等距
+  stripe2: [
+    { k: 'S', x1: -0.5, y1: -1, x2: -0.5, y2: 1 },
+    { k: 'S', x1: 0.5, y1: -1, x2: 0.5, y2: 1 },
+  ],
+  stripe4: [
+    { k: 'S', x1: -0.75, y1: -1, x2: -0.75, y2: 1 },
+    { k: 'S', x1: -0.25, y1: -1, x2: -0.25, y2: 1 },
+    { k: 'S', x1: 0.25, y1: -1, x2: 0.25, y2: 1 },
+    { k: 'S', x1: 0.75, y1: -1, x2: 0.75, y2: 1 },
+  ],
+  // 竖带：上下铺满整格（邻格接成一整条），左右各留一条缝，缝宽随符号大小
+  band: [{ k: 'V', h: BOX }],
   // 棋盘格：左上与右下两个象限实心，100% 大小时正好与邻格拼成棋盘
   checker: [
     { k: 'b', x: -0.5, y: -0.5, h: 0.5 },
@@ -398,15 +425,27 @@ function polygonDistance(px: number, py: number, pts: ReadonlyArray<readonly [nu
 const ringRadius = (r: number, hw: number) => Math.max(r - hw, 0.25);
 /** 方框 / 菱框 / 三角框的中线尺寸：往里缩一个半粗，外缘正好落在实心版的边上，描边版总比实心版墨少 */
 const frameHalf = (h: number, hw: number) => Math.max(h - hw, 0.25);
+/** 跨格线段的两个端点：位置按半格算（整片等距），两头再沿线段方向各多出 extra 盖住格间接缝 */
+function crossCellSegment(p: { x1: number; y1: number; x2: number; y2: number }, halfX: number, halfY: number, extra: number): [number, number, number, number] {
+  const ax = p.x1 * halfX;
+  const ay = p.y1 * halfY;
+  const bx = p.x2 * halfX;
+  const by = p.y2 * halfY;
+  const len = Math.hypot(bx - ax, by - ay);
+  if (len === 0) return [ax, ay, bx, by];
+  const ex = ((bx - ax) / len) * extra;
+  const ey = ((by - ay) / len) * extra;
+  return [ax - ex, ay - ey, bx + ex, by + ey];
+}
 const SQRT3 = 1.7320508075688772;
 /** 六边框往里缩多少才让外缘落在外接圆半径 r 上：边到中心的距离是 r·√3/2，缩 hw 相当于外接圆半径缩 hw·2/√3 */
 const HEX_INSET = 2 / SQRT3;
 
 /**
  * 符号距离场。(x, y) 是相对格子中心、沿网格坐标轴的画布像素；r 是这一格的符号半径；
- * hw 是线的半粗；spanX / spanY 是跨格线段的半长（半格 + 半像素）。「空」返回 +∞。
+ * hw 是线的半粗；halfX / halfY 是格子的半宽半高（跨格图元按它定位）；extra 是盖住格间接缝的余量。「空」返回 +∞。
  */
-export function glyphDistance(code: number, x: number, y: number, r: number, hw: number, spanX: number, spanY: number): number {
+export function glyphDistance(code: number, x: number, y: number, r: number, hw: number, halfX: number, halfY: number, extra = 0.5): number {
   const prims = PRIMS_BY_CODE[code];
   let d = Infinity;
   for (let n = 0; n < prims.length; n++) {
@@ -428,9 +467,11 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 's':
         dd = segmentDistance(x, y, p.x1 * r, p.y1 * r, p.x2 * r, p.y2 * r) - hw;
         break;
-      case 'S':
-        dd = segmentDistance(x, y, p.x1 * spanX, p.y1 * spanY, p.x2 * spanX, p.y2 * spanY) - hw;
+      case 'S': {
+        const [ax, ay, bx, by] = crossCellSegment(p, halfX, halfY, extra);
+        dd = segmentDistance(x, y, ax, ay, bx, by) - hw;
         break;
+      }
       case 't':
         dd = shapeDistance('triangle', x, y, r, 0);
         break;
@@ -451,6 +492,9 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
         break;
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
+        break;
+      case 'V':
+        dd = Math.max(Math.abs(x) - p.h * r, Math.abs(y) - (halfY + extra));
         break;
       case 'd':
         dd = shapeDistance('diamond', x, y, r, 0);
@@ -502,7 +546,7 @@ function hexagonPoints(cx: number, cy: number, r: number): string {
  * 符号的 SVG 图元：填充图形直接继承所在 <g> 的 fill；描边图形带 `fill="none"` 加 stroke，
  * 线粗与圆头写在 <g> 上。`fill` / `stroke` 是要附在元素上的属性串（原图色 / 分级配色时每颗点各自带色），可为空。
  */
-export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: number, spanX: number, spanY: number, fill: string, stroke: string): string[] {
+export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: number, halfX: number, halfY: number, fill: string, stroke: string, extra = 0.5): string[] {
   const out: string[] = [];
   for (const p of PRIMS_BY_CODE[code]) {
     switch (p.k) {
@@ -515,9 +559,11 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 's':
         out.push(`<line x1="${f(cx + p.x1 * r)}" y1="${f(cy + p.y1 * r)}" x2="${f(cx + p.x2 * r)}" y2="${f(cy + p.y2 * r)}"${stroke}/>`);
         break;
-      case 'S':
-        out.push(`<line x1="${f(cx + p.x1 * spanX)}" y1="${f(cy + p.y1 * spanY)}" x2="${f(cx + p.x2 * spanX)}" y2="${f(cy + p.y2 * spanY)}"${stroke}/>`);
+      case 'S': {
+        const [ax, ay, bx, by] = crossCellSegment(p, halfX, halfY, extra);
+        out.push(`<line x1="${f(cx + ax)}" y1="${f(cy + ay)}" x2="${f(cx + bx)}" y2="${f(cy + by)}"${stroke}/>`);
         break;
+      }
       case 't':
         out.push(`<polygon points="${trianglePoints(cx, cy, r, false)}"${fill}/>`);
         break;
@@ -545,6 +591,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'R': {
         const h = frameHalf(p.h * r, hw);
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);
+        break;
+      }
+      case 'V': {
+        const h = p.h * r;
+        const v = halfY + extra;
+        out.push(`<rect x="${f(cx - h)}" y="${f(cy - v)}" width="${f(2 * h)}" height="${f(2 * v)}"${fill}/>`);
         break;
       }
       case 'd':
@@ -584,7 +636,7 @@ export function glyphCoverage(code: number): number {
     coverageTable = new Float32Array(GLYPH_IDS.length);
     const r = (COVERAGE_PITCH / 2) * COVERAGE_SIZE;
     const hw = Math.max((COVERAGE_STROKE * COVERAGE_PITCH) / 2, 0.35);
-    const span = COVERAGE_PITCH / 2 + 0.5;
+    const half = COVERAGE_PITCH / 2;
     const n = COVERAGE_GRID;
     for (let c = 0; c < GLYPH_IDS.length; c++) {
       let inside = 0;
@@ -592,7 +644,7 @@ export function glyphCoverage(code: number): number {
         const y = ((j + 0.5) / n - 0.5) * COVERAGE_PITCH;
         for (let i = 0; i < n; i++) {
           const x = ((i + 0.5) / n - 0.5) * COVERAGE_PITCH;
-          if (glyphDistance(c, x, y, r, hw, span, span) < 0) inside++;
+          if (glyphDistance(c, x, y, r, hw, half, half) < 0) inside++;
         }
       }
       coverageTable[c] = inside / (n * n);

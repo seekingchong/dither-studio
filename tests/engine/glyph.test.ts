@@ -148,7 +148,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(62);
+    expect(GLYPH_IDS.length).toBe(66);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -304,6 +304,118 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(rightInk).toBeGreaterThan(leftInk * 3);
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
+  });
+});
+
+describe('新增符号：竖光栅', () => {
+  const NEW: GlyphId[] = ['bardash', 'stripe2', 'stripe4', 'band'];
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('4 种都在符号库里、排在老的 62 个后面；墨量按一格里几道竖线排成阶梯：虚竖线 < 竖线 < 双竖纹 < 竖纹 < 密竖纹 < 竖带', () => {
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    expect(GLYPH_IDS.length).toBe(66);
+    expect(c('bardash')).toBeLessThan(c('bar'));
+    expect(c('bar')).toBeLessThan(c('stripe2'));
+    expect(c('stripe2')).toBeLessThan(c('stripes'));
+    expect(c('stripes')).toBeLessThan(c('stripe4'));
+    expect(c('stripe4')).toBeLessThan(c('band'));
+  });
+
+  it('渲染：虚竖线上下断开，双竖纹 / 密竖纹左右等距且上下与邻格接上，竖带上下接成整条、左右留缝', () => {
+    // 12×24、12px 方格：格心在 y = 0 / 12 / 24，格间接缝在 y = 6 / 18
+    // 虚竖线：格心有墨，接缝处是纸
+    const dash = renderHalftone(buildGlyphScreen(flatSource(12, 24, 0.5), custom(['bardash', 'bardash'])));
+    expect(px(dash, 6, 12)).toEqual([0, 0, 0]);
+    expect(px(dash, 6, 6)).toEqual([255, 255, 255]);
+    expect(px(dash, 6, 18)).toEqual([255, 255, 255]);
+
+    // 双竖纹：一格里两道，落在格宽的四分之一与四分之三处，整片等距（间距正好半格）；上下贯穿，接缝处也有墨
+    // 12px 方格：格心在 x = 0 / 12 / 24，两道竖线落在 ±3，整片就是 3 / 9 / 15 / 21，间距一律 6
+    const two = renderHalftone(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['stripe2', 'stripe2'], { stroke: 0.25 })));
+    for (const x of [2, 3, 8, 9, 14, 15, 20, 21]) expect(px(two, x, 12), `x=${x}`).toEqual([0, 0, 0]);
+    for (const x of [0, 5, 6, 11, 12, 17, 18, 23]) expect(px(two, x, 12), `x=${x}`).toEqual([255, 255, 255]);
+    expect(px(two, 3, 6)).toEqual([0, 0, 0]);
+
+    // 密竖纹：一格里四道，间距正好是格宽的四分之一，跨格之后也一样
+    // 16px 方格：格心在 x = 8，四道落在 2 / 6 / 10 / 14，间距一律 4
+    const four = renderHalftone(buildGlyphScreen(flatSource(16, 16, 0.5), custom(['stripe4', 'stripe4'], { pitchX: 16, pitchY: 16, stroke: 0.125 })));
+    for (const x of [1, 2, 5, 6, 9, 10, 13, 14]) expect(px(four, x, 8), `x=${x}`).toEqual([0, 0, 0]);
+    for (const x of [0, 4, 8, 12]) expect(px(four, x, 8), `x=${x}`).toEqual([255, 255, 255]);
+
+    // 竖带：上下铺满（接缝处有墨），左右各留一条缝；宽度随符号大小
+    const band = renderHalftone(buildGlyphScreen(flatSource(12, 24, 0.5), custom(['band', 'band'])));
+    expect(px(band, 6, 6)).toEqual([0, 0, 0]);
+    expect(px(band, 6, 18)).toEqual([0, 0, 0]);
+    expect(px(band, 0, 12)).toEqual([255, 255, 255]);
+    expect(px(band, 11, 12)).toEqual([255, 255, 255]);
+    const wide = renderHalftone(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['band', 'band'], { size: 1.4 })));
+    expect(px(wide, 0, 6)).toEqual([0, 0, 0]);
+  });
+
+  it('SVG：竖带出一个铺满格高的实心 <rect>，双竖纹 / 密竖纹出 2 / 4 条 <line>', () => {
+    const band = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['band', 'band'])));
+    // 铺底一个 + 每格一个竖带
+    const rects = band.match(/<rect [^>]*\/>/g) ?? [];
+    expect(rects.length).toBe(2);
+    // 半格 6 再多出 0.25 盖住接缝，上下加起来 12.5 > 一格 12，邻格接成整条
+    expect(rects[1]).toMatch(/height="12.5"/);
+    const two = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['stripe2', 'stripe2'])));
+    expect((two.match(/<line /g) ?? []).length).toBe(2);
+    const four = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['stripe4', 'stripe4'])));
+    expect((four.match(/<line /g) ?? []).length).toBe(4);
+    const dash = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['bardash', 'bardash'])));
+    // 坐标相对格心：半格 6 的一半是 3，两头各多出 0.25
+    expect(dash).toMatch(/<line x1="0" y1="-3.25" x2="0" y2="3.25"/);
+  });
+
+  it('Raster Spectrum 预设：7 阶竖线由疏到密到实心竖带，扁格子、黑底反相，渲染出竖条纹与淡黄大色域', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-raster')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(7);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'bardash', 'bar', 'stripe2', 'stripes', 'stripe4', 'band']);
+    // 扁格子：竖线细、横向分层粗
+    expect(Number(p['tile.pitchX'])).toBeGreaterThan(Number(p['tile.pitchY']));
+    expect(p['glyph.colorMode']).toBe('levels');
+    expect(p[glyphColorId(7)]).toBe('#F2EC9A');
+    expect(p['glyph.paper']).toBe('#05080D');
+    expect(p['tone.invert']).toBe(true);
+    // 最亮一阶的竖带要占到格宽七成以上，又留得下一条缝
+    const bandWidth = 2 * 0.85 * (Number(p['glyph.size']) / 100) * (Math.min(Number(p['tile.pitchX']), Number(p['tile.pitchY'])) / 2);
+    expect(bandWidth / Number(p['tile.pitchX'])).toBeGreaterThan(0.7);
+    expect(bandWidth).toBeLessThan(Number(p['tile.pitchX']));
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端
+    const out = renderImage(makeFrame(180, 60, (x) => [Math.round((x / 179) * 255), Math.round((x / 179) * 255), Math.round((x / 179) * 255)]), { ...p, 'canvas.width': 180, 'canvas.height': 60 });
+    expect(out.width).toBe(180);
+    const lum = (x: number, y: number) => {
+      const [r, g, b] = px(out, x, y);
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    };
+    let darkInk = 0;
+    let brightInk = 0;
+    let yellow = 0;
+    for (let y = 0; y < 60; y++) {
+      for (let x = 0; x < 180; x++) {
+        const [r, g, b] = px(out, x, y);
+        if (lum(x, y) > 60) {
+          if (x < 30) darkInk++;
+          if (x >= 150) brightInk++;
+          if (r > 180 && b < 200) yellow++;
+        }
+      }
+    }
+    // 深底反相：左（黑）边几乎空着，右（白）边成片是墨，而且最亮的一片是淡黄
+    expect(brightInk).toBeGreaterThan(darkInk * 5);
+    expect(yellow).toBeGreaterThan(300);
+    // 最亮那头是竖条纹：一行里既有墨柱也有纸缝，缝按格宽（9px）复现
+    const row = 30;
+    let gaps = 0;
+    for (let x = 152; x < 179; x++) if (lum(x, row) < 60 && lum(x + 1, row) > 60) gaps++;
+    expect(gaps).toBeGreaterThanOrEqual(2);
   });
 });
 
