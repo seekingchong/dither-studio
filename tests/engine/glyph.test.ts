@@ -32,7 +32,7 @@ import {
   type HalftoneGeometry,
   type HalftoneSource,
 } from '@/engine';
-import { defaultParams, glyphShapeId, type Params } from '@/params';
+import { defaultParams, glyphColorId, glyphShapeId, type Params } from '@/params';
 import { builtinPresetParams, findBuiltinPreset } from '@/state';
 import { makeFrame } from './helpers';
 
@@ -262,6 +262,48 @@ describe('新增符号：荧光电路与棋盘', () => {
       }
       expect(rightInk).toBeGreaterThan(leftInk);
     }
+  });
+
+  it('PETSCII Glitch 预设：8 阶自定义序列从小点、字母到棋盘格与密网，青绿两色逐阶交替，黑底反相，亮部同时出现两种颜色', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-petscii')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'colon', 'tee', 'aitch', 'em', 'checker', 'hashx']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    // 从第 4 阶起青、绿逐阶交替
+    expect([4, 5, 6, 7, 8].map((k) => p[glyphColorId(k)])).toEqual(['#4DEBFF', '#C6FF4A', '#4DEBFF', '#C6FF4A', '#4DEBFF']);
+    expect(p['glyph.paper']).toBe('#070A0C');
+    // 棋盘格与密网要在邻格之间接上
+    expect(p['glyph.size']).toBe(100);
+    expect(p['glyph.taper']).toBe(0);
+    expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(60);
+    expect(p['tone.invert']).toBe(true);
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端
+    const out = renderImage(makeFrame(176, 66, (x) => [Math.round((x / 175) * 255), Math.round((x / 175) * 255), Math.round((x / 175) * 255)]), { ...p, 'canvas.width': 176, 'canvas.height': 66 });
+    expect(out.width).toBe(176);
+    const paper = px(out, 0, 0);
+    let leftInk = 0;
+    let rightInk = 0;
+    let cyan = 0;
+    let lime = 0;
+    for (let y = 0; y < 66; y++) {
+      for (let x = 0; x < 176; x++) {
+        const [r, g, b] = px(out, x, y);
+        const same = Math.abs(r - paper[0]) < 8 && Math.abs(g - paper[1]) < 8 && Math.abs(b - paper[2]) < 8;
+        if (x < 44 && !same) leftInk++;
+        if (x >= 132 && !same) rightInk++;
+        if (x >= 88) {
+          if (b > 150 && r < 120) cyan++;
+          if (g > 150 && b < 120) lime++;
+        }
+      }
+    }
+    // 深底：左（黑）边只有零星小点，右（白）边墨多得多，而且两种颜色都在
+    expect(rightInk).toBeGreaterThan(leftInk * 3);
+    expect(cyan).toBeGreaterThan(50);
+    expect(lime).toBeGreaterThan(50);
   });
 
   it('Acid Cipher 预设：柠檬绿底墨色 8 阶自定义序列，全从符号库取、墨量单调递增，浅底深符号不反相', () => {

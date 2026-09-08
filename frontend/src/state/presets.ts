@@ -914,7 +914,35 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图五：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
+  // 参考图五：黑底上青与荧光绿两色的字符画，像 C64 的 PETSCII——暗处零星的小点与冒号，中间调 T / H / M 字母，
+  // 亮处拼成棋盘格与密网。分级配色让两种颜色逐阶交替，交界混合开到 80%，同一片区域里两色符号就掺在一起，
+  // 像参考图那样青绿交错但不乱；最亮两阶之外只有一种颜色，大块亮部读起来是整的。
+  // 100% 大小让棋盘格与密网在邻格之间接上；亮部不缩小，字母格子一样大；深底亮符号所以反相
+  {
+    id: 'glyph-petscii',
+    name: 'PETSCII Glitch',
+    hint: '黑底青绿两色：小点、冒号、T H M 到棋盘格与密网，C64 字符画',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'colon', 'tee', 'aitch', 'em', 'checker', 'hashx']),
+      'glyph.size': 100,
+      'glyph.taper': 0,
+      'glyph.stroke': 16,
+      'glyph.mix': 80,
+      'glyph.accent': 0,
+      'tile.pitchX': 11,
+      'tile.pitchY': 11,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#24B7C4', '#24B7C4', '#A3DD3F', '#4DEBFF', '#C6FF4A', '#4DEBFF', '#C6FF4A', '#4DEBFF']),
+      'glyph.paper': '#070A0C',
+      'tone.invert': true,
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
   // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
   // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
   {
