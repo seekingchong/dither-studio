@@ -57,6 +57,7 @@ export type GlyphId =
   | 'grillemid'
   | 'grillebold'
   | 'grillefull'
+  | 'bars'
   // 几何
   | 'tri'
   | 'triline'
@@ -232,6 +233,8 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'semicolon', label: '分号', group: 'chars', desc: '一个点加一小撇' },
   { id: 'underscore', label: '下划线', group: 'chars', desc: '贴着格子底边的横线，与左右邻格连成一条' },
   { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
+  // 丝网像素海报（米纸上橙蓝双色的几何构成）——比竖纹与竖栅都密一倍的竖线
+  { id: 'bars', label: '密竖纹', group: 'lines', desc: '五道贯穿格子的细竖线，栅距是竖纹与竖栅的一半，邻格接成一片更密的条纹' },
   // 图谱（参考图：暖白纸上墨蓝的符号图谱）——斜线要断得开、暗处的方块要磨圆，都不是现成符号能顶的
   { id: 'slashdash', label: '断斜线', group: 'lines', desc: '跨格的斜线两头各收一截，邻格排成一串留着断口的斜线，不糊成整条' },
   { id: 'roundsquare', label: '圆角方', group: 'geometry', desc: '实心的圆角方块；铺满时格点上留出小小的纸色星芒' },
@@ -504,6 +507,14 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   tinysquare: [{ k: 'q', h: 0.38 }],
   // 竖板：横板转 90°，半高取满一个符号半径，上下邻格接得上
   pillar: [{ k: 'r', x: 0, y: 0, w: 0.4, h: 1 }],
+  // 密竖纹：五道等距的贯穿竖线，栅距是格宽的五分之一，邻格接上后整片等距
+  bars: [
+    { k: 'S', x1: -0.8, y1: -1, x2: -0.8, y2: 1 },
+    { k: 'S', x1: -0.4, y1: -1, x2: -0.4, y2: 1 },
+    BAR,
+    { k: 'S', x1: 0.4, y1: -1, x2: 0.4, y2: 1 },
+    { k: 'S', x1: 0.8, y1: -1, x2: 0.8, y2: 1 },
+  ],
   // 杉树：上小下大两层三角，下层的顶盖住上层的底边，两片接成一棵树
   fir: [
     {

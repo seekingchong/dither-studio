@@ -209,7 +209,7 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone').length).toBe(13);
     expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('glyph').length).toBe(20);
+    expect(builtinPresetsOf('glyph').length).toBe(21);
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-typewriter');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-circuit');
@@ -219,6 +219,7 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-desync');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-riso');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-grille');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-pixel-blocks');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-system');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-atlas');
     for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
