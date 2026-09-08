@@ -293,3 +293,41 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
+
+test('符号：Riso Blocks 预设是米纸上的橙蓝双色方块，带一层胶片颗粒', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  await page.getByTestId('preset-more').click();
+
+  await page.locator('[data-preset="glyph-riso-blocks"]').click();
+  await expect(page.locator('[data-preset="glyph-riso-blocks"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Riso Blocks');
+
+  // 8 阶 空 → 小点 → 圆点 → 三角 → 实心方 → 棋盘 → 竖纹 → 实心方
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'stripes');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心方');
+
+  // 分级配色：中间调橙、暗处蓝，纸是米色
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(9);
+  await expect(swatches.nth(3)).toHaveAttribute('aria-label', '第 4 阶 #F26A1B');
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #6C79C1');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #4E5CAE');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #EBE7DD');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('60');
+
+  // 特效栈里有一枚胶片颗粒
+  await expect(page.locator('[data-effect="grain"]')).toHaveCount(1);
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+});

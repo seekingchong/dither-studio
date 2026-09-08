@@ -305,6 +305,45 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
   });
+
+  it('Riso Blocks 预设：8 阶自定义序列从小点到实心方，亮处橙、暗处蓝，米纸不反相，带颗粒纸纹', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-riso-blocks')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(8);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'dot', 'tri', 'square', 'checker', 'stripes', 'square']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    // 中间调三阶是橙，最后三阶是蓝
+    expect([3, 4, 5].map((k) => p[glyphColorId(k)])).toEqual(['#F26A1B', '#F26A1B', '#F26A1B']);
+    expect([6, 7].map((k) => p[glyphColorId(k)])).toEqual(['#6C79C1', '#6C79C1']);
+    expect(p[glyphColorId(8)]).toBe('#4E5CAE');
+    expect(p['glyph.paper']).toBe('#EBE7DD');
+    // 实心方要在邻格之间接上；亮部缩小让小点真的小
+    expect(p['glyph.size']).toBe(100);
+    expect(Number(p['glyph.taper'])).toBeGreaterThanOrEqual(50);
+    // 浅底不反相
+    expect(p['tone.invert']).toBe(false);
+    expect(String(p['effects.stack'])).toContain('grain');
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端
+    const out = renderImage(makeFrame(192, 64, (x) => {
+      const v = Math.round((x / 191) * 255);
+      return [v, v, v];
+    }), { ...p, 'canvas.width': 192, 'canvas.height': 64 });
+    expect(out.width).toBe(192);
+    let orange = 0;
+    let blue = 0;
+    for (let y = 0; y < 64; y++) {
+      for (let x = 0; x < 192; x++) {
+        const [r, g, b] = px(out, x, y);
+        // 暗的一半应当是蓝，亮的一半应当是橙
+        if (x < 96 && b > r + 40) blue++;
+        if (x >= 96 && r > 180 && b < 120) orange++;
+      }
+    }
+    expect(blue).toBeGreaterThan(300);
+    expect(orange).toBeGreaterThan(300);
+  });
 });
 
 describe('推荐序列', () => {

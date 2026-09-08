@@ -942,6 +942,35 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：米纸上橙蓝双色的丝网 / riso 海报——几何形状按明暗排成一片像素状的构成。
+  // 亮处零星的黑小点，中间调橙色的圆点、三角、实心方，暗处蓝的棋盘格、竖纹到成片的实心方。
+  // 100% 大小让实心方在邻格之间只留一道纸色缝，暗部读成一整块像素砖；亮部缩小 60% 让小点真的小；
+  // 交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，点缀撒一点圆圈与三角框；胶片颗粒当纸纹
+  {
+    id: 'glyph-riso-blocks',
+    name: 'Riso Blocks',
+    hint: '米纸上橙蓝双色：黑小点、圆点、三角、方块到棋盘格、竖纹与蓝方块',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'dot', 'tri', 'square', 'checker', 'stripes', 'square']),
+      'glyph.size': 100,
+      'glyph.taper': 60,
+      'glyph.stroke': 14,
+      'glyph.mix': 60,
+      'glyph.accent': 5,
+      'tile.pitchX': 16,
+      'tile.pitchY': 16,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#1B1712', '#1B1712', '#F26A1B', '#F26A1B', '#F26A1B', '#6C79C1', '#6C79C1', '#4E5CAE']),
+      'glyph.paper': '#EBE7DD',
+      'tone.brightness': 8,
+      'tone.contrast': 12,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 18, size: 1, color: false, seed: 3 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
