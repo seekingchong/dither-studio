@@ -139,3 +139,47 @@ test('换素材会把编辑清掉', async ({ page }) => {
   await dropQuadrantImage(page);
   await expect(page.getByTestId('source-edit-0')).toHaveAttribute('data-rotate', '0');
 });
+
+test('编辑条在「结果」页也在：旋转、缩放、拖裁剪窗口都直接改成品', async ({ page }) => {
+  await page.goto('/');
+  await dropQuadrantImage(page);
+
+  // 落地就是「结果」页：编辑条在这儿也给，不用先切到「原图」
+  await expect(page.locator('.slot__canvas')).toHaveAttribute('data-tab', 'result');
+  const bar = page.getByTestId('source-edit-0');
+  await expect(bar).toBeVisible();
+  const original = await canvasHash(page);
+
+  // 旋转直接改成品
+  await page.getByTestId('rotate-0').click();
+  await expect(bar).toHaveAttribute('data-rotate', '90');
+  await expect.poll(() => canvasHash(page)).not.toBe(original);
+  const rotated = await canvasHash(page);
+
+  // 等比裁剪缩放：尺寸文字与成品一起变
+  await page.locator('.source-edit__zoom input').fill('2');
+  await expect(bar).toHaveAttribute('data-zoom', '2.00');
+  await expect(page.getByTestId('source-edit-size-0')).toContainText('100 × 100');
+  await expect.poll(() => canvasHash(page)).not.toBe(rotated);
+  const zoomed = await canvasHash(page);
+
+  // 放大后在「结果」页也能直接拖画面挪裁剪窗口
+  const canvas = page.locator('.slot__canvas');
+  await expect(canvas).toHaveAttribute('data-pannable', 'true');
+  const box = (await canvas.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 2, box.y + box.height * 2, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => canvasHash(page)).not.toBe(zoomed);
+
+  // 重置回没编辑过的样子，成品也回到最开始那一帧
+  await page.getByTestId('source-edit-reset-0').click();
+  await expect(bar).toHaveAttribute('data-rotate', '0');
+  await expect(bar).toHaveAttribute('data-zoom', '1.00');
+  await expect.poll(() => canvasHash(page)).toBe(original);
+
+  // 视频的 4 秒裁剪条不跟着过来：那条挑的是时间轴上的一段，仍只在「原图」页
+  await expect(page.getByTestId('trim-0')).toHaveCount(0);
+  await expect(page.locator('.tda-toast--error')).toHaveCount(0);
+});

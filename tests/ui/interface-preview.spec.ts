@@ -248,7 +248,7 @@ test('界面整体等比缩放：任何窗口大小下都完整可见、居中�
 test('双击只认画面那块：素材编辑条与裁剪条上双击不弹预览窗', async ({ page, context }) => {
   await page.goto('/');
   await dropInto(page, GIF_B64, 'anim.gif', 'image/gif');
-  // 编辑条只在「原图」页出现
+  // 编辑条两个页签都在，这儿在「原图」页上验
   await page.getByRole('tab', { name: '原图' }).click();
   const editBar = page.locator('[data-slot="0"] .slot__editor');
   await expect(editBar).toBeVisible();

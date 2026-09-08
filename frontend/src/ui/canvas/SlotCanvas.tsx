@@ -167,10 +167,12 @@ export function SlotCanvas({ slot, media, rendered, tab, width, height, fit, sca
   };
 
   /**
-   * 放大之后在「原图」页直接拖画面挪裁剪窗口。
-   * 屏幕上挪 1px 相当于挪 裁剪宽 / 目标矩形宽 个源像素，再换算成余量里的比例。
+   * 放大之后直接拖画面挪裁剪窗口，两个页签都能拖——编辑条在「结果」页也在，
+   * 拖的是同一个裁剪窗口，成品跟着重渲染。
+   * 屏幕上挪 1px 相当于挪 裁剪宽 / 目标矩形宽 个源像素，再换算成余量里的比例；
+   * 「结果」页的成品是同一份变换后的源帧按同一个 fit 铺进画布的，所以这套换算两边通用。
    */
-  const pannable = tab === 'source' && edit.zoom > 1;
+  const pannable = edit.zoom > 1;
   const onPointerDown = (e: ReactPointerEvent<HTMLCanvasElement>) => {
     if (!pannable || e.button !== 0) return;
     e.preventDefault();
