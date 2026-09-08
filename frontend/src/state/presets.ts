@@ -942,7 +942,32 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图六：淡紫白纸上只有一种群青的位图海报——暗处大片实心块，往亮里依次是密网、棋盘格，
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
+  // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
+  // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
+  {
+    id: 'glyph-cipher',
+    name: 'Acid Cipher',
+    hint: '柠檬绿底墨色 8 阶：小点、短斜线、十字、圆圈、叉号到靶心、圈十、圈叉',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']),
+      'glyph.size': 74,
+      'glyph.taper': 30,
+      'glyph.stroke': 12,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 12,
+      'tile.pitchY': 12,
+      'glyph.ink': '#0E150A',
+      'glyph.paper': '#C9F52C',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
+  // 参考图七：淡紫白纸上只有一种群青的位图海报——暗处大片实心块，往亮里依次是密网、棋盘格，
   // 再往亮是零星的叉、十字、四点与小点，像早期屏幕的有序抖动。
   // 100% 大小让实心块、密网与棋盘格在邻格之间接上，棋盘格才拼得成格纹；交界混合开到 60%，
   // 明暗交界处两阶的符号掺在一起，边界碎成参考图那样的噪点。

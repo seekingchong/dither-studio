@@ -212,7 +212,7 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });
 
-test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
+test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher / Ultramarine Bitmap 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -292,6 +292,23 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Acid Cipher：8 阶 小点 → 短斜线 → 十字 → 圆圈 → 叉号 → 靶心 → 圈十 → 圈叉，统一墨色配柠檬绿纸，不反相
+  await page.locator('[data-preset="glyph-cipher"]').click();
+  await expect(page.locator('[data-preset="glyph-cipher"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashshort');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ring');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xmark');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circleplus');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'circlex');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('圈叉');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('统一色');
+  await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#0E150A');
+  await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#C9F52C');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
 
   // Ultramarine Bitmap：8 阶 空 → 小点 → 四点 → 十字 → 叉号 → 棋盘 → 密网 → 实心方，同族群青分级配色，淡紫白纸
   await page.locator('[data-preset="glyph-ultramarine"]').click();
