@@ -942,6 +942,33 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：瑞士风格的双色方块海报——淡灰纸上一整片方格，暗处方块连成实块，往亮处逐格碎开、越来越小，
+  // 最后散成零星几粒落在纸上。颜色只有绿与蓝两支：分级配色让第 4、6 阶是蓝、第 5 阶回到绿，
+  // 交界混合 85% 再把相邻两阶搅在一起，成片的蓝里就掺进绿方块、绿的一片里也落几粒蓝，像参考图那样两色交错。
+  // 最亮的一阶留白，第 2 阶用棋盘（对角两个小方块）把边缘碎得更细；符号大小 90% 留出格线一样的纸缝
+  {
+    id: 'glyph-swiss',
+    name: 'Swiss Mosaic',
+    hint: '淡灰纸上的绿蓝方块马赛克：暗处连成实块，亮处碎成小方后散开',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'checker', 'square', 'square', 'square', 'square', 'square']),
+      'glyph.size': 90,
+      'glyph.taper': 30,
+      'glyph.stroke': 20,
+      'glyph.mix': 85,
+      'glyph.accent': 0,
+      'tile.pitchX': 20,
+      'tile.pitchY': 20,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#4FD08F', '#35C182', '#00A05B', '#0F5FC4', '#00A05B', '#0F5FC4', '#0B4FA8']),
+      'glyph.paper': '#EFEFEF',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

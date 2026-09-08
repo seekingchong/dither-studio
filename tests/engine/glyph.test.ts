@@ -305,6 +305,50 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
   });
+
+  it('Swiss Mosaic 预设：7 阶方块序列、绿蓝逐阶交错，淡灰纸不反相，暗处方块比亮处大且两色都在', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-swiss')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(7);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'checker', 'square', 'square', 'square', 'square', 'square']);
+    expect(p['glyph.colorMode']).toBe('levels');
+    // 第 5 阶回到绿，成片的蓝里才掺得进绿方块
+    expect([3, 4, 5, 6, 7].map((k) => p[glyphColorId(k)])).toEqual(['#00A05B', '#0F5FC4', '#00A05B', '#0F5FC4', '#0B4FA8']);
+    expect(p['glyph.paper']).toBe('#EFEFEF');
+    // 亮处的方块要比暗处小，才碎得开
+    expect(Number(p['glyph.taper'])).toBeGreaterThan(0);
+    expect(Number(p['glyph.size'])).toBeLessThan(100);
+    expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(60);
+    expect(p['glyph.accent']).toBe(0);
+    expect(p['tone.invert']).toBe(false);
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端；左黑右白
+    const out = renderImage(makeFrame(400, 160, (x) => [Math.round((x / 399) * 255), Math.round((x / 399) * 255), Math.round((x / 399) * 255)]), { ...p, 'canvas.width': 400, 'canvas.height': 160 });
+    expect(out.width).toBe(400);
+    const paper = px(out, 399, 0);
+    let darkInk = 0;
+    let lightInk = 0;
+    let green = 0;
+    let blue = 0;
+    for (let y = 0; y < 160; y++) {
+      for (let x = 0; x < 400; x++) {
+        const [r, g, b] = px(out, x, y);
+        const same = Math.abs(r - paper[0]) < 8 && Math.abs(g - paper[1]) < 8 && Math.abs(b - paper[2]) < 8;
+        if (x < 80 && !same) darkInk++;
+        if (x >= 320 && !same) lightInk++;
+        // 中间调：绿的一阶夹在两阶蓝之间，两色在同一片里掺着出现
+        if (x >= 200 && x < 320) {
+          if (g > 120 && b < 120) green++;
+          if (b > 120 && g < 120) blue++;
+        }
+      }
+    }
+    // 亮底不反相：左（黑）边方块连成实块，右（白）边只剩零星几粒
+    expect(darkInk).toBeGreaterThan(lightInk * 3);
+    expect(green).toBeGreaterThan(200);
+    expect(blue).toBeGreaterThan(200);
+  });
 });
 
 describe('推荐序列', () => {

@@ -292,4 +292,21 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Swiss Mosaic：7 阶 空 → 棋盘 → 方块到底，分级配色绿蓝交错，淡灰纸不反相
+  await page.locator('[data-preset="glyph-swiss"]').click();
+  await expect(page.locator('[data-preset="glyph-swiss"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Swiss Mosaic');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('实心方');
+  await expect(swatches).toHaveCount(8);
+  await expect(swatches.nth(3)).toHaveAttribute('aria-label', '第 4 阶 #0F5FC4');
+  await expect(swatches.nth(4)).toHaveAttribute('aria-label', '第 5 阶 #00A05B');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #EFEFEF');
+  await expect(page.locator('[data-param="tile.cell"] input[type="range"]')).toHaveValue('20');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
