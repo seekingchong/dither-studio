@@ -150,7 +150,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -314,17 +314,23 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(cipher['glyph.ramp']).toBe('custom');
     expect(cipher['glyph.levels']).toBe(8);
     const shapes = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => cipher[glyphShapeId(k)] as GlyphId);
-    expect(shapes).toEqual(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']);
+    expect(shapes).toEqual(['pip', 'ringtiny', 'quad', 'ring', 'ringdot', 'circlex', 'rings3', 'ringthick']);
     expect(rampIsMonotonic(shapes)).toBe(true);
     expect(cipher['glyph.colorMode']).toBe('mono');
     expect(cipher['glyph.ink']).toBe('#0E150A');
     expect(cipher['glyph.paper']).toBe('#C9F52C');
     expect(cipher['tone.invert']).toBe(false);
+    // 参考图整体是亮的，把调子往上推一档才留得住大片纸色
+    expect(Number(cipher['tone.brightness'])).toBeGreaterThan(0);
     expect(cipher['glyph.accent']).toBe(0);
     expect(cipher['tile.pitchX']).toBe(12);
     expect(cipher['tile.pitchY']).toBe(12);
-    // 亮部只缩一点：最亮一阶的小点是最暗一阶的七成大
-    expect(levelSizes(Number(cipher['glyph.size']) / 100, Number(cipher['glyph.taper']) / 100, 8)[0]).toBeCloseTo(0.74 * 0.7, 5);
+    // 最亮一阶的小点缩到最暗一阶的 62%
+    expect(levelSizes(Number(cipher['glyph.size']) / 100, Number(cipher['glyph.taper']) / 100, 8)[0]).toBeCloseTo(0.82 * 0.62, 5);
+    // 八阶的墨量匀速递增，没有哪两阶挤在一起：最暗一阶比最亮一阶多四倍以上的墨
+    const cs = shapes.map((id) => glyphCoverage(GLYPH_CODE[id]));
+    expect(cs[7] / cs[0]).toBeGreaterThan(4);
+    for (let k = 1; k < cs.length; k++) expect(cs[k] - cs[k - 1], `第 ${k + 1} 阶`).toBeGreaterThan(0.02);
     // 浅底：左（黑）边墨多、右（白）边基本只剩纸色与小点
     const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), { ...cipher, 'canvas.width': 72, 'canvas.height': 36 });
     expect(out.width).toBe(72);
@@ -341,6 +347,47 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(leftInk).toBeGreaterThan(rightInk);
     expect(rightInk).toBeGreaterThan(0);
   });
+
+  it('圆环一家的四个新符号：墨量从小圈到粗圈递增，粗环中间留得住孔、外缘落在符号半径上', () => {
+    const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+    // 小圈补在小点与圆圈之间；三环比双圈重，粗圈最重但仍比实心圆点轻
+    expect(c('pip')).toBeLessThan(c('ringtiny'));
+    expect(c('ringtiny')).toBeLessThan(c('ring'));
+    expect(c('rings')).toBeLessThan(c('rings3'));
+    expect(c('rings3')).toBeLessThan(c('ringthick'));
+    expect(c('ringthick')).toBeLessThan(c('dot'));
+    expect(c('circlex')).toBeLessThan(c('ringorb'));
+
+    const r = 10;
+    const hw = 1.2;
+    // 粗圈：外缘正好在 r 上，带里是墨，中间的孔与格子外都是纸
+    expect(glyphDistance(GLYPH_CODE.ringthick, r - 0.3, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.ringthick, r * 0.6, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.ringthick, 0, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.ringthick, r + 0.3, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    // 带宽不跟线粗走：线粗改一倍，粗圈的孔还在原处
+    expect(glyphDistance(GLYPH_CODE.ringthick, 0, 0, r, hw * 2, 6.5, 6.5)).toBeGreaterThan(0);
+    // 环心球：正中是球，往外一圈纸缝，再往外是环
+    expect(glyphDistance(GLYPH_CODE.ringorb, 0, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.ringorb, r * 0.52, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.ringorb, r * 0.9, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    // 三环：三道墨（中线在 r−hw、0.62r−hw、0.26r−hw）之间夹着两道纸
+    expect(glyphDistance(GLYPH_CODE.rings3, r * 0.95, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings3, r * 0.5, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings3, r * 0.14, 0, r, hw, 6.5, 6.5)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings3, r * 0.7, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+    expect(glyphDistance(GLYPH_CODE.rings3, r * 0.32, 0, r, hw, 6.5, 6.5)).toBeGreaterThan(0);
+  });
+
+  it('SVG：粗环出一个自带 stroke-width 的描边 <circle>，盖掉 <g> 上的线粗', () => {
+    const svg = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['ringthick', 'ringthick'])));
+    expect(svg).toMatch(/<circle [^>]*fill="none" stroke-width="[\d.]+"/);
+    // 三环一格三个描边圆，小圈一格一个
+    const rings3 = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['rings3', 'rings3'])));
+    expect((rings3.match(/<circle /g) ?? []).length).toBe(3);
+    const tiny = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['ringtiny', 'ringtiny'])));
+    expect((tiny.match(/<circle /g) ?? []).length).toBe(1);
+  });
 });
 
 describe('新增符号：横板与穿孔块', () => {
@@ -352,7 +399,7 @@ describe('新增符号：横板与穿孔块', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     // 三档横条：比横线粗，越厚墨越多，最厚的也没到实心方
     expect(c('slabthin')).toBeGreaterThan(c('dash'));
     expect(c('slabthin')).toBeLessThan(c('slab'));
@@ -420,7 +467,7 @@ describe('新增符号：竖栅一家', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(69);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(79);
     for (let k = 1; k < WEIGHTS.length; k++) expect(c(WEIGHTS[k]), WEIGHTS[k]).toBeGreaterThan(c(WEIGHTS[k - 1]));
     expect(c('grillehair')).toBeGreaterThan(c('bar'));
     expect(c('grillefull')).toBeLessThan(c('block'));
