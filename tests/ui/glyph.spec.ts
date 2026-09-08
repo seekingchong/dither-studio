@@ -242,7 +242,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(87);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -274,23 +274,24 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 
-  // PETSCII Glitch：8 阶 空 → 小点 → 双点 → T → H → M → 棋盘 → 密网，分级配色青绿逐阶交替，近黑纸
+  // PETSCII Glitch：「终端」序列 8 阶 空 → 逗号 → 双点 → C → K → % → Ø → 实心块，分级配色青绿逐阶交替，近黑纸
   await page.locator('[data-preset="glyph-petscii"]').click();
   await expect(page.locator('[data-preset="glyph-petscii"]')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：PETSCII Glitch');
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('终端');
   await expect(rows).toHaveCount(8);
-  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'colon');
-  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tee');
-  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'em');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
-  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hashx');
-  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('密网');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'comma');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'see');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'kay');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'oslash');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心格');
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
   await expect(swatches).toHaveCount(9);
-  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #C6FF4A');
-  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #4DEBFF');
-  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
-  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #29C8E0');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #C3E82B');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #05070B');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('85');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 
   // Acid Cipher：8 阶 小点 → 短斜线 → 十字 → 圆圈 → 叉号 → 靶心 → 圈十 → 圈叉，统一墨色配柠檬绿纸，不反相
@@ -336,7 +337,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 新符号在选择器里各自的组：叠圈在「点」、短竖纹在「线」
   await rows.nth(6).locator('.glyph-level__shape').click();
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(87);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="ringpair"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="comb"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
@@ -412,7 +413,7 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
   await rows.nth(2).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(87);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   for (const id of ['slabthin', 'slab', 'slabwide']) {
     await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -460,7 +461,7 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
   // 新符号在选择器里各归各组：小方点 / 杉树 / 小屋在「几何」，竖板在「线」
   await rows.nth(4).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(87);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   for (const id of ['tinysquare', 'fir', 'hut']) {
     await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -516,7 +517,7 @@ test('符号：Swiss Mosaic 预设——像素方与像素十字碎开亮部，�
   // 像素块一家都在选择器的「几何」组里
   await rows.nth(1).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(87);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   for (const id of ['pixel', 'pixstair', 'pixcross', 'pixframe']) {
     await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }

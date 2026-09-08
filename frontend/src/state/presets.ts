@@ -916,31 +916,32 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图五：黑底上青与荧光绿两色的字符画，像 C64 的 PETSCII——暗处零星的小点与冒号，中间调 T / H / M 字母，
-  // 亮处拼成棋盘格与密网。分级配色让两种颜色逐阶交替，交界混合开到 80%，同一片区域里两色符号就掺在一起，
-  // 像参考图那样青绿交错但不乱；最亮两阶之外只有一种颜色，大块亮部读起来是整的。
-  // 100% 大小让棋盘格与密网在邻格之间接上；亮部不缩小，字母格子一样大；深底亮符号所以反相
+  // 参考图五：黑底上青与荧光绿两色的字符画，像终端里滚出来的一屏字——暗处零星的逗号与冒号，
+  // 中间调 C K % Ø 一路加密，最亮的一阶整格填实，像屏幕上的反白块。用新的「终端」序列。
+  // 分级配色让青与荧光绿逐阶交替，交界混合开到 85%：同一片明暗里两三种字符、两种颜色掺在一起，
+  // 既有参考图那种密密麻麻的字符感，又不像它那样乱。10×13 的格子是终端的字符比例，一行行读得出来；
+  // 深底亮字所以反相，再叠一层很轻的扫描线，像隔着屏幕拍下来的
   {
     id: 'glyph-petscii',
     name: 'PETSCII Glitch',
-    hint: '黑底青绿两色：小点、冒号、T H M 到棋盘格与密网，C64 字符画',
+    hint: '黑底青绿两色终端字符：逗号、冒号、C K % Ø 到整格实心块',
     params: {
       'style.type': 'glyph',
-      'glyph.ramp': 'custom',
+      'glyph.ramp': 'terminal',
       'glyph.levels': 8,
-      ...glyphShapes(['blank', 'pip', 'colon', 'tee', 'aitch', 'em', 'checker', 'hashx']),
       'glyph.size': 100,
       'glyph.taper': 0,
-      'glyph.stroke': 16,
-      'glyph.mix': 80,
+      'glyph.stroke': 17,
+      'glyph.mix': 85,
       'glyph.accent': 0,
-      'tile.pitchX': 11,
-      'tile.pitchY': 11,
+      'tile.pitchX': 10,
+      'tile.pitchY': 13,
       'glyph.colorMode': 'levels',
-      ...glyphColors(['#24B7C4', '#24B7C4', '#A3DD3F', '#4DEBFF', '#C6FF4A', '#4DEBFF', '#C6FF4A', '#4DEBFF']),
-      'glyph.paper': '#070A0C',
+      ...glyphColors(['#1E7F8C', '#1E7F8C', '#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B']),
+      'glyph.paper': '#05070B',
       'tone.invert': true,
-      'tone.contrast': 20,
+      'tone.contrast': 15,
+      'effects.stack': effects([{ type: 'scanlines', enabled: true, params: { period: 4, darkness: 26, phosphor: 0, curvature: 0 } }]),
     },
     exposes: GL,
   },

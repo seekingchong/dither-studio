@@ -101,7 +101,21 @@ export type GlyphId =
   | 'em'
   | 'aitch'
   | 'ee'
-  | 'wye';
+  | 'wye'
+  | 'ay'
+  | 'see'
+  | 'dee'
+  | 'gee'
+  | 'jay'
+  | 'kay'
+  | 'ar'
+  | 'ess'
+  | 'you'
+  | 'dubya'
+  | 'comma'
+  | 'semicolon'
+  | 'underscore'
+  | 'bracket';
 
 /** 符号的分类，符号选择器按它分组 */
 export type GlyphGroup = 'dots' | 'lines' | 'geometry' | 'chars';
@@ -205,6 +219,21 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'pillar', label: '竖板', group: 'lines', desc: '贯穿格子的竖条，占格宽约四成，上下邻格接成一条粗线' },
   { id: 'fir', label: '杉树', group: 'geometry', desc: '两层三角叠成的杉树，尖朝上，两层之间收一道腰' },
   { id: 'hut', label: '小屋', group: 'geometry', desc: '三角屋顶盖在方身上，屋檐两侧探出，像一间小房子' },
+  // 终端字符画（参考图：黑底上青绿两色的一屏字）：补一批等宽字母与标点，凑齐屏幕上敲得出来的字符
+  { id: 'ay', label: 'A', group: 'chars', desc: '字母 A' },
+  { id: 'see', label: 'C', group: 'chars', desc: '字母 C' },
+  { id: 'dee', label: 'D', group: 'chars', desc: '字母 D' },
+  { id: 'gee', label: 'G', group: 'chars', desc: '字母 G' },
+  { id: 'jay', label: 'J', group: 'chars', desc: '字母 J' },
+  { id: 'kay', label: 'K', group: 'chars', desc: '字母 K' },
+  { id: 'ar', label: 'R', group: 'chars', desc: '字母 R' },
+  { id: 'ess', label: 'S', group: 'chars', desc: '字母 S' },
+  { id: 'you', label: 'U', group: 'chars', desc: '字母 U' },
+  { id: 'dubya', label: 'W', group: 'chars', desc: '字母 W' },
+  { id: 'comma', label: '逗号', group: 'chars', desc: '格子左下角的一小撇' },
+  { id: 'semicolon', label: '分号', group: 'chars', desc: '一个点加一小撇' },
+  { id: 'underscore', label: '下划线', group: 'chars', desc: '贴着格子底边的横线，与左右邻格连成一条' },
+  { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
   // 方块马赛克（参考图：淡灰纸上的绿蓝双色方块海报）——把实心方切成 3×3 的小格，按填哪几格分墨量
   { id: 'pixel', label: '像素方', group: 'geometry', desc: '实心方三等分后的一格，比「小方点」小一号，与像素阶 / 十字 / 回同一个模数' },
   { id: 'pixstair', label: '像素阶', group: 'geometry', desc: '对角三个小方连成的台阶' },
@@ -378,6 +407,22 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   aitch: [seg(-0.7, -1, -0.7, 1), seg(0.7, -1, 0.7, 1), seg(-0.7, 0, 0.7, 0)],
   ee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.7, -1), seg(-0.7, 0, 0.5, 0), seg(-0.7, 1, 0.7, 1)],
   wye: [seg(-0.8, -1, 0, 0), seg(0.8, -1, 0, 0), seg(0, 0, 0, 1)],
+  // 等宽字母：与已有的 T / L / V / Z / N / M / H / E / Y 一样用直线段拼，像点阵字库里的字形
+  ay: [seg(-0.75, 1, 0, -1), seg(0, -1, 0.75, 1), seg(-0.42, 0.15, 0.42, 0.15)],
+  see: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1)],
+  dee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.2, -1), seg(0.2, -1, 0.7, -0.5), seg(0.7, -0.5, 0.7, 0.5), seg(0.7, 0.5, 0.2, 1), seg(0.2, 1, -0.7, 1)],
+  gee: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1), seg(0.7, 1, 0.7, 0.1), seg(0.7, 0.1, 0.1, 0.1)],
+  jay: [seg(0.35, -1, 0.35, 0.6), seg(0.35, 0.6, -0.05, 1), seg(-0.05, 1, -0.55, 0.72)],
+  kay: [seg(-0.7, -1, -0.7, 1), seg(0.72, -1, -0.7, 0.1), seg(-0.7, 0.1, 0.72, 1)],
+  ar: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.35, -1), seg(0.35, -1, 0.68, -0.6), seg(0.68, -0.6, 0.35, -0.15), seg(0.35, -0.15, -0.7, -0.15), seg(0.05, -0.15, 0.72, 1)],
+  ess: [seg(0.7, -1, -0.7, -1), seg(-0.7, -1, -0.7, 0), seg(-0.7, 0, 0.7, 0), seg(0.7, 0, 0.7, 1), seg(0.7, 1, -0.7, 1)],
+  you: [seg(-0.7, -1, -0.7, 0.6), seg(-0.7, 0.6, -0.3, 1), seg(-0.3, 1, 0.3, 1), seg(0.3, 1, 0.7, 0.6), seg(0.7, 0.6, 0.7, -1)],
+  dubya: [seg(-0.85, -1, -0.5, 1), seg(-0.5, 1, 0, -0.25), seg(0, -0.25, 0.5, 1), seg(0.5, 1, 0.85, -1)],
+  comma: [seg(0.12, 0.5, -0.15, 1)],
+  semicolon: [{ k: 'c', x: 0, y: -0.35, r: 0.3 }, seg(0.12, 0.5, -0.15, 1)],
+  // 下划线贴着格子底边，与左右邻格连成一条
+  underscore: [{ k: 'S', x1: -1, y1: 0.78, x2: 1, y2: 0.78 }],
+  bracket: [seg(0.35, -1, -0.3, -1), seg(-0.3, -1, -0.3, 1), seg(-0.3, 1, 0.35, 1)],
   // 荧光电路：短斜线与叉号都不出格，邻格之间断开
   slashshort: [DIAG],
   xmark: [DIAG, ANTI],
