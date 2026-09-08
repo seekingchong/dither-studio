@@ -225,3 +225,76 @@ test('深色主题与 4 坑位预览', async ({ page }) => {
   await pick(page, 'settings.slotCount', '1 个媒体');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
+
+test('我的预设卡片右上角：复制 / 星标 / 删除，鼠标移上去才露出，删除要二次确认', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+
+  // 先存一套我的预设
+  await page.locator('[data-preset="gameboy"]').click();
+  await page.getByTestId('preset-save-button').click();
+  await page.getByLabel('新预设名称').fill('甲');
+  await page.getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.locator('.preset-card--user')).toHaveCount(1);
+
+  // 内置方案的卡片上没有这排图标——只有自己存的才能改
+  await expect(page.locator('[data-preset="gameboy"] .preset-card__action')).toHaveCount(0);
+
+  // 平时藏着，鼠标移到卡片上才露出三个
+  const jia = page.locator('.preset-card--user').first();
+  await expect(jia.getByTestId('preset-card-duplicate')).toBeHidden();
+  await jia.hover();
+  await expect(jia.getByTestId('preset-card-duplicate')).toBeVisible();
+  await expect(jia.getByTestId('preset-card-star')).toBeVisible();
+  await expect(jia.getByTestId('preset-card-remove')).toBeVisible();
+
+  // 复制：多出一张「甲 副本」排在原件后面，当前用哪套不变（点图标不算点卡片）
+  await jia.getByTestId('preset-card-duplicate').click();
+  await expect(page.locator('.preset-card--user')).toHaveCount(2);
+  await expect(page.locator('.preset-card--user').nth(1)).toContainText('甲 副本');
+  await expect(page.locator('.preset-card--user').nth(1)).toContainText('基于 Game Boy');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：甲');
+
+  // 星标：排到我的预设最前面，那颗星不 hover 也一直亮着
+  const copy = page.locator('.preset-card--user').nth(1);
+  await copy.hover();
+  await copy.getByTestId('preset-card-star').click();
+  await expect(page.locator('.preset-card--user').first()).toContainText('甲 副本');
+  // 鼠标移开、焦点也挪走：星标那张只剩星还亮着，没星标的那张整排都收回去
+  await page.getByTestId('preset-status').hover();
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect(page.locator('.preset-card--user').first().getByTestId('preset-card-star')).toBeVisible();
+  await expect(page.locator('.preset-card--user').first().getByTestId('preset-card-duplicate')).toBeHidden();
+  await expect(page.locator('.preset-card--user').nth(1).getByTestId('preset-card-star')).toBeHidden();
+
+  // 删除先弹气泡问一句：取消就什么也不删
+  const jiaNow = page.locator('.preset-card--user').nth(1);
+  await jiaNow.hover();
+  await jiaNow.getByTestId('preset-card-remove').click();
+  await expect(page.getByTestId('preset-delete-confirm')).toBeVisible();
+  await expect(page.getByTestId('preset-delete-confirm')).toContainText('删除预设「甲」？');
+  await page.getByTestId('preset-delete-cancel').click();
+  await expect(page.getByTestId('preset-delete-confirm')).toHaveCount(0);
+  await expect(page.locator('.preset-card--user')).toHaveCount(2);
+
+  // Esc 也能把气泡收掉（气泡收掉后鼠标落在卡片外，图标跟着收回去，得重新移上去）
+  await jiaNow.hover();
+  await jiaNow.getByTestId('preset-card-remove').click();
+  await expect(page.getByTestId('preset-delete-confirm')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('preset-delete-confirm')).toHaveCount(0);
+
+  // 确认了才真删；删掉的是正在用的那套，参数保留、来源退回它所基于的 Game Boy
+  await jiaNow.hover();
+  await jiaNow.getByTestId('preset-card-remove').click();
+  await page.getByTestId('preset-delete-confirm-ok').click();
+  await expect(page.locator('.preset-card--user')).toHaveCount(1);
+  await expect(page.locator('.preset-card--user')).toContainText('甲 副本');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+
+  // 星标跨刷新保留
+  await page.reload();
+  await page.locator('[data-slot="0"]').waitFor();
+  await expect(page.locator('.preset-card--user')).toHaveCount(1);
+  await expect(page.locator('.preset-card--user').getByTestId('preset-card-star')).toBeVisible();
+});
