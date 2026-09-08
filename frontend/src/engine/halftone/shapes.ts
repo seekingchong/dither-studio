@@ -24,8 +24,8 @@ export const CROSS_ARM = 0.28;
 /** 十字臂至少这么粗（画布像素），免得小点上臂细到看不见 */
 export const CROSS_MIN_HALF_ARM = 0.35;
 
-/** 轴对齐矩形的精确 SDF，hx / hy 为半宽 / 半高 */
-function box(x: number, y: number, hx: number, hy: number): number {
+/** 轴对齐矩形的精确 SDF，hx / hy 为半宽 / 半高；符号库的实心矩形图元也用它 */
+export function box(x: number, y: number, hx: number, hy: number): number {
   const qx = Math.abs(x) - hx;
   const qy = Math.abs(y) - hy;
   const ox = qx > 0 ? qx : 0;

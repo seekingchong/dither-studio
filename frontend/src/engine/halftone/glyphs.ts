@@ -1,5 +1,5 @@
 import { hash2 } from '../util/random';
-import { ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
+import { box, ROUND_SQUARE_CORNER, shapeDistance } from './shapes';
 
 /**
  * 符号库：「符号」风格（`style.type = glyph`）每个格子里画的图元。
@@ -60,6 +60,11 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'tinysquare'
+  | 'slab'
+  | 'pillar'
+  | 'fir'
+  | 'hut'
   // 字符
   | 'one'
   | 'four'
@@ -155,6 +160,12 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 几何系统（参考图三：奶白纸上的平涂色块——小方点、横条、竖条、杉树、小屋）
+  { id: 'tinysquare', label: '小方点', group: 'geometry', desc: '不到一半大的实心小方块，像撒开的像素' },
+  { id: 'slab', label: '横条', group: 'geometry', desc: '横着铺满格子的矮实心条，左右邻格接成一道长条' },
+  { id: 'pillar', label: '竖条', group: 'geometry', desc: '竖着铺满格子的窄实心条，上下邻格接成一道长条' },
+  { id: 'fir', label: '杉树', group: 'geometry', desc: '两层三角叠成的杉树，尖朝上' },
+  { id: 'hut', label: '小屋', group: 'geometry', desc: '三角屋顶盖在方身上，像一间小房子' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -182,7 +193,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`m` 是横竖各给一个半径的实心矩形
+ * （横条 / 竖条用，长边半径给 1 时正好在 100% 大小与邻格接上），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -200,6 +212,7 @@ type Prim =
   | { k: 'D' }
   | { k: 'g' }
   | { k: 'G' }
+  | { k: 'm'; x: number; y: number; w: number; h: number }
   | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
@@ -346,6 +359,42 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 几何系统：平涂的色块，靠形状与大小分层，不靠线粗
+  tinysquare: [{ k: 'q', h: 0.38 }],
+  // 横条 / 竖条：长边铺满格子（半径 1，100% 大小时正好顶到格线），邻格接成一道长条
+  slab: [{ k: 'm', x: 0, y: 0, w: 1, h: 0.38 }],
+  pillar: [{ k: 'm', x: 0, y: 0, w: 0.38, h: 1 }],
+  // 杉树：上小下大两层三角，下层的顶盖住上层的底边，两片接成一棵树
+  fir: [
+    {
+      k: 'P',
+      pts: [
+        [0, -1],
+        [0.56, -0.12],
+        [-0.56, -0.12],
+      ],
+    },
+    {
+      k: 'P',
+      pts: [
+        [0, -0.5],
+        [0.92, 0.8],
+        [-0.92, 0.8],
+      ],
+    },
+  ],
+  // 小屋：三角屋顶压在方身上，屋顶两侧探出一截当屋檐
+  hut: [
+    {
+      k: 'P',
+      pts: [
+        [0, -0.95],
+        [0.95, -0.15],
+        [-0.95, -0.15],
+      ],
+    },
+    { k: 'm', x: 0, y: 0.4, w: 0.72, h: 0.55 },
+  ],
 };
 
 /** 按编码取图元表 */
@@ -464,6 +513,9 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'G':
         dd = Math.abs(shapeDistance('hexagon', x, y, frameHalf(r, hw * HEX_INSET), 0)) - hw;
         break;
+      case 'm':
+        dd = box(x - p.x * r, y - p.y * r, p.w * r, p.h * r);
+        break;
       case 'P':
         dd = polygonDistance(x, y, p.pts, r);
         break;
@@ -559,6 +611,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'G':
         out.push(`<polygon points="${hexagonPoints(cx, cy, frameHalf(r, hw * HEX_INSET))}" fill="none"${stroke}/>`);
         break;
+      case 'm': {
+        const hx = p.w * r;
+        const hy = p.h * r;
+        out.push(`<rect x="${f(cx + p.x * r - hx)}" y="${f(cy + p.y * r - hy)}" width="${f(2 * hx)}" height="${f(2 * hy)}"${fill}/>`);
+        break;
+      }
       case 'P':
         out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
         break;
