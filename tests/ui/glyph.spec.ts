@@ -212,7 +212,7 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   expect(svg).toMatch(/<circle [^>]*fill="none" stroke="#111111"/);
 });
 
-test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能挑到它们', async ({ page }) => {
+test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSCII Glitch / Aperture Grille）用上新符号，选择器里能挑到它们', async ({ page }) => {
   await page.goto('/');
   await dropImage(page);
   await page.getByRole('tab', { name: '符号' }).click();
@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(68);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -292,4 +292,29 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Aperture Grille：7 阶 留空 → 竖栅微 / 细 / 中 / 粗 / 满 → 实心格，分级配色深靛到暖白，近黑纸
+  await page.locator('[data-preset="glyph-grille"]').click();
+  await expect(page.locator('[data-preset="glyph-grille"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Aperture Grille');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillehair');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillemid');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillefull');
+  await expect(rows.nth(5).locator('.glyph-level__label')).toHaveText('竖栅·满');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('实心格');
+  await expect(swatches).toHaveCount(8);
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #FFF6E2');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #04070C');
+  await expect(page.locator('[data-param="tile.cell"] input[type="range"]')).toHaveValue('16');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('45');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 竖栅一家在选择器的「线」组里，实心格在「几何」组
+  await rows.nth(3).locator('.glyph-level__shape').click();
+  const grillePicker = page.getByTestId('glyph-picker');
+  await expect(grillePicker.getByRole('group', { name: '线' }).locator('[data-glyph="grillebold"]')).toHaveCount(1);
+  await expect(grillePicker.getByRole('group', { name: '几何' }).locator('[data-glyph="block"]')).toHaveCount(1);
 });

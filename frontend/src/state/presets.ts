@@ -942,6 +942,37 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：黑底上一幅假彩色的扫描图，整幅盖着一层等距的竖线栅（像隔着显像管的荫罩栅拍下来的）——
+  // 亮的地方栅线又粗又亮，暗的地方细得几乎看不见，颜色从近黑的靛蓝一路升到蓝、青绿、柠檬黄，最亮的核心烧成一片暖白。
+  // 所以这套预设不靠换形状、而靠「同一个栅距下越来越粗的竖带」分阶：竖栅一家五档（微 / 细 / 中 / 粗 / 满）粗细等差、
+  // 栅距不变，邻格接上后整幅画面是一片连续的竖栅；最暗一阶留空（黑底透出来），最亮一阶用实心格烧成整块。
+  // 竖带的粗细写死在符号里，不跟线粗走，细带也不会被抗锯齿冲淡成灰——颜色才够艳。
+  // 深底亮符号所以反相；关掉线性空间，7 个阶才均匀铺在明暗上，不然大半画面挤在最亮那一阶。
+  {
+    id: 'glyph-grille',
+    name: 'Aperture Grille',
+    hint: '黑底竖栅：等距竖带越亮越粗，深靛、蓝、青绿、柠檬黄到暖白核心',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'grillehair', 'grillefine', 'grillemid', 'grillebold', 'grillefull', 'block']),
+      // 竖带不吃符号大小，100% 是留给换成方块 / 棋盘那类符号时能与邻格接上
+      'glyph.size': 100,
+      'glyph.taper': 0,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 16,
+      'tile.pitchY': 16,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#08121F', '#0E2B57', '#12579F', '#0F9AD8', '#27D2BE', '#D6E84A', '#FFF6E2']),
+      'glyph.paper': '#04070C',
+      'tone.invert': true,
+      'tone.linear': false,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
