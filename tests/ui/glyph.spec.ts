@@ -242,7 +242,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(97);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -337,7 +337,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 新符号在选择器里各自的组：叠圈在「点」、短竖纹在「线」
   await rows.nth(6).locator('.glyph-level__shape').click();
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(97);
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="ringpair"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="comb"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
@@ -413,7 +413,7 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
   await rows.nth(2).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(93);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(97);
   for (const id of ['slabthin', 'slab', 'slabwide']) {
     await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -423,4 +423,58 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   await picker.locator('[data-glyph="slabwide"]').click();
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slabwide');
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Desync · 已微调');
+});
+
+test('符号：Shape System 预设——小方点、圆点、三角、杉树、小屋、横板到实心方，奶白纸不反相，末尾一层胶片颗粒', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+  await page.getByTestId('preset-more').click();
+
+  await page.locator('[data-preset="glyph-system"]').click();
+  await expect(page.locator('[data-preset="glyph-system"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Shape System');
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tinysquare');
+  await expect(rows.nth(1).locator('.glyph-level__label')).toHaveText('小方点');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'fir');
+  await expect(rows.nth(4).locator('.glyph-level__label')).toHaveText('杉树');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hut');
+  await expect(rows.nth(5).locator('.glyph-level__label')).toHaveText('小屋');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slab');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  await expect(swatches).toHaveCount(9);
+  await expect(swatches.nth(2)).toHaveAttribute('aria-label', '第 3 阶 #F3BAD0');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #9C6161');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #EDE9E2');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('110');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('62');
+
+  // 新符号在选择器里各归各组：小方点 / 杉树 / 小屋在「几何」，竖板在「线」
+  await rows.nth(4).locator('.glyph-level__shape').click();
+  const picker = page.getByTestId('glyph-picker');
+  await expect(picker.locator('[data-glyph]')).toHaveCount(97);
+  for (const id of ['tinysquare', 'fir', 'hut']) {
+    await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
+  }
+  await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="pillar"]')).toHaveCount(1);
+  await picker.locator('[data-glyph="pillar"]').click();
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pillar');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Shape System · 已微调');
+
+  // 浅纸深墨不反相；特效栈里只有一层胶片颗粒
+  await openSection(page, 'tone');
+  await expect(page.locator('[data-param="tone.invert"] input[type="checkbox"]')).not.toBeChecked();
+  await openSection(page, 'effects');
+  await expect(page.locator('.effect-card')).toHaveCount(1);
+  await expect(page.locator('.effect-card').first()).toContainText('胶片颗粒');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
