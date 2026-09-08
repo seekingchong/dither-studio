@@ -916,48 +916,49 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图五：黑底上青与荧光绿两色的字符画，像 C64 的 PETSCII——暗处零星的小点与冒号，中间调 T / H / M 字母，
-  // 亮处拼成棋盘格与密网。分级配色让两种颜色逐阶交替，交界混合开到 80%，同一片区域里两色符号就掺在一起，
-  // 像参考图那样青绿交错但不乱；最亮两阶之外只有一种颜色，大块亮部读起来是整的。
-  // 100% 大小让棋盘格与密网在邻格之间接上；亮部不缩小，字母格子一样大；深底亮符号所以反相
+  // 参考图五：黑底上青与荧光绿两色的字符画，像终端里滚出来的一屏字——暗处零星的逗号与冒号，
+  // 中间调 C K % Ø 一路加密，最亮的一阶整格填实，像屏幕上的反白块。用新的「终端」序列。
+  // 分级配色让青与荧光绿逐阶交替，交界混合开到 85%：同一片明暗里两三种字符、两种颜色掺在一起，
+  // 既有参考图那种密密麻麻的字符感，又不像它那样乱。10×13 的格子是终端的字符比例，一行行读得出来；
+  // 深底亮字所以反相，再叠一层很轻的扫描线，像隔着屏幕拍下来的
   {
     id: 'glyph-petscii',
     name: 'PETSCII Glitch',
-    hint: '黑底青绿两色：小点、冒号、T H M 到棋盘格与密网，C64 字符画',
+    hint: '黑底青绿两色终端字符：逗号、冒号、C K % Ø 到整格实心块',
     params: {
       'style.type': 'glyph',
-      'glyph.ramp': 'custom',
+      'glyph.ramp': 'terminal',
       'glyph.levels': 8,
-      ...glyphShapes(['blank', 'pip', 'colon', 'tee', 'aitch', 'em', 'checker', 'hashx']),
       'glyph.size': 100,
       'glyph.taper': 0,
-      'glyph.stroke': 16,
-      'glyph.mix': 80,
+      'glyph.stroke': 17,
+      'glyph.mix': 85,
       'glyph.accent': 0,
-      'tile.pitchX': 11,
-      'tile.pitchY': 11,
+      'tile.pitchX': 10,
+      'tile.pitchY': 13,
       'glyph.colorMode': 'levels',
-      ...glyphColors(['#24B7C4', '#24B7C4', '#A3DD3F', '#4DEBFF', '#C6FF4A', '#4DEBFF', '#C6FF4A', '#4DEBFF']),
-      'glyph.paper': '#070A0C',
+      ...glyphColors(['#1E7F8C', '#1E7F8C', '#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B']),
+      'glyph.paper': '#05070B',
       'tone.invert': true,
-      'tone.contrast': 20,
+      'tone.contrast': 15,
+      'effects.stack': effects([{ type: 'scanlines', enabled: true, params: { period: 4, darkness: 26, phosphor: 0, curvature: 0 } }]),
     },
     exposes: GL,
   },
-  // 参考图六：荧光柠檬绿底上的墨色「密文」——亮处一粒小点、短斜线、十字，中间调圆圈与叉号，暗处靶心、圈十、圈叉，
-  // 像终端屏幕上一行行等宽字符。八阶按墨量单调递增，全都从符号库里取；符号接近等大（只让最亮的小点缩一点），
-  // 12px 方格、交界处大量掺杂让阶与阶之间像信号噪点一样过渡；浅底深符号，不反相
+  // 参考图六：荧光柠檬绿底上的墨色「密文」——满屏都是圆，亮处一粒小点，往暗处长成小圈、四点、圆圈、靶心，
+  // 再到圈叉、三环，最暗是几乎填满格子的粗环。八阶用的是同一个圆形骨架，墨量 10% → 47% 一路匀速递增，
+  // 所以画面从通透到厚重是连着的，暗部也还看得清一个个环。12px 方格、交界处大量掺杂；浅底深符号，不反相
   {
     id: 'glyph-cipher',
     name: 'Acid Cipher',
-    hint: '柠檬绿底墨色 8 阶：小点、短斜线、十字、圆圈、叉号到靶心、圈十、圈叉',
+    hint: '柠檬绿底墨色 8 阶：一粒点长到粗环，小点、小圈、四点、圆圈到靶心、圈叉、三环、粗圈',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
       'glyph.levels': 8,
-      ...glyphShapes(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']),
-      'glyph.size': 74,
-      'glyph.taper': 30,
+      ...glyphShapes(['pip', 'ringtiny', 'quad', 'ring', 'ringdot', 'circlex', 'rings3', 'ringthick']),
+      'glyph.size': 82,
+      'glyph.taper': 38,
       'glyph.stroke': 12,
       'glyph.mix': 45,
       'glyph.accent': 0,
@@ -965,7 +966,8 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
       'tile.pitchY': 12,
       'glyph.ink': '#0E150A',
       'glyph.paper': '#C9F52C',
-      'tone.contrast': 20,
+      'tone.brightness': 22,
+      'tone.contrast': 15,
     },
     exposes: GL,
   },
@@ -1065,21 +1067,52 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图：米纸上橙蓝双色的几何海报——形状按明暗排成一片像素状的构成。
-  // 亮处零星的黑小点，中间调橙色的小方、三角、圆点，暗处蓝的棋盘格、密竖纹到成片的实心方。
-  // 小方与密竖纹是为这套新加的符号：参考图里满是不到半格的实心小方，条纹那一块比竖纹与竖栅都密一倍。
-  // 100% 大小让实心方在邻格之间只留一道纸色缝、密竖纹与棋盘格在邻格之间接上，暗部读成一整块像素砖；
-  // 亮部缩小 55% 让小方真的小；交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，
-  // 点缀撒一点圆圈与三角框；胶片颗粒当纸纹
+  // 参考图：奶白纸上的「几何系统」海报——一套平涂的图形按明暗铺开：亮处零星的小方点，往暗处依次是粉圆、橙三角、
+  // 绿杉树、蓝小屋、蓝横板，最暗一阶是接成片的砖红实心方。图里的小方点、杉树、小屋符号库里原来没有，一并补齐。
+  // 三处让它像丝网印而不像马赛克：亮部缩小 62% 拉开大小差（最亮一阶不到最暗一阶的四成，同一张画里既有小方点又有整块的色块）；
+  // 符号大小 110% 让暗部的方块之间只剩一道纸色细缝、横板左右接成长条（实心方的边长是符号的 85%，100% 时缝太宽）；
+  // 交界混合 50% 把相邻两阶掺在一起，边界像手摆出来的而不是等高线。
+  // 再叠一层轻颗粒出纸纹，点缀 5% 让成片的色块里偶尔漏出一个空心圆或三角框
   {
-    id: 'glyph-pixel-blocks',
-    name: 'Pixel Blocks',
-    hint: '米纸上橙蓝双色：黑小点、小方、三角、圆点到棋盘格、密竖纹与蓝方块',
+    id: 'glyph-system',
+    name: 'Shape System',
+    hint: '奶白纸上的平涂几何：小方点、粉圆、橙三角、绿杉树、蓝小屋到砖红实心方，带纸纹颗粒',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
       'glyph.levels': 8,
-      ...glyphShapes(['blank', 'pip', 'pixel', 'tri', 'dot', 'checker', 'bars', 'square']),
+      ...glyphShapes(['blank', 'tinysquare', 'dot', 'tri', 'fir', 'hut', 'slab', 'square']),
+      'glyph.size': 110,
+      'glyph.taper': 62,
+      'glyph.stroke': 14,
+      'glyph.mix': 50,
+      'glyph.accent': 5,
+      'tile.pitchX': 22,
+      'tile.pitchY': 22,
+      'glyph.colorMode': 'levels',
+      // 第 1 阶是留白，配色跟第 2 阶同色，色板上不至于出现一块纸色
+      ...glyphColors(['#EF6C1F', '#EF6C1F', '#F3BAD0', '#EF6C1F', '#17643F', '#4A79CE', '#4A79CE', '#9C6161']),
+      'glyph.paper': '#EDE9E2',
+      'tone.contrast': 10,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 12, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
+  // 参考图：米纸上橙蓝双色的几何海报——形状按明暗排成一片像素状的构成。
+  // 亮处零星的黑小点，中间调橙色的小方点、三角、圆点，暗处蓝的棋盘格、密竖纹到成片的实心方。
+  // 密竖纹是为这套新加的符号：参考图里条纹那一块比竖纹与竖栅都密一倍。
+  // 100% 大小让实心方在邻格之间只留一道纸色缝、密竖纹与棋盘格在邻格之间接上，暗部读成一整块像素砖；
+  // 亮部缩小 55% 让小方点真的小；交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，
+  // 点缀撒一点圆圈与三角框；胶片颗粒当纸纹
+  {
+    id: 'glyph-pixel-blocks',
+    name: 'Pixel Blocks',
+    hint: '米纸上橙蓝双色：黑小点、小方点、三角、圆点到棋盘格、密竖纹与蓝方块',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'tinysquare', 'tri', 'dot', 'checker', 'bars', 'square']),
       'glyph.size': 100,
       'glyph.taper': 55,
       'glyph.stroke': 14,

@@ -23,6 +23,10 @@ export type GlyphId =
   | 'clover'
   | 'flower'
   | 'ringpair'
+  | 'ringtiny'
+  | 'rings3'
+  | 'ringthick'
+  | 'ringorb'
   // 线
   | 'tick'
   | 'minus'
@@ -74,7 +78,10 @@ export type GlyphId =
   | 'blockhole'
   | 'blockhalf'
   | 'block'
-  | 'pixel'
+  | 'tinysquare'
+  | 'pillar'
+  | 'fir'
+  | 'hut'
   // 字符
   | 'one'
   | 'four'
@@ -91,7 +98,21 @@ export type GlyphId =
   | 'em'
   | 'aitch'
   | 'ee'
-  | 'wye';
+  | 'wye'
+  | 'ay'
+  | 'see'
+  | 'dee'
+  | 'gee'
+  | 'jay'
+  | 'kay'
+  | 'ar'
+  | 'ess'
+  | 'you'
+  | 'dubya'
+  | 'comma'
+  | 'semicolon'
+  | 'underscore'
+  | 'bracket';
 
 /** 符号的分类，符号选择器按它分组 */
 export type GlyphGroup = 'dots' | 'lines' | 'geometry' | 'chars';
@@ -186,9 +207,32 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'grillebold', label: '竖栅·粗', group: 'lines', desc: '三道贯穿格子的实心粗竖带，缝比带窄，栅距不变' },
   { id: 'grillefull', label: '竖栅·满', group: 'lines', desc: '三道贯穿格子的实心宽竖带，只剩三道细缝，栅距不变' },
   { id: 'block', label: '实心格', group: 'geometry', desc: '填满整格的实心块，邻格拼成一整片，不留缝' },
-  // 丝网像素海报（米纸上橙蓝双色的几何构成）——比竖纹密一倍的竖线与不到半格的实心小方
+  { id: 'ringtiny', label: '小圈', group: 'dots', desc: '不到一半大的空心小圆，比圆圈轻一档' },
+  { id: 'rings3', label: '三环', group: 'dots', desc: '三个同心圆一圈套一圈，圈与圈之间留等宽的缝' },
+  { id: 'ringorb', label: '环心球', group: 'dots', desc: '粗圆环中间悬一个实心圆，环与球之间留一圈纸色' },
+  { id: 'ringthick', label: '粗圈', group: 'dots', desc: '加粗的圆环，中间只剩一个小孔；带宽按符号半径算，不跟线粗走' },
+  // 几何系统（参考图：奶白纸上的平涂色块——小方点、杉树、小屋，横板那一家已经在上面）
+  { id: 'tinysquare', label: '小方点', group: 'geometry', desc: '不到一半大的实心小方块，像撒开的像素' },
+  { id: 'pillar', label: '竖板', group: 'lines', desc: '贯穿格子的竖条，占格宽约四成，上下邻格接成一条粗线' },
+  { id: 'fir', label: '杉树', group: 'geometry', desc: '两层三角叠成的杉树，尖朝上，两层之间收一道腰' },
+  { id: 'hut', label: '小屋', group: 'geometry', desc: '三角屋顶盖在方身上，屋檐两侧探出，像一间小房子' },
+  // 终端字符画（参考图：黑底上青绿两色的一屏字）：补一批等宽字母与标点，凑齐屏幕上敲得出来的字符
+  { id: 'ay', label: 'A', group: 'chars', desc: '字母 A' },
+  { id: 'see', label: 'C', group: 'chars', desc: '字母 C' },
+  { id: 'dee', label: 'D', group: 'chars', desc: '字母 D' },
+  { id: 'gee', label: 'G', group: 'chars', desc: '字母 G' },
+  { id: 'jay', label: 'J', group: 'chars', desc: '字母 J' },
+  { id: 'kay', label: 'K', group: 'chars', desc: '字母 K' },
+  { id: 'ar', label: 'R', group: 'chars', desc: '字母 R' },
+  { id: 'ess', label: 'S', group: 'chars', desc: '字母 S' },
+  { id: 'you', label: 'U', group: 'chars', desc: '字母 U' },
+  { id: 'dubya', label: 'W', group: 'chars', desc: '字母 W' },
+  { id: 'comma', label: '逗号', group: 'chars', desc: '格子左下角的一小撇' },
+  { id: 'semicolon', label: '分号', group: 'chars', desc: '一个点加一小撇' },
+  { id: 'underscore', label: '下划线', group: 'chars', desc: '贴着格子底边的横线，与左右邻格连成一条' },
+  { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
+  // 丝网像素海报（米纸上橙蓝双色的几何构成）——比竖纹与竖栅都密一倍的竖线
   { id: 'bars', label: '密竖纹', group: 'lines', desc: '五道贯穿格子的细竖线，栅距是竖纹与竖栅的一半，邻格接成一片更密的条纹' },
-  { id: 'pixel', label: '小方', group: 'geometry', desc: '不到一半大的实心小方块，像一颗像素' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -238,6 +282,7 @@ type Prim =
   | { k: 'g' }
   | { k: 'G' }
   | { k: 'V'; x: number; w: number }
+  | { k: 'O'; r: number; w: number }
   | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
@@ -350,6 +395,22 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   aitch: [seg(-0.7, -1, -0.7, 1), seg(0.7, -1, 0.7, 1), seg(-0.7, 0, 0.7, 0)],
   ee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.7, -1), seg(-0.7, 0, 0.5, 0), seg(-0.7, 1, 0.7, 1)],
   wye: [seg(-0.8, -1, 0, 0), seg(0.8, -1, 0, 0), seg(0, 0, 0, 1)],
+  // 等宽字母：与已有的 T / L / V / Z / N / M / H / E / Y 一样用直线段拼，像点阵字库里的字形
+  ay: [seg(-0.75, 1, 0, -1), seg(0, -1, 0.75, 1), seg(-0.42, 0.15, 0.42, 0.15)],
+  see: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1)],
+  dee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.2, -1), seg(0.2, -1, 0.7, -0.5), seg(0.7, -0.5, 0.7, 0.5), seg(0.7, 0.5, 0.2, 1), seg(0.2, 1, -0.7, 1)],
+  gee: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1), seg(0.7, 1, 0.7, 0.1), seg(0.7, 0.1, 0.1, 0.1)],
+  jay: [seg(0.35, -1, 0.35, 0.6), seg(0.35, 0.6, -0.05, 1), seg(-0.05, 1, -0.55, 0.72)],
+  kay: [seg(-0.7, -1, -0.7, 1), seg(0.72, -1, -0.7, 0.1), seg(-0.7, 0.1, 0.72, 1)],
+  ar: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.35, -1), seg(0.35, -1, 0.68, -0.6), seg(0.68, -0.6, 0.35, -0.15), seg(0.35, -0.15, -0.7, -0.15), seg(0.05, -0.15, 0.72, 1)],
+  ess: [seg(0.7, -1, -0.7, -1), seg(-0.7, -1, -0.7, 0), seg(-0.7, 0, 0.7, 0), seg(0.7, 0, 0.7, 1), seg(0.7, 1, -0.7, 1)],
+  you: [seg(-0.7, -1, -0.7, 0.6), seg(-0.7, 0.6, -0.3, 1), seg(-0.3, 1, 0.3, 1), seg(0.3, 1, 0.7, 0.6), seg(0.7, 0.6, 0.7, -1)],
+  dubya: [seg(-0.85, -1, -0.5, 1), seg(-0.5, 1, 0, -0.25), seg(0, -0.25, 0.5, 1), seg(0.5, 1, 0.85, -1)],
+  comma: [seg(0.12, 0.5, -0.15, 1)],
+  semicolon: [{ k: 'c', x: 0, y: -0.35, r: 0.3 }, seg(0.12, 0.5, -0.15, 1)],
+  // 下划线贴着格子底边，与左右邻格连成一条
+  underscore: [{ k: 'S', x1: -1, y1: 0.78, x2: 1, y2: 0.78 }],
+  bracket: [seg(0.35, -1, -0.3, -1), seg(-0.3, -1, -0.3, 1), seg(-0.3, 1, 0.35, 1)],
   // 荧光电路：短斜线与叉号都不出格，邻格之间断开
   slashshort: [DIAG],
   xmark: [DIAG, ANTI],
@@ -399,16 +460,19 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   grillefull: grille(0.29),
   // 实心格：竖带铺满整格（半宽就是半格再多半像素），邻格拼成一整片
   block: [{ k: 'V', x: 0, w: 1 }],
-  // 密竖纹：五道等距的贯穿竖线，栅距是格宽的五分之一，邻格接上后整片等距
-  bars: [
-    { k: 'S', x1: -0.8, y1: -1, x2: -0.8, y2: 1 },
-    { k: 'S', x1: -0.4, y1: -1, x2: -0.4, y2: 1 },
-    BAR,
-    { k: 'S', x1: 0.4, y1: -1, x2: 0.4, y2: 1 },
-    { k: 'S', x1: 0.8, y1: -1, x2: 0.8, y2: 1 },
+  // 圆环一家：小圈补在小点与圆圈之间；三环、环心球、粗圈把暗部撑起来——
+  // 同一个圆形骨架从一粒点长到几乎填满格子的粗环，墨量一路递增，成片时是一张圆形的密文
+  ringtiny: [{ k: 'o', x: 0, y: 0, r: 0.62 }],
+  rings3: [
+    { k: 'o', x: 0, y: 0, r: 1 },
+    { k: 'o', x: 0, y: 0, r: 0.62 },
+    { k: 'o', x: 0, y: 0, r: 0.26 },
   ],
-  // 小方：实心方的小号版，墨量约为它的三分之一
-  pixel: [{ k: 'q', h: 0.48 }],
+  ringorb: [
+    { k: 'O', r: 1, w: 0.2 },
+    { k: 'c', x: 0, y: 0, r: 0.45 },
+  ],
+  ringthick: [{ k: 'O', r: 1, w: 0.36 }],
   // 城堡：平底、直边，顶上中间开一个豁口分成两个齿
   rook: [
     {
@@ -431,6 +495,49 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   slabwide: [slab(0.66)],
   blockhole: holed(0.26),
   blockhalf: [{ k: 'r', x: 0, y: BOX / 2, w: BOX, h: BOX / 2 }],
+  // 几何系统：平涂的色块，靠形状与大小分层，不靠线粗
+  tinysquare: [{ k: 'q', h: 0.38 }],
+  // 竖板：横板转 90°，半高取满一个符号半径，上下邻格接得上
+  pillar: [{ k: 'r', x: 0, y: 0, w: 0.4, h: 1 }],
+  // 密竖纹：五道等距的贯穿竖线，栅距是格宽的五分之一，邻格接上后整片等距
+  bars: [
+    { k: 'S', x1: -0.8, y1: -1, x2: -0.8, y2: 1 },
+    { k: 'S', x1: -0.4, y1: -1, x2: -0.4, y2: 1 },
+    BAR,
+    { k: 'S', x1: 0.4, y1: -1, x2: 0.4, y2: 1 },
+    { k: 'S', x1: 0.8, y1: -1, x2: 0.8, y2: 1 },
+  ],
+  // 杉树：上小下大两层三角，下层的顶盖住上层的底边，两片接成一棵树
+  fir: [
+    {
+      k: 'P',
+      pts: [
+        [0, -1],
+        [0.56, -0.12],
+        [-0.56, -0.12],
+      ],
+    },
+    {
+      k: 'P',
+      pts: [
+        [0, -0.5],
+        [0.92, 0.8],
+        [-0.92, 0.8],
+      ],
+    },
+  ],
+  // 小屋：三角屋顶压在方身上，屋顶两侧探出一截当屋檐
+  hut: [
+    {
+      k: 'P',
+      pts: [
+        [0, -0.95],
+        [0.95, -0.15],
+        [-0.95, -0.15],
+      ],
+    },
+    { k: 'r', x: 0, y: 0.4, w: 0.72, h: 0.55 },
+  ],
   // 短竖纹：三道等距的短竖线，和「竖纹」一样的间距，但用不出格的线段，上下只画到八成半径——
   // 邻格之间留下一道明显的横缝，整片下来是一笔笔断开的短竖，而不是通到底的长线
   comb: [seg(-2 / 3, -0.8, -2 / 3, 0.8), seg(0, -0.8, 0, 0.8), seg(2 / 3, -0.8, 2 / 3, 0.8)],
@@ -573,6 +680,13 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
         dd = dx > dy ? dx : dy;
         break;
       }
+      case 'O': {
+        // 粗环：外缘落在 p.r·r 上，带的半宽是 w 乘这个半径——带宽不跟线粗走，w = 0.5 就填满整个圆
+        const rr = p.r * r;
+        const half = p.w * rr;
+        dd = Math.abs(Math.sqrt(x * x + y * y) - (rr - half)) - half;
+        break;
+      }
       case 'P':
         dd = polygonDistance(x, y, p.pts, r);
         break;
@@ -676,6 +790,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'V':
         out.push(`<rect x="${f(cx + (p.x - p.w) * spanX)}" y="${f(cy - spanY)}" width="${f(2 * p.w * spanX)}" height="${f(2 * spanY)}"${fill}/>`);
         break;
+      case 'O': {
+        const rr = p.r * r;
+        const half = p.w * rr;
+        out.push(`<circle cx="${f(cx)}" cy="${f(cy)}" r="${f(rr - half)}" fill="none" stroke-width="${f(2 * half)}"${stroke}/>`);
+        break;
+      }
       case 'P':
         out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
         break;
