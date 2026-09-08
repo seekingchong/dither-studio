@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher / Ultrama
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(68);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -310,23 +310,39 @@ test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher / Ultrama
   await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#C9F52C');
   await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
 
-  // Ultramarine Bitmap：8 阶 空 → 小点 → 四点 → 十字 → 叉号 → 棋盘 → 密网 → 实心方，同族群青分级配色，淡紫白纸
+  // Ultramarine Bitmap：8 阶 空 → 方点 → 小圈 → 小叉 → 角块 → 棋盘 → 缺角块 → 满格块，同族群青分级配色，淡紫白纸
   await page.locator('[data-preset="glyph-ultramarine"]').click();
   await expect(page.locator('[data-preset="glyph-ultramarine"]')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ultramarine Bitmap');
   await expect(rows).toHaveCount(8);
-  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'quad');
-  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'plus');
-  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xmark');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'speck');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'ringsmall');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xdot');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'quarter');
   await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hashx');
-  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
-  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心方');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'trio');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('满格块');
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
   await expect(swatches).toHaveCount(9);
   await expect(swatches.nth(1)).toHaveAttribute('aria-label', '第 2 阶 #4B42F2');
   await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #120C86');
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #F0EEF7');
-  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('60');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('70');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 新的位图密度阶在选择器里也挑得到：方点 / 小圈在「点」，小叉在「线」，角块 / 缺角块 / 满格块在「几何」
+  await rows.nth(7).locator('.glyph-level__shape').click();
+  const bitmapPicker = page.getByTestId('glyph-picker');
+  await expect(bitmapPicker.locator('[data-glyph]')).toHaveCount(68);
+  await expect(bitmapPicker.locator('[data-glyph="block"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(bitmapPicker.getByRole('group', { name: '点' }).locator('[data-glyph="speck"]')).toHaveCount(1);
+  await expect(bitmapPicker.getByRole('group', { name: '点' }).locator('[data-glyph="ringsmall"]')).toHaveCount(1);
+  await expect(bitmapPicker.getByRole('group', { name: '线' }).locator('[data-glyph="xdot"]')).toHaveCount(1);
+  await expect(bitmapPicker.getByRole('group', { name: '几何' }).locator('[data-glyph="quarter"]')).toHaveCount(1);
+  await expect(bitmapPicker.getByRole('group', { name: '几何' }).locator('[data-glyph="trio"]')).toHaveCount(1);
+  await bitmapPicker.locator('[data-glyph="trio"]').click();
+  await expect(bitmapPicker).toHaveCount(0);
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'trio');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ultramarine Bitmap · 已微调');
 });

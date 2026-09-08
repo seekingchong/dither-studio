@@ -148,7 +148,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(62);
+    expect(GLYPH_IDS.length).toBe(68);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -340,22 +340,22 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(rightInk).toBeGreaterThan(0);
   });
 
-  it('Ultramarine Bitmap 预设：8 阶自定义序列从小点、四点到棋盘格、密网与实心块，同族群青逐阶变深，浅纸深墨不反相，暗处近乎实心', () => {
+  it('Ultramarine Bitmap 预设：8 阶自定义序列从方点、小圈、小叉到角块、棋盘、缺角块与满格块，同族群青逐阶变深，浅纸深墨不反相，暗处铺成整片实底', () => {
     const p = builtinPresetParams(findBuiltinPreset('glyph-ultramarine')!);
     expect(p['style.type']).toBe('glyph');
     expect(p['glyph.ramp']).toBe('custom');
     expect(p['glyph.levels']).toBe(8);
-    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'quad', 'plus', 'xmark', 'checker', 'hashx', 'square']);
+    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'speck', 'ringsmall', 'xdot', 'quarter', 'checker', 'trio', 'block']);
     expect(p['glyph.colorMode']).toBe('levels');
     expect(p['glyph.paper']).toBe('#F0EEF7');
     // 浅纸深墨，不反相；点缀符号关掉，大片实心里不掺圈和三角
     expect(p['tone.invert']).toBe(false);
     expect(p['glyph.accent']).toBe(0);
-    // 实心块、密网与棋盘格要在邻格之间接上
+    // 棋盘要在邻格之间接上；角块 / 缺角块 / 满格块按格铺，本来就不随大小缩放
     expect(p['glyph.size']).toBe(100);
     expect(p['glyph.taper']).toBe(0);
     // 交界处两阶的符号掺在一起，边界才碎得开
-    expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(50);
+    expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(60);
 
     // 分级配色是同一族群青：每一阶都蓝得明显，第 2 阶起逐阶变深
     const hex = (h: string): [number, number, number] => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -392,9 +392,91 @@ describe('新增符号：荧光电路与棋盘', () => {
         if (x >= 154 && !same) lightInk++;
       }
     }
-    // 浅纸：左（黑）边几乎铺满实心块，右（白）边只剩零星小点
-    expect(darkInk).toBeGreaterThan(22 * 66 * 0.8);
+    // 浅纸：左（黑）边被满格块铺成一整片实底，右（白）边只剩零星小记号
+    expect(darkInk).toBe(22 * 66);
     expect(lightInk).toBeLessThan(22 * 66 * 0.1);
+  });
+});
+
+describe('新增符号：位图密度阶', () => {
+  const NEW: GlyphId[] = ['speck', 'ringsmall', 'xdot', 'quarter', 'trio', 'block'];
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('6 种都在符号库里且排在老的 62 个后面，编码不变；墨量从方点、小圈、小叉一路排到角块 ¼、棋盘 ² ⁄ ₄、缺角块 ¾、满格块 4/4', () => {
+    expect(GLYPH_IDS.slice(0, 62).includes('speck')).toBe(false);
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    // 亮处那三个小记号都比一个象限少墨，彼此也分得开
+    expect(c('speck')).toBeLessThan(c('ringsmall'));
+    expect(c('ringsmall')).toBeLessThan(c('xdot'));
+    expect(c('xdot')).toBeLessThan(c('quarter'));
+    // 小记号都缩在格子里：比同名的大号少墨
+    expect(c('speck')).toBeLessThan(c('square'));
+    expect(c('ringsmall')).toBeLessThan(c('ring'));
+    expect(c('xdot')).toBeLessThan(c('xmark'));
+    // 密度阶：填的象限一个比一个多
+    expect(c('quarter')).toBeLessThan(c('checker'));
+    expect(c('checker')).toBeLessThan(c('trio'));
+    expect(c('trio')).toBeLessThan(c('block'));
+    // 满格块把整格铺满，是整个符号库里最暗的一个
+    expect(c('block')).toBe(1);
+    for (const id of GLYPH_IDS) expect(c(id), id).toBeLessThanOrEqual(c('block'));
+  });
+
+  it('渲染：满格块整片实底不留接缝，角块只占左上一个象限，缺角块只剩左下角是纸；三个都按格铺、不随符号大小缩放', () => {
+    // 12px 格、36×36 画布：格心落在 6 / 18 / 30，横纵各三格
+    // 满格块：每一个像素都是墨，格与格之间不留半墨的发丝线
+    const block = renderHalftone(buildGlyphScreen(flatSource(36, 36, 0.5), custom(['block', 'block'])));
+    for (let y = 0; y < 36; y++) for (let x = 0; x < 36; x++) expect(px(block, x, y), `${x},${y}`).toEqual([0, 0, 0]);
+    // 角块：只有格心左上那个象限是墨，另外三个象限是纸
+    const quarter = renderHalftone(buildGlyphScreen(flatSource(36, 36, 0.5), custom(['quarter', 'quarter'])));
+    expect(px(quarter, 14, 14)).toEqual([0, 0, 0]);
+    expect(px(quarter, 22, 14)).toEqual([255, 255, 255]);
+    expect(px(quarter, 14, 22)).toEqual([255, 255, 255]);
+    expect(px(quarter, 22, 22)).toEqual([255, 255, 255]);
+    // 缺角块：四个象限里只有左下是纸
+    const trio = renderHalftone(buildGlyphScreen(flatSource(36, 36, 0.5), custom(['trio', 'trio'])));
+    expect(px(trio, 14, 14)).toEqual([0, 0, 0]);
+    expect(px(trio, 22, 14)).toEqual([0, 0, 0]);
+    expect(px(trio, 22, 22)).toEqual([0, 0, 0]);
+    expect(px(trio, 14, 22)).toEqual([255, 255, 255]);
+    // 墨一阶比一阶多：角块 ⊂ 棋盘 ⊂ 缺角块 ⊂ 满格块，同一处是墨的只会更多
+    const checker = renderHalftone(buildGlyphScreen(flatSource(36, 36, 0.5), custom(['checker', 'checker'])));
+    const ink = (f: { data: Uint8ClampedArray }) => {
+      let n = 0;
+      for (let k = 0; k < f.data.length; k += 4) if (f.data[k] === 0) n++;
+      return n;
+    };
+    expect(ink(quarter)).toBeLessThan(ink(checker));
+    expect(ink(checker)).toBeLessThan(ink(trio));
+    expect(ink(trio)).toBeLessThan(ink(block));
+    // 按格铺：符号大小缩到一半，三个块画出来一模一样
+    for (const id of ['block', 'quarter', 'trio'] as GlyphId[]) {
+      const full = renderHalftone(buildGlyphScreen(flatSource(24, 24, 0.5), custom([id, id])));
+      const half = renderHalftone(buildGlyphScreen(flatSource(24, 24, 0.5), custom([id, id], { size: 0.5 })));
+      expect(Array.from(half.data), id).toEqual(Array.from(full.data));
+    }
+  });
+
+  it('SVG：三个密度阶都是实心 <rect>，满格块的矩形盖住整格；方点是 <rect>、小圈是描边 <circle>、小叉是两条 <line>', () => {
+    const block = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['block', 'block'])));
+    // 铺底一个 + 满格块自己一个
+    const rects = block.match(/<rect [^>]*>/g) ?? [];
+    expect(rects.length).toBe(2);
+    // 矢量里跨格图元多出 0.25px（`glyphSpan(screen, 0.25)`），12px 的格子铺成 12.5 见方、绕格心居中
+    expect(rects[1]).toMatch(/x="-6.25" y="-6.25" width="12.5" height="12.5"/);
+    const quarter = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['quarter', 'quarter'])));
+    expect((quarter.match(/<rect /g) ?? []).length).toBe(2);
+    const trio = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['trio', 'trio'])));
+    expect((trio.match(/<rect /g) ?? []).length).toBe(4);
+    const speck = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['speck', 'speck'])));
+    expect((speck.match(/<rect /g) ?? []).length).toBe(2);
+    const ringsmall = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['ringsmall', 'ringsmall'])));
+    expect(ringsmall).toMatch(/<circle [^>]*fill="none" stroke=/);
+    const xdot = halftoneToSvg(buildGlyphScreen(flatSource(12, 12, 0.5), custom(['xdot', 'xdot'])));
+    expect((xdot.match(/<line /g) ?? []).length).toBe(2);
   });
 });
 

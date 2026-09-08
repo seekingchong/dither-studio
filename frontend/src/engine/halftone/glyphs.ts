@@ -22,6 +22,9 @@ export type GlyphId =
   | 'rings'
   | 'clover'
   | 'flower'
+  | 'speck'
+  | 'ringsmall'
+  | 'xdot'
   // 线
   | 'tick'
   | 'minus'
@@ -60,6 +63,9 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'quarter'
+  | 'trio'
+  | 'block'
   // 字符
   | 'one'
   | 'four'
@@ -155,6 +161,15 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 位图（参考图七：淡紫白纸上一片群青的位图海报）。四个方块按象限数从一到四成一族有序抖动的密度阶：
+  // 角块 ¼ → 棋盘 ² ⁄ ₄（已有）→ 缺角块 ¾ → 满格块 4/4，100% 大小时邻格接得严丝合缝，
+  // 一路从稀疏点阵铺到整片实底；方点与小圈是亮处那些一格一颗的小记号
+  { id: 'speck', label: '方点', group: 'dots', desc: '不到一半大的实心小方块，位图上的一颗像素' },
+  { id: 'ringsmall', label: '小圈', group: 'dots', desc: '不到一半大的空心小圆，比「圆圈」小一圈' },
+  { id: 'xdot', label: '小叉', group: 'lines', desc: '格子中间一个不到一半大的叉，邻格之间断开' },
+  { id: 'quarter', label: '角块', group: 'geometry', desc: '左上一个象限铺满，邻格拼成四分之一密度的方点阵，不随符号大小缩放' },
+  { id: 'trio', label: '缺角块', group: 'geometry', desc: '四个象限铺满三个，邻格拼成只剩规则孔洞的密块，不随符号大小缩放' },
+  { id: 'block', label: '满格块', group: 'geometry', desc: '整格铺满，邻格拼成一整片实底，不随符号大小缩放' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -183,6 +198,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
  * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `B` 是跨格实心方：中心与半边都以半格为 1（跟 `S` 一样两头多出半像素），所以它按格铺、不随符号大小缩放，
+ * 邻格的块接得严丝合缝——有序抖动那一族密度阶（角块 / 缺角块 / 满格块）用它。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -195,6 +212,7 @@ type Prim =
   | { k: 'q'; h: number }
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
+  | { k: 'B'; x: number; y: number; h: number }
   | { k: 'R'; h: number }
   | { k: 'd' }
   | { k: 'D' }
@@ -212,6 +230,8 @@ const DIAG: Prim = { k: 's', x1: -0.85, y1: 0.85, x2: 0.85, y2: -0.85 };
 const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
+/** 象限块的半边（半格为 1）：正好半个象限再多一丝，格内与邻格的块之间都叠上一点，接缝上不留半墨的发丝线 */
+const QUAD = 0.56;
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
 /** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
 const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
@@ -346,6 +366,20 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 位图：方点与小圈都缩在半径一半以内，亮处一格一颗、彼此不粘连
+  speck: [{ k: 'q', h: 0.42 }],
+  ringsmall: [{ k: 'o', x: 0, y: 0, r: 0.52 }],
+  xdot: [seg(-0.45, 0.45, 0.45, -0.45), seg(-0.45, -0.45, 0.45, 0.45)],
+  // 有序抖动的密度阶。象限块沿用棋盘那套「挪开中心的实心方」，半边比 0.5 多一点点，
+  // 格内与邻格之间都叠上一丝，接缝处不留半墨的发丝线；填哪几个象限层层包含
+  // （角块 ⊂ 棋盘 ⊂ 缺角块 ⊂ 满格块），越暗只会多墨、不会挪位置
+  quarter: [{ k: 'B', x: -0.5, y: -0.5, h: QUAD }],
+  trio: [
+    { k: 'B', x: -0.5, y: -0.5, h: QUAD },
+    { k: 'B', x: 0.5, y: 0.5, h: QUAD },
+    { k: 'B', x: 0.5, y: -0.5, h: QUAD },
+  ],
+  block: [{ k: 'B', x: 0, y: 0, h: 1 }],
 };
 
 /** 按编码取图元表 */
@@ -449,6 +483,15 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'b':
         dd = shapeDistance('square', x - p.x * r, y - p.y * r, p.h * r, 0);
         break;
+      case 'B': {
+        // 跨格实心方：横纵各按自己的半格算，长方格上也铺得满
+        const bx = Math.abs(x - p.x * spanX) - p.h * spanX;
+        const by = Math.abs(y - p.y * spanY) - p.h * spanY;
+        const ox = bx > 0 ? bx : 0;
+        const oy = by > 0 ? by : 0;
+        dd = Math.min(bx > by ? bx : by, 0) + Math.sqrt(ox * ox + oy * oy);
+        break;
+      }
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
@@ -540,6 +583,12 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
       case 'b': {
         const h = p.h * r;
         out.push(`<rect x="${f(cx + p.x * r - h)}" y="${f(cy + p.y * r - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
+        break;
+      }
+      case 'B': {
+        const hx = p.h * spanX;
+        const hy = p.h * spanY;
+        out.push(`<rect x="${f(cx + p.x * spanX - hx)}" y="${f(cy + p.y * spanY - hy)}" width="${f(2 * hx)}" height="${f(2 * hy)}"${fill}/>`);
         break;
       }
       case 'R': {

@@ -967,25 +967,26 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图七：淡紫白纸上只有一种群青的位图海报——暗处大片实心块，往亮里依次是密网、棋盘格，
-  // 再往亮是零星的叉、十字、四点与小点，像早期屏幕的有序抖动。
-  // 100% 大小让实心块、密网与棋盘格在邻格之间接上，棋盘格才拼得成格纹；交界混合开到 60%，
-  // 明暗交界处两阶的符号掺在一起，边界碎成参考图那样的噪点。
+  // 参考图七：淡紫白纸上只有一种群青的位图海报，像早期屏幕的有序抖动。为它新添的四个方块自成一族密度阶——
+  // 角块 ¼ → 棋盘 ² ⁄ ₄ → 缺角块 ¾ → 满格块 4/4，填的象限层层包含，越暗只是多墨、不挪位置，
+  // 100% 大小时邻格接得严丝合缝，一路从稀疏点阵铺到整片实底，正是参考图里那种成块的位图灰阶；
+  // 最亮那几阶是方点、小圈与小叉，一格一颗、彼此不连，就是参考图上零星撒开的小记号。
+  // 交界混合开到 70%，明暗交界处两阶的符号掺在一起，边界碎成参考图那样的噪点。
   // 分级配色仍是同一族群青，只按阶从亮处的偏紫蓝走到暗处的深群青——比参考图的纯平涂多一层厚度。
   // 浅纸深墨，不反相
   {
     id: 'glyph-ultramarine',
     name: 'Ultramarine Bitmap',
-    hint: '淡紫白纸上一片群青：小点、四点、十字与叉到棋盘格、密网与实心块',
+    hint: '淡紫白纸上一片群青：方点、小圈与小叉到角块、棋盘、缺角块与满格块',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
       'glyph.levels': 8,
-      ...glyphShapes(['blank', 'pip', 'quad', 'plus', 'xmark', 'checker', 'hashx', 'square']),
+      ...glyphShapes(['blank', 'speck', 'ringsmall', 'xdot', 'quarter', 'checker', 'trio', 'block']),
       'glyph.size': 100,
       'glyph.taper': 0,
       'glyph.stroke': 18,
-      'glyph.mix': 60,
+      'glyph.mix': 70,
       'glyph.accent': 0,
       'tile.pitchX': 11,
       'tile.pitchY': 11,
