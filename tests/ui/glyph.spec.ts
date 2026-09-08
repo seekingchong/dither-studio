@@ -242,7 +242,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(100);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -337,7 +337,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 新符号在选择器里各自的组：叠圈在「点」、短竖纹在「线」
   await rows.nth(6).locator('.glyph-level__shape').click();
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(100);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="ringpair"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="comb"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
@@ -391,7 +391,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // 位图密度阶在选择器里也挑得到：小叉在「线」，角块 / 缺角块在「几何」
   await rows.nth(6).locator('.glyph-level__shape').click();
   const bitmapPicker = page.getByTestId('glyph-picker');
-  await expect(bitmapPicker.locator('[data-glyph]')).toHaveCount(100);
+  await expect(bitmapPicker.locator('[data-glyph]')).toHaveCount(101);
   await expect(bitmapPicker.locator('[data-glyph="trio"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(bitmapPicker.getByRole('group', { name: '线' }).locator('[data-glyph="xdot"]')).toHaveCount(1);
   await expect(bitmapPicker.getByRole('group', { name: '几何' }).locator('[data-glyph="quarter"]')).toHaveCount(1);
@@ -446,7 +446,7 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   // 新符号在选择器里各归各组：细板 / 横板 / 厚板在「线」，穿孔块 / 半块在「几何」
   await rows.nth(2).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(100);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   for (const id of ['slabthin', 'slab', 'slabwide']) {
     await expect(picker.getByRole('group', { name: '线' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -494,7 +494,7 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
   // 新符号在选择器里各归各组：小方点 / 杉树 / 小屋在「几何」，竖板在「线」
   await rows.nth(4).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
-  await expect(picker.locator('[data-glyph]')).toHaveCount(100);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
   for (const id of ['tinysquare', 'fir', 'hut']) {
     await expect(picker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
   }
@@ -509,5 +509,52 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
   await openSection(page, 'effects');
   await expect(page.locator('.effect-card')).toHaveCount(1);
   await expect(page.locator('.effect-card').first()).toContainText('胶片颗粒');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+});
+
+test('符号：Pixel Blocks 预设是米纸上的橙蓝双色方块，用上新符号密竖纹，带一层胶片颗粒', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  await page.getByTestId('preset-more').click();
+
+  await page.locator('[data-preset="glyph-pixel-blocks"]').click();
+  await expect(page.locator('[data-preset="glyph-pixel-blocks"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Pixel Blocks');
+
+  // 8 阶 空 → 小点 → 小方点 → 三角 → 圆点 → 棋盘 → 密竖纹 → 实心方
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+  await expect(rows).toHaveCount(8);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tinysquare');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bars');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('密竖纹');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心方');
+
+  // 新符号密竖纹在选择器的「线」一组里
+  await rows.nth(6).locator('.glyph-level__shape').click();
+  const picker = page.getByTestId('glyph-picker');
+  await expect(picker.locator('[data-glyph]')).toHaveCount(101);
+  await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="bars"]')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(picker).toHaveCount(0);
+
+  // 分级配色：中间调橙、暗处蓝，纸是米色
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(9);
+  await expect(swatches.nth(3)).toHaveAttribute('aria-label', '第 4 阶 #F26A1B');
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #6C79C1');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #4E5CAE');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #EBE7DD');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('55');
+
+  // 特效栈里有一枚胶片颗粒
+  await expect(page.locator('[data-effect="grain"]')).toHaveCount(1);
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
