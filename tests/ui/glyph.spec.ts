@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(67);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -293,20 +293,35 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 
-  // Swiss Mosaic：7 阶 空 → 棋盘 → 方块到底，分级配色绿蓝交错，淡灰纸不反相
+  // Swiss Mosaic：7 阶 空 → 像素方 → 像素十字 → 实心方 → 满格方，分级配色绿蓝交错，淡灰纸不反相
   await page.locator('[data-preset="glyph-swiss"]').click();
   await expect(page.locator('[data-preset="glyph-swiss"]')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Swiss Mosaic');
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
-  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
-  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('实心方');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pixel');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pixcross');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('满格方');
   await expect(swatches).toHaveCount(8);
   await expect(swatches.nth(3)).toHaveAttribute('aria-label', '第 4 阶 #0F5FC4');
   await expect(swatches.nth(4)).toHaveAttribute('aria-label', '第 5 阶 #00A05B');
   await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #EFEFEF');
   await expect(page.locator('[data-param="tile.cell"] input[type="range"]')).toHaveValue('20');
-  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('20');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // 新的方块符号在选择器的「几何」组里，「马赛克」是一套推荐序列
+  await rows.nth(1).locator('.glyph-level__shape').click();
+  const mosaicPicker = page.getByTestId('glyph-picker');
+  await expect(mosaicPicker.locator('[data-glyph]')).toHaveCount(67);
+  for (const id of ['pixel', 'pixstair', 'pixcross', 'pixframe', 'block']) {
+    await expect(mosaicPicker.getByRole('group', { name: '几何' }).locator(`[data-glyph="${id}"]`)).toHaveCount(1);
+  }
+  await page.keyboard.press('Escape');
+  await pick(page, 'glyph.ramp', '马赛克');
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('马赛克');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });

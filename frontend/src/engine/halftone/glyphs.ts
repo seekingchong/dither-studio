@@ -60,6 +60,11 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'pixel'
+  | 'pixstair'
+  | 'pixcross'
+  | 'pixframe'
+  | 'block'
   // 字符
   | 'one'
   | 'four'
@@ -155,6 +160,11 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  { id: 'pixel', label: '像素方', group: 'geometry', desc: '三分之一格的实心小方，方块马赛克里最小的一粒' },
+  { id: 'pixstair', label: '像素阶', group: 'geometry', desc: '对角三个小方连成的台阶' },
+  { id: 'pixcross', label: '像素十字', group: 'geometry', desc: '五个小方拼成的实心十字，臂宽三分之一格' },
+  { id: 'pixframe', label: '像素回', group: 'geometry', desc: '八个小方围一圈，中间空出三分之一格' },
+  { id: 'block', label: '满格方', group: 'geometry', desc: '填满整个格子的实心方，与邻格连成整片；和贯穿的线一样不随符号大小缩放' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -182,7 +192,7 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`B` 是填满整格的实心方（跨格，与邻格连成整片），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -195,6 +205,7 @@ type Prim =
   | { k: 'q'; h: number }
   | { k: 'Q'; h: number }
   | { k: 'b'; x: number; y: number; h: number }
+  | { k: 'B' }
   | { k: 'R'; h: number }
   | { k: 'd' }
   | { k: 'D' }
@@ -212,6 +223,13 @@ const DIAG: Prim = { k: 's', x1: -0.85, y1: 0.85, x2: 0.85, y2: -0.85 };
 const ANTI: Prim = { k: 's', x1: -0.85, y1: -0.85, x2: 0.85, y2: 0.85 };
 /** 方框的半边：留一点缝，相邻格子的方块不粘连 */
 const BOX = 0.85;
+/**
+ * 像素块系列：把 `square` 那块方（半边 BOX）当成 3×3 的小方格，第 (i, j) 格（−1 / 0 / 1）是一个实心小方。
+ * 小方边长正好是大方的三分之一、彼此相接，所以拼出来的十字与回字外缘与 `square` 齐平，
+ * 一格里放大了看还是同一套方块马赛克。
+ */
+const PIX = BOX / 3;
+const pix = (i: number, j: number): Prim => ({ k: 'b', x: i * 2 * PIX, y: j * 2 * PIX, h: PIX });
 const seg = (x1: number, y1: number, x2: number, y2: number): Prim => ({ k: 's', x1, y1, x2, y2 });
 /** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
 const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
@@ -346,6 +364,13 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
       ],
     },
   ],
+  // 像素块：同一块方切成 3×3，按填哪几格分出墨量——一粒 → 对角三粒 → 十字五粒 → 围一圈八粒 → 实心方
+  pixel: [pix(0, 0)],
+  pixstair: [pix(-1, -1), pix(0, 0), pix(1, 1)],
+  pixcross: [pix(0, -1), pix(-1, 0), pix(0, 0), pix(1, 0), pix(0, 1)],
+  pixframe: [pix(-1, -1), pix(0, -1), pix(1, -1), pix(-1, 0), pix(1, 0), pix(-1, 1), pix(0, 1), pix(1, 1)],
+  // 满格方：跨格实心方，两头各多出半像素盖住格间接缝，成片的暗部连成一整块
+  block: [{ k: 'B' }],
 };
 
 /** 按编码取图元表 */
@@ -449,6 +474,12 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'b':
         dd = shapeDistance('square', x - p.x * r, y - p.y * r, p.h * r, 0);
         break;
+      case 'B': {
+        const ex = Math.abs(x) - spanX;
+        const ey = Math.abs(y) - spanY;
+        dd = Math.hypot(Math.max(ex, 0), Math.max(ey, 0)) + Math.min(Math.max(ex, ey), 0);
+        break;
+      }
       case 'R':
         dd = Math.abs(shapeDistance('roundsquare', x, y, frameHalf(p.h * r, hw), 0)) - hw;
         break;
@@ -542,6 +573,9 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         out.push(`<rect x="${f(cx + p.x * r - h)}" y="${f(cy + p.y * r - h)}" width="${f(2 * h)}" height="${f(2 * h)}"${fill}/>`);
         break;
       }
+      case 'B':
+        out.push(`<rect x="${f(cx - spanX)}" y="${f(cy - spanY)}" width="${f(2 * spanX)}" height="${f(2 * spanY)}"${fill}/>`);
+        break;
       case 'R': {
         const h = frameHalf(p.h * r, hw);
         out.push(`<rect x="${f(cx - h)}" y="${f(cy - h)}" width="${f(2 * h)}" height="${f(2 * h)}" rx="${f(h * ROUND_SQUARE_CORNER)}" fill="none"${stroke}/>`);

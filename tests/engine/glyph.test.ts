@@ -148,7 +148,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(62);
+    expect(GLYPH_IDS.length).toBe(67);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -311,12 +311,12 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(p['style.type']).toBe('glyph');
     expect(p['glyph.ramp']).toBe('custom');
     expect(p['glyph.levels']).toBe(7);
-    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'checker', 'square', 'square', 'square', 'square', 'square']);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pixel', 'pixcross', 'square', 'square', 'square', 'block']);
     expect(p['glyph.colorMode']).toBe('levels');
     // 第 5 阶回到绿，成片的蓝里才掺得进绿方块
     expect([3, 4, 5, 6, 7].map((k) => p[glyphColorId(k)])).toEqual(['#00A05B', '#0F5FC4', '#00A05B', '#0F5FC4', '#0B4FA8']);
     expect(p['glyph.paper']).toBe('#EFEFEF');
-    // 亮处的方块要比暗处小，才碎得开
+    // 亮处的方块要比暗处小，才碎得开；符号大小留出格线一样的纸缝，最暗一阶的满格方不受它影响
     expect(Number(p['glyph.taper'])).toBeGreaterThan(0);
     expect(Number(p['glyph.size'])).toBeLessThan(100);
     expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(60);
@@ -348,6 +348,71 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(darkInk).toBeGreaterThan(lightInk * 3);
     expect(green).toBeGreaterThan(200);
     expect(blue).toBeGreaterThan(200);
+  });
+});
+
+describe('新增符号：方块马赛克', () => {
+  const c = (id: GlyphId) => glyphCoverage(GLYPH_CODE[id]);
+
+  it('5 种都排在老的 62 个后面，编码不变；墨量按小方块个数从少到多：像素方 < 像素阶 < 像素十字 < 像素回 < 实心方 < 满格方', () => {
+    for (const id of ['pixel', 'pixstair', 'pixcross', 'pixframe', 'block'] as GlyphId[]) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+    }
+    expect(c('pixel')).toBeLessThan(c('pixstair'));
+    expect(c('pixstair')).toBeLessThan(c('pixcross'));
+    expect(c('pixcross')).toBeLessThan(c('pixframe'));
+    expect(c('pixframe')).toBeLessThan(c('square'));
+    // 满格方填满整格，是全库墨量最多的
+    expect(c('block')).toBe(1);
+    expect(glyphsByCoverage().at(-1)).toBe('block');
+  });
+
+  it('像素块切在同一张 3×3 小格上：像素方只有中心一格，像素十字缺四角，像素回中心是纸，外缘与实心方齐平', () => {
+    const r = 12;
+    const hw = 1.5;
+    const span = 8;
+    const m = (r * 0.85 * 2) / 3; // 小方的中心间距
+    const d = (id: GlyphId, x: number, y: number) => glyphDistance(GLYPH_CODE[id], x, y, r, hw, span, span);
+    // 中心那一格：像素方 / 十字里有墨，像素回里是纸
+    expect(d('pixel', 0, 0)).toBeLessThan(0);
+    expect(d('pixcross', 0, 0)).toBeLessThan(0);
+    expect(d('pixframe', 0, 0)).toBeGreaterThan(0);
+    // 四角：像素十字缺角，像素回有
+    expect(d('pixcross', -m, -m)).toBeGreaterThan(0);
+    expect(d('pixframe', -m, -m)).toBeLessThan(0);
+    // 上下左右：像素十字有
+    expect(d('pixcross', 0, -m)).toBeLessThan(0);
+    // 像素方只有中心一格，旁边就是纸
+    expect(d('pixel', m, 0)).toBeGreaterThan(0);
+    // 像素阶：对角三格
+    expect(d('pixstair', -m, -m)).toBeLessThan(0);
+    expect(d('pixstair', m, -m)).toBeGreaterThan(0);
+    // 外缘与实心方齐平：0.85r 上还有墨，再往外就是纸
+    expect(d('pixframe', 0.85 * r - 0.3, 0)).toBeLessThan(0);
+    expect(d('pixframe', 0.85 * r + 0.3, 0)).toBeGreaterThan(0);
+  });
+
+  it('满格方按格子（而不是符号大小）填满，与邻格连成整片；SVG 出一个整格的 <rect>', () => {
+    const span = 8;
+    // 符号大小再小也填满整格：半径给 1，格角上仍是墨
+    expect(glyphDistance(GLYPH_CODE.block, span - 0.5, span - 0.5, 1, 0.5, span, span)).toBeLessThan(0);
+    expect(glyphDistance(GLYPH_CODE.block, span + 0.5, 0, 1, 0.5, span, span)).toBeGreaterThan(0);
+    // 两头各多出半像素，邻格之间不留缝
+    const svg = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['block', 'block'])));
+    const rect = svg.match(/<rect x="[^"]*" y="[^"]*" width="([\d.]+)" height="([\d.]+)"\/>/);
+    expect(rect).not.toBeNull();
+    expect(Number(rect![1])).toBeGreaterThan(12);
+    // 一格一个 <rect>：底 1 个 + 每格 1 个
+    const flat = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.9), custom(['block', 'block'])));
+    expect((flat.match(/<rect /g) ?? []).length).toBeGreaterThan(1);
+  });
+
+  it('「马赛克」推荐序列全是方块，8 个按墨量排好，最暗一阶是满格方', () => {
+    const ramp = rampFor('mosaic', 8);
+    expect(ramp).toEqual(['blank', 'pixel', 'pixstair', 'pixcross', 'checker', 'pixframe', 'square', 'block']);
+    expect(rampIsMonotonic(ramp)).toBe(true);
+    expect(rampFor('mosaic', 2)).toEqual(['blank', 'block']);
   });
 });
 
