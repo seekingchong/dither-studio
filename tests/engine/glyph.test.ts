@@ -308,51 +308,38 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(lime).toBeGreaterThan(50);
   });
 
-  it('Desync 预设：白纸黑块加荧光黄绿像素——短横、横线、双横到实心方，分级配色，扫描行位移', () => {
-    const desync = builtinPresetParams(findBuiltinPreset('glyph-desync')!);
-    expect(desync['style.type']).toBe('glyph');
-    expect(desync['glyph.ramp']).toBe('custom');
-    expect(desync['glyph.levels']).toBe(6);
-    expect([1, 2, 3, 4, 5, 6].map((k) => desync[glyphShapeId(k)])).toEqual(['blank', 'minus', 'dash', 'equals', 'square', 'square']);
-    expect(desync['glyph.colorMode']).toBe('levels');
-    expect(desync['glyph.color5']).toBe('#D6FF1A');
-    expect(desync['glyph.color6']).toBe('#111111');
-    expect(desync['glyph.paper']).toBe('#F2F2EE');
-    // 白纸深符号，不反相
-    expect(desync['tone.invert']).toBe(false);
-    // 亮部缩小把两头拉开：短横那一阶要留缝（≤ 85%），实心方的两阶要盖满格子、相邻块之间不留线（≥ 118%）
-    const sizes = levelSizes(Number(desync['glyph.size']) / 100, Number(desync['glyph.taper']) / 100, 6);
-    expect(sizes[1]).toBeLessThanOrEqual(0.85);
-    expect(sizes[4]).toBeGreaterThanOrEqual(1.18);
-    expect(sizes[5]).toBeGreaterThanOrEqual(1.18);
-    // 特效栈只有一条扫描行位移，带高与格子等高，整行的方块一起挪
-    const stack = parseStack(desync['effects.stack']);
-    expect(stack.map((e) => e.type)).toEqual(['rowShift']);
-    expect(stack[0].enabled).toBe(true);
-    expect(stack[0].params.band).toBe(desync['tile.pitchY']);
-    // 左黑右白的渐变：左边是黑块、右边是纸色、中间有荧光黄绿（先关掉行位移，免得整行绕到另一边）
-    const out = renderImage(
-      makeFrame(240, 60, (x) => {
-        const v = Math.round((x / 239) * 255);
-        return [v, v, v];
-      }),
-      { ...desync, 'effects.stack': '', 'canvas.width': 240, 'canvas.height': 60 },
-    );
-    const near = (p: number[], hex: string) => hexToRgb(hex).every((v, i) => Math.abs(p[i] - v) < 8);
-    let lime = 0;
-    let leftBlack = 0;
-    let rightPaper = 0;
-    for (let y = 0; y < 60; y++) {
-      for (let x = 0; x < 240; x++) {
-        const p = px(out, x, y);
-        if (near(p, '#D6FF1A')) lime++;
-        if (x < 24 && near(p, '#111111')) leftBlack++;
-        if (x >= 216 && near(p, '#F2F2EE')) rightPaper++;
+  it('Acid Cipher 预设：柠檬绿底墨色 8 阶自定义序列，全从符号库取、墨量单调递增，浅底深符号不反相', () => {
+    const cipher = builtinPresetParams(findBuiltinPreset('glyph-cipher')!);
+    expect(cipher['style.type']).toBe('glyph');
+    expect(cipher['glyph.ramp']).toBe('custom');
+    expect(cipher['glyph.levels']).toBe(8);
+    const shapes = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => cipher[glyphShapeId(k)] as GlyphId);
+    expect(shapes).toEqual(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']);
+    expect(rampIsMonotonic(shapes)).toBe(true);
+    expect(cipher['glyph.colorMode']).toBe('mono');
+    expect(cipher['glyph.ink']).toBe('#0E150A');
+    expect(cipher['glyph.paper']).toBe('#C9F52C');
+    expect(cipher['tone.invert']).toBe(false);
+    expect(cipher['glyph.accent']).toBe(0);
+    expect(cipher['tile.pitchX']).toBe(12);
+    expect(cipher['tile.pitchY']).toBe(12);
+    // 亮部只缩一点：最亮一阶的小点是最暗一阶的七成大
+    expect(levelSizes(Number(cipher['glyph.size']) / 100, Number(cipher['glyph.taper']) / 100, 8)[0]).toBeCloseTo(0.74 * 0.7, 5);
+    // 浅底：左（黑）边墨多、右（白）边基本只剩纸色与小点
+    const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), { ...cipher, 'canvas.width': 72, 'canvas.height': 36 });
+    expect(out.width).toBe(72);
+    let leftInk = 0;
+    let rightInk = 0;
+    const paper = [0xc9, 0xf5, 0x2c];
+    for (let y = 0; y < 36; y++) {
+      for (let x = 0; x < 72; x++) {
+        const same = px(out, x, y).every((v, i) => Math.abs(v - paper[i]) < 8);
+        if (x < 18 && !same) leftInk++;
+        if (x >= 54 && !same) rightInk++;
       }
     }
-    expect(lime).toBeGreaterThan(0);
-    expect(leftBlack / (24 * 60)).toBeGreaterThan(0.8);
-    expect(rightPaper / (24 * 60)).toBeGreaterThan(0.9);
+    expect(leftInk).toBeGreaterThan(rightInk);
+    expect(rightInk).toBeGreaterThan(0);
   });
 });
 
@@ -664,5 +651,52 @@ describe('流水线 符号 分支', () => {
     expect(findBuiltinPreset('ht-typewriter')).toBeUndefined();
     const out = renderImage(source(), { ...sketch, 'canvas.width': 52, 'canvas.height': 26 });
     expect(out.width).toBe(52);
+  });
+
+  it('Desync 预设：白纸黑块加荧光黄绿像素——短横、横线、双横到实心方，分级配色，扫描行位移', () => {
+    const desync = builtinPresetParams(findBuiltinPreset('glyph-desync')!);
+    expect(desync['style.type']).toBe('glyph');
+    expect(desync['glyph.ramp']).toBe('custom');
+    expect(desync['glyph.levels']).toBe(6);
+    expect([1, 2, 3, 4, 5, 6].map((k) => desync[glyphShapeId(k)])).toEqual(['blank', 'minus', 'dash', 'equals', 'square', 'square']);
+    expect(desync['glyph.colorMode']).toBe('levels');
+    expect(desync['glyph.color5']).toBe('#D6FF1A');
+    expect(desync['glyph.color6']).toBe('#111111');
+    expect(desync['glyph.paper']).toBe('#F2F2EE');
+    // 白纸深符号，不反相
+    expect(desync['tone.invert']).toBe(false);
+    // 亮部缩小把两头拉开：短横那一阶要留缝（≤ 85%），实心方的两阶要盖满格子、相邻块之间不留线（≥ 118%）
+    const sizes = levelSizes(Number(desync['glyph.size']) / 100, Number(desync['glyph.taper']) / 100, 6);
+    expect(sizes[1]).toBeLessThanOrEqual(0.85);
+    expect(sizes[4]).toBeGreaterThanOrEqual(1.18);
+    expect(sizes[5]).toBeGreaterThanOrEqual(1.18);
+    // 特效栈只有一条扫描行位移，带高与格子等高，整行的方块一起挪
+    const stack = parseStack(desync['effects.stack']);
+    expect(stack.map((e) => e.type)).toEqual(['rowShift']);
+    expect(stack[0].enabled).toBe(true);
+    expect(stack[0].params.band).toBe(desync['tile.pitchY']);
+    // 左黑右白的渐变：左边是黑块、右边是纸色、中间有荧光黄绿（先关掉行位移，免得整行绕到另一边）
+    const out = renderImage(
+      makeFrame(240, 60, (x) => {
+        const v = Math.round((x / 239) * 255);
+        return [v, v, v];
+      }),
+      { ...desync, 'effects.stack': '', 'canvas.width': 240, 'canvas.height': 60 },
+    );
+    const near = (p: number[], hex: string) => hexToRgb(hex).every((v, i) => Math.abs(p[i] - v) < 8);
+    let lime = 0;
+    let leftBlack = 0;
+    let rightPaper = 0;
+    for (let y = 0; y < 60; y++) {
+      for (let x = 0; x < 240; x++) {
+        const p = px(out, x, y);
+        if (near(p, '#D6FF1A')) lime++;
+        if (x < 24 && near(p, '#111111')) leftBlack++;
+        if (x >= 216 && near(p, '#F2F2EE')) rightPaper++;
+      }
+    }
+    expect(lime).toBeGreaterThan(0);
+    expect(leftBlack / (24 * 60)).toBeGreaterThan(0.8);
+    expect(rightPaper / (24 * 60)).toBeGreaterThan(0.9);
   });
 });
