@@ -89,7 +89,21 @@ export type GlyphId =
   | 'em'
   | 'aitch'
   | 'ee'
-  | 'wye';
+  | 'wye'
+  | 'ay'
+  | 'see'
+  | 'dee'
+  | 'gee'
+  | 'jay'
+  | 'kay'
+  | 'ar'
+  | 'ess'
+  | 'you'
+  | 'dubya'
+  | 'comma'
+  | 'semicolon'
+  | 'underscore'
+  | 'bracket';
 
 /** 符号的分类，符号选择器按它分组 */
 export type GlyphGroup = 'dots' | 'lines' | 'geometry' | 'chars';
@@ -184,6 +198,21 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'grillebold', label: '竖栅·粗', group: 'lines', desc: '三道贯穿格子的实心粗竖带，缝比带窄，栅距不变' },
   { id: 'grillefull', label: '竖栅·满', group: 'lines', desc: '三道贯穿格子的实心宽竖带，只剩三道细缝，栅距不变' },
   { id: 'block', label: '实心格', group: 'geometry', desc: '填满整格的实心块，邻格拼成一整片，不留缝' },
+  // 终端字符画（参考图：黑底上青绿两色的一屏字）：补一批等宽字母与标点，凑齐屏幕上敲得出来的字符
+  { id: 'ay', label: 'A', group: 'chars', desc: '字母 A' },
+  { id: 'see', label: 'C', group: 'chars', desc: '字母 C' },
+  { id: 'dee', label: 'D', group: 'chars', desc: '字母 D' },
+  { id: 'gee', label: 'G', group: 'chars', desc: '字母 G' },
+  { id: 'jay', label: 'J', group: 'chars', desc: '字母 J' },
+  { id: 'kay', label: 'K', group: 'chars', desc: '字母 K' },
+  { id: 'ar', label: 'R', group: 'chars', desc: '字母 R' },
+  { id: 'ess', label: 'S', group: 'chars', desc: '字母 S' },
+  { id: 'you', label: 'U', group: 'chars', desc: '字母 U' },
+  { id: 'dubya', label: 'W', group: 'chars', desc: '字母 W' },
+  { id: 'comma', label: '逗号', group: 'chars', desc: '格子左下角的一小撇' },
+  { id: 'semicolon', label: '分号', group: 'chars', desc: '一个点加一小撇' },
+  { id: 'underscore', label: '下划线', group: 'chars', desc: '贴着格子底边的横线，与左右邻格连成一条' },
+  { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -345,6 +374,22 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
   aitch: [seg(-0.7, -1, -0.7, 1), seg(0.7, -1, 0.7, 1), seg(-0.7, 0, 0.7, 0)],
   ee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.7, -1), seg(-0.7, 0, 0.5, 0), seg(-0.7, 1, 0.7, 1)],
   wye: [seg(-0.8, -1, 0, 0), seg(0.8, -1, 0, 0), seg(0, 0, 0, 1)],
+  // 等宽字母：与已有的 T / L / V / Z / N / M / H / E / Y 一样用直线段拼，像点阵字库里的字形
+  ay: [seg(-0.75, 1, 0, -1), seg(0, -1, 0.75, 1), seg(-0.42, 0.15, 0.42, 0.15)],
+  see: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1)],
+  dee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.2, -1), seg(0.2, -1, 0.7, -0.5), seg(0.7, -0.5, 0.7, 0.5), seg(0.7, 0.5, 0.2, 1), seg(0.2, 1, -0.7, 1)],
+  gee: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1), seg(0.7, 1, 0.7, 0.1), seg(0.7, 0.1, 0.1, 0.1)],
+  jay: [seg(0.35, -1, 0.35, 0.6), seg(0.35, 0.6, -0.05, 1), seg(-0.05, 1, -0.55, 0.72)],
+  kay: [seg(-0.7, -1, -0.7, 1), seg(0.72, -1, -0.7, 0.1), seg(-0.7, 0.1, 0.72, 1)],
+  ar: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.35, -1), seg(0.35, -1, 0.68, -0.6), seg(0.68, -0.6, 0.35, -0.15), seg(0.35, -0.15, -0.7, -0.15), seg(0.05, -0.15, 0.72, 1)],
+  ess: [seg(0.7, -1, -0.7, -1), seg(-0.7, -1, -0.7, 0), seg(-0.7, 0, 0.7, 0), seg(0.7, 0, 0.7, 1), seg(0.7, 1, -0.7, 1)],
+  you: [seg(-0.7, -1, -0.7, 0.6), seg(-0.7, 0.6, -0.3, 1), seg(-0.3, 1, 0.3, 1), seg(0.3, 1, 0.7, 0.6), seg(0.7, 0.6, 0.7, -1)],
+  dubya: [seg(-0.85, -1, -0.5, 1), seg(-0.5, 1, 0, -0.25), seg(0, -0.25, 0.5, 1), seg(0.5, 1, 0.85, -1)],
+  comma: [seg(0.12, 0.5, -0.15, 1)],
+  semicolon: [{ k: 'c', x: 0, y: -0.35, r: 0.3 }, seg(0.12, 0.5, -0.15, 1)],
+  // 下划线贴着格子底边，与左右邻格连成一条
+  underscore: [{ k: 'S', x1: -1, y1: 0.78, x2: 1, y2: 0.78 }],
+  bracket: [seg(0.35, -1, -0.3, -1), seg(-0.3, -1, -0.3, 1), seg(-0.3, 1, 0.35, 1)],
   // 荧光电路：短斜线与叉号都不出格，邻格之间断开
   slashshort: [DIAG],
   xmark: [DIAG, ANTI],

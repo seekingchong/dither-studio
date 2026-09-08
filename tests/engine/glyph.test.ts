@@ -150,7 +150,7 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(50);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(89);
     expect(c('slashshort')).toBeLessThan(c('slash'));
     expect(c('xmark')).toBeLessThan(c('x'));
     expect(c('rings')).toBeGreaterThan(c('ring'));
@@ -266,21 +266,48 @@ describe('新增符号：荧光电路与棋盘', () => {
     }
   });
 
-  it('PETSCII Glitch 预设：8 阶自定义序列从小点、字母到棋盘格与密网，青绿两色逐阶交替，黑底反相，亮部同时出现两种颜色', () => {
+  it('终端字符：14 个等宽字母与标点接在老符号后面，墨量从逗号一路排到 W', () => {
+    const NEW: GlyphId[] = ['ay', 'see', 'dee', 'gee', 'jay', 'kay', 'ar', 'ess', 'you', 'dubya', 'comma', 'semicolon', 'underscore', 'bracket'];
+    for (const id of NEW) {
+      expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(75);
+      expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
+      expect(GLYPHS.find((g) => g.id === id)?.group, id).toBe('chars');
+    }
+    // 墨量：逗号比全库任何字符都轻，分号比它重；字母之间笔画越多越重
+    expect(c('comma')).toBeLessThan(c('colon'));
+    expect(c('semicolon')).toBeGreaterThan(c('comma'));
+    expect(c('see')).toBeLessThan(c('percent'));
+    expect(c('kay')).toBeGreaterThan(c('see'));
+    expect(c('dubya')).toBeGreaterThan(c('kay'));
+    // 下划线贴着底边贯穿，与左右邻格接成一条：总有一整行从左通到右
+    const under = renderHalftone(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['underscore', 'underscore'])));
+    const rows = Array.from({ length: 24 }, (_, y) => Array.from({ length: 24 }, (_, x) => px(under, x, y)[0]).filter((v) => v === 0).length);
+    expect(Math.max(...rows)).toBe(24);
+    // 字母出的是线段
+    const svg = halftoneToSvg(buildGlyphScreen(flatSource(24, 24, 0.5), custom(['kay', 'kay'])));
+    expect((svg.match(/<line /g) ?? []).length).toBeGreaterThan(2);
+  });
+  it('「终端」序列：留白 → 逗号 → 双点 → C → K → % → Ø → 实心块，墨量一路加多', () => {
+    expect(GLYPH_RAMPS.terminal).toEqual(['blank', 'comma', 'colon', 'see', 'kay', 'percent', 'oslash', 'block']);
+    expect(rampFor('terminal', GLYPH_MAX_LEVELS)).toEqual([...GLYPH_RAMPS.terminal]);
+    expect(rampIsMonotonic(rampFor('terminal', 5))).toBe(true);
+  });
+
+  it('PETSCII Glitch 预设：「终端」序列 8 阶，青绿两色逐阶交替，黑底反相；亮部整格填实、暗部只剩零星标点', () => {
     const p = builtinPresetParams(findBuiltinPreset('glyph-petscii')!);
     expect(p['style.type']).toBe('glyph');
-    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.ramp']).toBe('terminal');
     expect(p['glyph.levels']).toBe(8);
-    expect([1, 2, 3, 4, 5, 6, 7, 8].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'colon', 'tee', 'aitch', 'em', 'checker', 'hashx']);
     expect(p['glyph.colorMode']).toBe('levels');
-    // 从第 4 阶起青、绿逐阶交替
-    expect([4, 5, 6, 7, 8].map((k) => p[glyphColorId(k)])).toEqual(['#4DEBFF', '#C6FF4A', '#4DEBFF', '#C6FF4A', '#4DEBFF']);
-    expect(p['glyph.paper']).toBe('#070A0C');
-    // 棋盘格与密网要在邻格之间接上
+    // 从第 3 阶起青、绿逐阶交替，同一片明暗里两色掺在一起
+    expect([3, 4, 5, 6, 7, 8].map((k) => p[glyphColorId(k)])).toEqual(['#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B', '#29C8E0', '#C3E82B']);
+    expect(p['glyph.paper']).toBe('#05070B');
+    // 实心块要在邻格之间接上，所以符号大小 100%、亮部不缩小
     expect(p['glyph.size']).toBe(100);
     expect(p['glyph.taper']).toBe(0);
     expect(Number(p['glyph.mix'])).toBeGreaterThanOrEqual(60);
     expect(p['tone.invert']).toBe(true);
+    expect(String(p['effects.stack'])).toContain('scanlines');
 
     // 源图与画布同尺寸，免得适配裁掉渐变的两端
     const out = renderImage(makeFrame(176, 66, (x) => [Math.round((x / 175) * 255), Math.round((x / 175) * 255), Math.round((x / 175) * 255)]), { ...p, 'canvas.width': 176, 'canvas.height': 66 });
@@ -293,16 +320,16 @@ describe('新增符号：荧光电路与棋盘', () => {
     for (let y = 0; y < 66; y++) {
       for (let x = 0; x < 176; x++) {
         const [r, g, b] = px(out, x, y);
-        const same = Math.abs(r - paper[0]) < 8 && Math.abs(g - paper[1]) < 8 && Math.abs(b - paper[2]) < 8;
+        const same = Math.abs(r - paper[0]) < 12 && Math.abs(g - paper[1]) < 12 && Math.abs(b - paper[2]) < 12;
         if (x < 44 && !same) leftInk++;
         if (x >= 132 && !same) rightInk++;
         if (x >= 88) {
-          if (b > 150 && r < 120) cyan++;
-          if (g > 150 && b < 120) lime++;
+          if (b > 130 && r < 120) cyan++;
+          if (g > 130 && b < 120) lime++;
         }
       }
     }
-    // 深底：左（黑）边只有零星小点，右（白）边墨多得多，而且两种颜色都在
+    // 深底：左（黑）边只有零星标点，右（白）边整格填实，两种颜色都在
     expect(rightInk).toBeGreaterThan(leftInk * 3);
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
@@ -352,7 +379,7 @@ describe('新增符号：横板与穿孔块', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(62);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(89);
     // 三档横条：比横线粗，越厚墨越多，最厚的也没到实心方
     expect(c('slabthin')).toBeGreaterThan(c('dash'));
     expect(c('slabthin')).toBeLessThan(c('slab'));
@@ -420,7 +447,7 @@ describe('新增符号：竖栅一家', () => {
       expect(GLYPH_CODE[id], id).toBeGreaterThanOrEqual(69);
       expect(GLYPHS.find((g) => g.id === id)?.desc, id).toBeTruthy();
     }
-    expect(GLYPH_IDS.length).toBe(75);
+    expect(GLYPH_IDS.length).toBe(89);
     for (let k = 1; k < WEIGHTS.length; k++) expect(c(WEIGHTS[k]), WEIGHTS[k]).toBeGreaterThan(c(WEIGHTS[k - 1]));
     expect(c('grillehair')).toBeGreaterThan(c('bar'));
     expect(c('grillefull')).toBeLessThan(c('block'));
