@@ -263,6 +263,40 @@ describe('新增符号：荧光电路与棋盘', () => {
       expect(rightInk).toBeGreaterThan(leftInk);
     }
   });
+
+  it('Acid Cipher 预设：柠檬绿底墨色 8 阶自定义序列，全从符号库取、墨量单调递增，浅底深符号不反相', () => {
+    const cipher = builtinPresetParams(findBuiltinPreset('glyph-cipher')!);
+    expect(cipher['style.type']).toBe('glyph');
+    expect(cipher['glyph.ramp']).toBe('custom');
+    expect(cipher['glyph.levels']).toBe(8);
+    const shapes = [1, 2, 3, 4, 5, 6, 7, 8].map((k) => cipher[glyphShapeId(k)] as GlyphId);
+    expect(shapes).toEqual(['pip', 'slashshort', 'plus', 'ring', 'xmark', 'ringdot', 'circleplus', 'circlex']);
+    expect(rampIsMonotonic(shapes)).toBe(true);
+    expect(cipher['glyph.colorMode']).toBe('mono');
+    expect(cipher['glyph.ink']).toBe('#0E150A');
+    expect(cipher['glyph.paper']).toBe('#C9F52C');
+    expect(cipher['tone.invert']).toBe(false);
+    expect(cipher['glyph.accent']).toBe(0);
+    expect(cipher['tile.pitchX']).toBe(12);
+    expect(cipher['tile.pitchY']).toBe(12);
+    // 亮部只缩一点：最亮一阶的小点是最暗一阶的七成大
+    expect(levelSizes(Number(cipher['glyph.size']) / 100, Number(cipher['glyph.taper']) / 100, 8)[0]).toBeCloseTo(0.74 * 0.7, 5);
+    // 浅底：左（黑）边墨多、右（白）边基本只剩纸色与小点
+    const out = renderImage(makeFrame(64, 40, (x) => [Math.round((x / 63) * 255), Math.round((x / 63) * 255), Math.round((x / 63) * 255)]), { ...cipher, 'canvas.width': 72, 'canvas.height': 36 });
+    expect(out.width).toBe(72);
+    let leftInk = 0;
+    let rightInk = 0;
+    const paper = [0xc9, 0xf5, 0x2c];
+    for (let y = 0; y < 36; y++) {
+      for (let x = 0; x < 72; x++) {
+        const same = px(out, x, y).every((v, i) => Math.abs(v - paper[i]) < 8);
+        if (x < 18 && !same) leftInk++;
+        if (x >= 54 && !same) rightInk++;
+      }
+    }
+    expect(leftInk).toBeGreaterThan(rightInk);
+    expect(rightInk).toBeGreaterThan(0);
+  });
 });
 
 describe('推荐序列', () => {
