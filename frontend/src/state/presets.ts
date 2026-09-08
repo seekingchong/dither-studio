@@ -41,6 +41,8 @@ export interface UserPreset {
   base?: string;
   /** 保存时的结果缩略图（PNG data URL），没有媒体时缺省 */
   thumbnail?: string;
+  /** 星标：预设模块里排在其它我的预设前面 */
+  starred?: boolean;
 }
 
 const effects = (stack: unknown[]) => JSON.stringify(stack);
@@ -967,44 +969,111 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
-  // 参考图七：白纸上的「失步」海报——主体被拆成横向扫描线与黑色像素块，荧光黄绿的像素散在暗部，几行整体错位像信号丢帧。
-  // 亮到暗：留白 → 短横（一格一段，留缝像点线）→ 横线（贯穿邻格，交界掺杂后断成长短不一的线）→ 双横 → 荧光黄绿实心方 → 黑实心方；
-  // 黄绿夹在双横与黑块之间，交界混合 70% 把它打散成暗部里的碎片。符号大小 130% 配亮部缩小 45%：
-  // 短横那一阶缩到 83% 留出缝，实心方那两阶 ≥ 118% 正好盖满格子、相邻块之间不留线；
-  // 特效栈一条「扫描行位移」，带高与格子等高、只错位 6% 的行，整行的方块一起挪，不切碎符号
+  // 参考图七：白纸上的「失步」海报——主体被拆成粗细分档的横向扫描线与黑色像素块，
+  // 黑块里冲出一粒粒纸色的孔，荧光黄绿的块夹在暗调里，几行整体错位像信号丢帧。
+  // 亮到暗：留白 → 短横（不出格，断成一节节的虚线）→ 细板 → 横板（越暗越粗的横条，邻格接成长线）
+  //       → 穿孔块（黄绿）→ 实心方（黄绿）→ 穿孔块（黑）→ 实心方（黑）；
+  // 黄绿占两阶，成片而不是一条细边；穿孔块与实心方交替，黑块与黄绿块里都留着纸色的孔。
+  // 符号大小 140% 配亮部缩小 35%：短横那一阶缩到 98% 断成虚线；实心方的边长是符号的 85%，要 ≥ 118% 才盖满格子，
+  // 最暗那四阶（穿孔块与实心方）正好都在这条线以上，成片时邻格之间不留纸缝。
+  // 特效栈两条：「扫描行位移」带高与格子等高，整行的块一起挪、不切碎符号；一点「胶片颗粒」给纸面上一层印刷的糙感
   {
     id: 'glyph-desync',
     name: 'Desync',
-    hint: '白纸黑块：短横、横线、双横到黑方块，荧光黄绿像素散在暗部，扫描行错位',
+    hint: '白纸黑块：越暗越粗的横板、冲出纸色小孔的黑块，荧光黄绿成片夹在暗调里，扫描行错位',
     params: {
       'style.type': 'glyph',
       'glyph.ramp': 'custom',
-      'glyph.levels': 6,
-      ...glyphShapes(['blank', 'minus', 'dash', 'equals', 'square', 'square']),
-      'glyph.size': 130,
-      'glyph.taper': 45,
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'minus', 'slabthin', 'slab', 'blockhole', 'square', 'blockhole', 'square']),
+      'glyph.size': 140,
+      'glyph.taper': 35,
       'glyph.stroke': 22,
-      'glyph.mix': 70,
+      'glyph.mix': 80,
       'glyph.accent': 0,
-      'tile.pitchX': 10,
-      'tile.pitchY': 10,
+      'tile.pitchX': 11,
+      'tile.pitchY': 11,
       'glyph.colorMode': 'levels',
-      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#111111']),
+      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#D6FF1A', '#111111', '#111111']),
       'glyph.paper': '#F2F2EE',
-      'tone.contrast': 20,
-      'effects.stack': effects([{ type: 'rowShift', enabled: true, params: { probability: 6, maxShift: 36, band: 10, rgbSplit: 0, seed: 3 } }]),
+      'tone.contrast': 30,
+      'tone.midtones': 12,
+      'effects.stack': effects([
+        { type: 'rowShift', enabled: true, params: { probability: 7, maxShift: 36, band: 11, rgbSplit: 0, seed: 3 } },
+        { type: 'grain', enabled: true, params: { amount: 10, size: 1, color: false, seed: 1 } },
+      ]),
     },
     exposes: GL,
   },
-  // 参考图：米纸上橙蓝双色的丝网 / riso 海报——几何形状按明暗排成一片像素状的构成。
+  // 参考图八：米白纸上的丝网海报——大片黑色的叠圈与短竖笔触打底，中间零星的绿圆点与橙三角点缀，像 riso 三色套印。
+  // 8 阶自定义序列 空 → 小点 → 三角 → 圆点 → 圆圈 → 叠圈 → 短竖纹 → 圆点：黑色占了 6 阶（最亮的小点、圈、叠圈、
+  // 短竖纹到最暗的实心圆点），只把第 3 阶给橙、第 4 阶给绿，两种彩色各占一阶，画面就还是黑白打底、彩色点缀。
+  // 亮部缩小 42% 让橙三角小、绿圆点中等、暗处的黑圆点满格；96% 大小让最暗一阶的圆点刚好挨上而不糊成一团。
+  // 交界混合 70% 把相邻两阶掺开，彩色不会连成整块；点缀 12% 再撒一些圆圈与三角框；胶片颗粒当纸纹
+  {
+    id: 'glyph-riso',
+    name: 'Riso Signal',
+    hint: '米白纸上黑色的圆圈、叠圈与短竖纹打底，绿圆点与橙三角点缀',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 8,
+      ...glyphShapes(['blank', 'pip', 'tri', 'dot', 'ring', 'ringpair', 'comb', 'dot']),
+      'glyph.size': 96,
+      'glyph.taper': 42,
+      'glyph.stroke': 13,
+      'glyph.mix': 70,
+      'glyph.accent': 12,
+      'tile.pitchX': 18,
+      'tile.pitchY': 18,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#1A1A1A', '#1A1A1A', '#F0562C', '#3FAF6B', '#1A1A1A', '#1A1A1A', '#1A1A1A', '#1A1A1A']),
+      'glyph.paper': '#EDEAE3',
+      'tone.contrast': 12,
+      'effects.stack': effects([{ type: 'grain', enabled: true, params: { amount: 18, size: 1, color: false, seed: 1 } }]),
+    },
+    exposes: GL,
+  },
+  // 参考图九：黑底上一幅假彩色的扫描图，整幅盖着一层等距的竖线栅（像隔着显像管的荫罩栅拍下来的）——
+  // 亮的地方栅线又粗又亮，暗的地方细得几乎看不见，颜色从近黑的靛蓝一路升到蓝、青绿、柠檬黄，最亮的核心烧成一片暖白。
+  // 所以这套预设不靠换形状、而靠「同一个栅距下越来越粗的竖带」分阶：竖栅一家五档（微 / 细 / 中 / 粗 / 满）粗细等差、
+  // 栅距不变，邻格接上后整幅画面是一片连续的竖栅；最暗一阶留空（黑底透出来），最亮一阶用实心格烧成整块。
+  // 竖带的粗细写死在符号里，不跟线粗走，细带也不会被抗锯齿冲淡成灰——颜色才够艳。
+  // 深底亮符号所以反相；关掉线性空间，7 个阶才均匀铺在明暗上，不然大半画面挤在最亮那一阶。
+  {
+    id: 'glyph-grille',
+    name: 'Aperture Grille',
+    hint: '黑底竖栅：等距竖带越亮越粗，深靛、蓝、青绿、柠檬黄到暖白核心',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'grillehair', 'grillefine', 'grillemid', 'grillebold', 'grillefull', 'block']),
+      // 竖带不吃符号大小，100% 是留给换成方块 / 棋盘那类符号时能与邻格接上
+      'glyph.size': 100,
+      'glyph.taper': 0,
+      'glyph.mix': 45,
+      'glyph.accent': 0,
+      'tile.pitchX': 16,
+      'tile.pitchY': 16,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#08121F', '#0E2B57', '#12579F', '#0F9AD8', '#27D2BE', '#D6E84A', '#FFF6E2']),
+      'glyph.paper': '#04070C',
+      'tone.invert': true,
+      'tone.linear': false,
+      'tone.contrast': 15,
+    },
+    exposes: GL,
+  },
+  // 参考图：米纸上橙蓝双色的几何海报——形状按明暗排成一片像素状的构成。
   // 亮处零星的黑小点，中间调橙色的小方、三角、圆点，暗处蓝的棋盘格、密竖纹到成片的实心方。
-  // 小方与密竖纹是为这套新加的符号：参考图里满是不到半格的实心小方，条纹那一块也比原来的竖纹密一倍。
+  // 小方与密竖纹是为这套新加的符号：参考图里满是不到半格的实心小方，条纹那一块比竖纹与竖栅都密一倍。
   // 100% 大小让实心方在邻格之间只留一道纸色缝、密竖纹与棋盘格在邻格之间接上，暗部读成一整块像素砖；
   // 亮部缩小 55% 让小方真的小；交界混合 60% 把橙蓝掺在一起、暗块里也落几颗橙方，
   // 点缀撒一点圆圈与三角框；胶片颗粒当纸纹
   {
-    id: 'glyph-riso-blocks',
-    name: 'Riso Blocks',
+    id: 'glyph-pixel-blocks',
+    name: 'Pixel Blocks',
     hint: '米纸上橙蓝双色：黑小点、小方、三角、圆点到棋盘格、密竖纹与蓝方块',
     params: {
       'style.type': 'glyph',
@@ -1153,9 +1222,22 @@ export function sanitizeUserPresets(input: unknown): UserPreset[] {
     if (typeof rec.updatedAt === 'number') preset.updatedAt = rec.updatedAt;
     if (typeof rec.base === 'string' && builtinById.has(rec.base)) preset.base = rec.base;
     if (typeof rec.thumbnail === 'string' && rec.thumbnail.startsWith('data:image/')) preset.thumbnail = rec.thumbnail;
+    if (rec.starred === true) preset.starred = true;
     out.push(preset);
   }
   return out;
+}
+
+/** 副本的名字：「原名 副本」，重名就往后排号。存预设的预填名与卡片上的「复制」共用一套叫法 */
+export function copyPresetName(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  const stem = `${base} 副本`.slice(0, 60);
+  if (!used.has(stem)) return stem;
+  for (let i = 2; i < 1000; i++) {
+    const next = `${stem} ${i}`.slice(0, 60);
+    if (!used.has(next)) return next;
+  }
+  return `${stem} ${Date.now()}`.slice(0, 60);
 }
 
 export function newPresetId(): string {

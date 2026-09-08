@@ -25,7 +25,7 @@ export const CROSS_ARM = 0.28;
 export const CROSS_MIN_HALF_ARM = 0.35;
 
 /** 轴对齐矩形的精确 SDF，hx / hy 为半宽 / 半高 */
-export function box(x: number, y: number, hx: number, hy: number): number {
+function box(x: number, y: number, hx: number, hy: number): number {
   const qx = Math.abs(x) - hx;
   const qy = Math.abs(y) - hy;
   const ox = qx > 0 ? qx : 0;
