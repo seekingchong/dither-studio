@@ -141,6 +141,20 @@ test('叠加随机方块：数量决定色块数，改样式露出字母，点�
   await expect(card.locator('[data-param="effect.letters"]')).toHaveCount(0);
   await pick(page, 'effect.style', '色块 + 字母');
   await expect(card.locator('[data-param="effect.letters"] input')).toHaveValue('A');
+  // 每块一个文字框，按字母串填满；单独改第二块（回车写回、清洗成大写），改「字母」再重新填满
+  const texts = card.locator('[data-param="effect.texts"] input');
+  await expect(texts).toHaveCount(3);
+  await expect(texts.nth(1)).toHaveValue('A');
+  await texts.nth(1).fill('ok');
+  await texts.nth(1).press('Enter');
+  await expect(texts.nth(1)).toHaveValue('OK');
+  await expect(texts.nth(0)).toHaveValue('A');
+  const letters = card.locator('[data-param="effect.letters"] input');
+  await letters.fill('XY');
+  await letters.press('Enter');
+  await expect(texts.nth(0)).toHaveValue('X');
+  await expect(texts.nth(1)).toHaveValue('Y');
+  await expect(texts.nth(2)).toHaveValue('X');
   await expect(card.locator('[data-param="effect.letterHex"]')).toHaveCount(0);
   await pick(page, 'effect.letterColor', '自定义');
   await expect(card.locator('[data-param="effect.letterHex"]')).toHaveCount(1);

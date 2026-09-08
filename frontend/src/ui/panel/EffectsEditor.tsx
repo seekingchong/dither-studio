@@ -6,7 +6,9 @@ import {
   isEffectParamVisible,
   parseColorList,
   parseStack,
+  parseTextList,
   serializeStack,
+  serializeTextList,
   type EffectInstance,
   type EffectParamDef,
   type EffectParamValues,
@@ -76,6 +78,60 @@ function EffectSwatches({ effectId, def, params, onPatch }: { effectId: string; 
   );
 }
 
+/** 一块的文字框：改完失焦或回车才写回（与「字母」那个文本框一样），写回时清洗成大写、去掉画不出来的字 */
+function BlockTextInput({ value, title, maxLength, onCommit }: { value: string; title: string; maxLength: number; onCommit: (text: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  const commit = () => {
+    if (text !== value) onCommit(text);
+  };
+  return (
+    <input
+      type="text"
+      className="block-text__input"
+      value={text}
+      maxLength={maxLength}
+      title={title}
+      aria-label={`${title}文字`}
+      spellCheck={false}
+      autoComplete="off"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
+
+/**
+ * 一排逐块的文本框（叠加随机方块的「每块文字」）：每块实际的字由定义里的 `resolve` 按当前实例参数展开（字母串轮流填满），
+ * 改哪一块经 `edit` 把整个列表写回，之后每一块各是各的。
+ */
+function EffectTexts({ effectId, def, params, onPatch }: { effectId: string; def: EffectParamDef; params: EffectParamValues; onPatch: (next: EffectParamValues) => void }) {
+  const texts = def.resolve ? def.resolve(params) : (parseTextList(String(params[def.id] ?? '')) ?? []);
+  const titleOf = (i: number) => def.swatchTitle?.(i) ?? `第 ${i + 1} 块`;
+  const apply = (i: number, text: string) => {
+    if (def.edit) return onPatch(def.edit(params, i, text));
+    const next = texts.slice();
+    next[i] = text;
+    onPatch({ ...params, [def.id]: serializeTextList(next, def.maxLength) });
+  };
+  return (
+    <div className="tda-field tda-texts-field param-span-2" data-param={`effect.${def.id}`}>
+      <HelpLabel content={helpForEffectParam(effectId, def)} className="tda-field__label">
+        {def.label}
+      </HelpLabel>
+      <div className="block-texts" role="group" aria-label={def.label}>
+        {texts.map((text, i) => (
+          <BlockTextInput key={i} value={text} title={titleOf(i)} maxLength={def.maxLength ?? 8} onCommit={(v) => apply(i, v)} />
+        ))}
+        {texts.length === 0 && <span className="swatches__note">数量为 0，没有方块</span>}
+      </div>
+    </div>
+  );
+}
+
 interface EffectParamControlProps {
   effectId: string;
   def: EffectParamDef;
@@ -114,6 +170,8 @@ function EffectParamControl({ effectId, def, params, onChange, onPatch }: Effect
       return <ColorField label={def.label} value={String(value)} onChange={onChange} help={help} data-param={`effect.${def.id}`} />;
     case 'colors':
       return <EffectSwatches effectId={effectId} def={def} params={params} onPatch={onPatch} />;
+    case 'texts':
+      return <EffectTexts effectId={effectId} def={def} params={params} onPatch={onPatch} />;
     case 'levels':
       return (
         <LevelMaskControl
@@ -200,7 +258,8 @@ export function EffectsEditor() {
                     effectId={def.id}
                     def={p}
                     params={inst.params}
-                    onChange={(v) => update(index, { params: { ...inst.params, [p.id]: v } })}
+                    // 定义了 patch 的参数连带改别的（批量字母一改，逐块文字作废）
+                    onChange={(v) => update(index, { params: p.patch ? p.patch(inst.params, v) : { ...inst.params, [p.id]: v } })}
                     onPatch={(next) => update(index, { params: next })}
                   />
                 ))}

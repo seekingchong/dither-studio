@@ -1621,7 +1621,8 @@ body.is-resizing * {
 }
 
 /* 特效卡片里的一排色块（叠加随机方块的「每块颜色」）：块多了换行，框随之长高 */
-.tda-swatch-field {
+.tda-swatch-field,
+.tda-texts-field {
   height: auto;
   min-height: var(--tda-control-height);
   padding-block: var(--tda-spacing-2xs);
@@ -1630,6 +1631,41 @@ body.is-resizing * {
 .tda-swatch-field .swatches {
   flex: 1;
   min-width: 0;
+}
+
+/* 特效卡片里的一排逐块文本框（叠加随机方块的「每块文字」）：一块一个小框，块多了换行 */
+.block-texts {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--tda-spacing-2xs);
+}
+
+.block-text__input {
+  width: 76px;
+  height: 22px;
+  flex: none;
+  padding: 0 var(--tda-spacing-2xs);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-xs);
+  background: var(--tda-color-white);
+  font-family: var(--tda-font-family-code);
+  font-size: var(--tda-typography-body-sm-size);
+  line-height: 20px;
+  text-align: center;
+  text-transform: uppercase;
+  color: var(--tda-color-text-primary);
+  outline: none;
+}
+
+.block-text__input:hover {
+  border-color: var(--tda-color-text-tertiary);
+}
+
+.block-text__input:focus {
+  border-color: var(--tda-color-text-primary);
 }
 
 .tda-iconbtn--sm svg {

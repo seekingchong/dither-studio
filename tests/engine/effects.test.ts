@@ -8,13 +8,16 @@ import {
   FONT_COLS,
   FONT_ROWS,
   LEVEL_OUTLINE_ID,
+  PAPER_TOLERANCE,
   Pipeline,
   appendSvgFragment,
   applyEffects,
+  blocksSvgFragment,
   coerceEffectParams,
   defaultEffectInstance,
   drawableChars,
   editBlockColor,
+  editBlockText,
   effectsSvgFragment,
   getEffectDef,
   glyphOf,
@@ -22,18 +25,23 @@ import {
   hasGlyph,
   isEffectParamVisible,
   layoutBlocks,
+  letterStyleOf,
   levelEnabled,
   outlineMask,
+  paperWeight,
   parseStack,
   renderImage,
   resolveBlockColors,
+  resolveBlockTexts,
   serializeStack,
   styleLevelCount,
+  textCells,
   toPipelineOptions,
   toneLevel,
   toneMapOf,
   type EffectParamValues,
   type RGBAFrame,
+  type RGBTriple,
 } from '@/engine';
 import { makeFrame } from './helpers';
 
@@ -395,13 +403,13 @@ describe('叠加原图', () => {
     expect(overlay.apply(src, { ...defaults(), opacity: 0 }, { source: photo() })).toBe(src);
   });
 
-  it('正片叠底：纸透出原图、墨色不动，不透明度减半只走一半', () => {
+  it('正片叠底（整幅）：纸透出原图、墨色不动，不透明度减半只走一半', () => {
     const src = result();
     const bg = photo();
-    const full = overlay.apply(src, defaults(), { source: bg });
+    const full = overlay.apply(src, { ...defaults(), blend: 'multiply' }, { source: bg });
     expect(px(full, 30, 10)).toEqual([200, 100, 50]);
     expect(px(full, 10, 10)).toEqual([0, 0, 0]);
-    const half = overlay.apply(src, { ...defaults(), opacity: 50 }, { source: bg });
+    const half = overlay.apply(src, { ...defaults(), blend: 'multiply', opacity: 50 }, { source: bg });
     near(px(half, 30, 10), [227.5, 177.5, 152.5]);
     expect(px(half, 10, 10)).toEqual([0, 0, 0]);
     // 成品与原图都不被改
@@ -410,15 +418,112 @@ describe('叠加原图', () => {
     for (let i = 3; i < full.data.length; i += 4) expect(full.data[i]).toBe(255);
   });
 
-  it('滤色：墨透出原图、纸不动；正常：两边都按不透明度直接混合', () => {
-    const screen = overlay.apply(result(), { ...defaults(), blend: 'screen' }, { source: photo() });
+  it('滤色（整幅）：墨透出原图、纸不动；正常：两边都按不透明度直接混合', () => {
+    const screen = overlay.apply(result(), { ...defaults(), layer: 'top', blend: 'screen' }, { source: photo() });
     expect(px(screen, 10, 10)).toEqual([200, 100, 50]);
     expect(px(screen, 30, 10)).toEqual([255, 255, 255]);
-    const normal = overlay.apply(result(), { ...defaults(), blend: 'normal' }, { source: photo() });
+    const normal = overlay.apply(result(), { ...defaults(), layer: 'top', blend: 'normal' }, { source: photo() });
     expect(px(normal, 10, 10)).toEqual([200, 100, 50]);
     expect(px(normal, 30, 10)).toEqual([200, 100, 50]);
-    const faint = overlay.apply(result(), { ...defaults(), blend: 'normal', opacity: 25 }, { source: photo() });
+    const faint = overlay.apply(result(), { ...defaults(), layer: 'top', blend: 'normal', opacity: 25 }, { source: photo() });
     near(px(faint, 10, 10), [50, 25, 12.5]);
+  });
+
+  it('背景与前景之间：底色上铺原图、墨留在最上面，抗锯齿边与灰阶按墨的覆盖率过渡，别的颜色当前景', () => {
+    const paper: RGBTriple = [255, 255, 255];
+    const ink: RGBTriple = [0, 0, 0];
+    // 成品从左到右：墨 | 半墨（抗锯齿边 / 中间灰阶）| 纸 | 青（调色板 / 原图色网点）
+    const mixed = () => makeFrame(40, 20, (x) => (x < 10 ? [0, 0, 0] : x < 20 ? [128, 128, 128] : x < 30 ? [255, 255, 255] : [0, 174, 239]));
+    expect(defaults().layer).toBe('between');
+    expect(defaults().blend).toBe('normal');
+    const out = overlay.apply(mixed(), defaults(), { source: photo(), paper, ink });
+    expect(px(out, 5, 10)).toEqual([0, 0, 0]);
+    expect(px(out, 25, 10)).toEqual([200, 100, 50]);
+    // 半墨：这一半底色换成原图 → 128 + ½ × (原图 − 255)
+    near(px(out, 15, 10), [100.5, 50.5, 25.5]);
+    expect(px(out, 35, 10)).toEqual([0, 174, 239]);
+    for (let i = 3; i < out.data.length; i += 4) expect(out.data[i]).toBe(255);
+    // 不透明度减半：底色往原图只走一半，墨仍不动
+    const half = overlay.apply(mixed(), { ...defaults(), opacity: 50 }, { source: photo(), paper, ink });
+    near(px(half, 25, 10), [227.5, 177.5, 152.5]);
+    expect(px(half, 5, 10)).toEqual([0, 0, 0]);
+    // 混合模式作用在原图与底色之间：白底正片叠底就是原图，白底滤色就是白；墨都不动
+    const mul = overlay.apply(mixed(), { ...defaults(), blend: 'multiply' }, { source: photo(), paper, ink });
+    expect(px(mul, 25, 10)).toEqual([200, 100, 50]);
+    expect(px(mul, 5, 10)).toEqual([0, 0, 0]);
+    const scr = overlay.apply(mixed(), { ...defaults(), blend: 'screen' }, { source: photo(), paper, ink });
+    expect(px(scr, 25, 10)).toEqual([255, 255, 255]);
+    expect(px(scr, 5, 10)).toEqual([0, 0, 0]);
+    // 灰纸（排线的底色）：正常直接铺原图，正片叠底按纸色压暗
+    const grayPaper: RGBTriple = [217, 217, 217];
+    const hatchLike = () => makeFrame(40, 20, (x) => (x < 20 ? [0, 0, 0] : [217, 217, 217]));
+    const onGray = overlay.apply(hatchLike(), defaults(), { source: photo(), paper: grayPaper, ink });
+    expect(px(onGray, 30, 10)).toEqual([200, 100, 50]);
+    expect(px(onGray, 10, 10)).toEqual([0, 0, 0]);
+    const mulGray = overlay.apply(hatchLike(), { ...defaults(), blend: 'multiply' }, { source: photo(), paper: grayPaper, ink });
+    near(px(mulGray, 30, 10), [(200 * 217) / 255, (100 * 217) / 255, (50 * 217) / 255]);
+    // 「最上层」不看底色，整幅按混合模式盖上去；没有底色信息（单独调用）也是整幅
+    const top = overlay.apply(mixed(), { ...defaults(), layer: 'top' }, { source: photo(), paper, ink });
+    expect(px(top, 5, 10)).toEqual([200, 100, 50]);
+    expect(px(top, 35, 10)).toEqual([200, 100, 50]);
+    const bare = overlay.apply(mixed(), defaults(), { source: photo() });
+    expect(px(bare, 5, 10)).toEqual([200, 100, 50]);
+    // 收敛：不认识的层级退回默认
+    expect(coerceEffectParams(overlay, { layer: 'middle' }).layer).toBe('between');
+  });
+
+  it('底色份额：纯底色 1、纯墨 0、两者之间按覆盖率，偏离底色 → 墨色这条线的颜色算前景', () => {
+    const paper: RGBTriple = [255, 255, 255];
+    const ink: RGBTriple = [0, 0, 0];
+    expect(paperWeight(255, 255, 255, paper, ink)).toBe(1);
+    expect(paperWeight(0, 0, 0, paper, ink)).toBe(0);
+    expect(paperWeight(128, 128, 128, paper, ink)).toBeCloseTo(0.5, 2);
+    expect(paperWeight(0, 174, 239, paper, ink)).toBe(0);
+    expect(paperWeight(255, 0, 0, paper, ink)).toBe(0);
+    // 稍微偏一点（彩色点的抗锯齿边）按偏离程度打折
+    const tinted = paperWeight(255, 255, 255 - PAPER_TOLERANCE / 2, paper, ink);
+    expect(tinted).toBeGreaterThan(0);
+    expect(tinted).toBeLessThan(1);
+    // 彩色的纸与墨也一样分
+    const cream: RGBTriple = [250, 244, 220];
+    const navy: RGBTriple = [20, 30, 90];
+    expect(paperWeight(250, 244, 220, cream, navy)).toBe(1);
+    expect(paperWeight(20, 30, 90, cream, navy)).toBe(0);
+    expect(paperWeight(135, 137, 155, cream, navy)).toBeCloseTo(0.5, 1);
+    // 纸墨同色时只看离底色多远
+    expect(paperWeight(10, 10, 10, [10, 10, 10], [10, 10, 10])).toBe(1);
+    expect(paperWeight(200, 10, 10, [10, 10, 10], [10, 10, 10])).toBe(0);
+  });
+
+  it('走流水线：抖动的纸换成原图、墨留着，网格反向时对调；排线的纸也换掉、笔画留着', () => {
+    const src = makeFrame(64, 40, (x, y) => [x * 4, 60 + y * 4, 200]);
+    const params = { ...defaultParams(), 'canvas.width': 64, 'canvas.height': 40, 'pixel.size': 2, 'effects.stack': serializeStack([defaultEffectInstance('sourceOverlay')!]) };
+    const rgb = (f: RGBAFrame, i: number) => [f.data[i], f.data[i + 1], f.data[i + 2]];
+    const is = (f: RGBAFrame, i: number, c: number[]) => f.data[i] === c[0] && f.data[i + 1] === c[1] && f.data[i + 2] === c[2];
+    const check = (plain: RGBAFrame, out: RGBAFrame, paper: number[], ink: number[]) => {
+      let papers = 0;
+      let inks = 0;
+      for (let i = 0; i < plain.data.length; i += 4) {
+        if (is(plain, i, paper)) {
+          papers++;
+          near(rgb(out, i), rgb(src, i));
+        } else if (is(plain, i, ink)) {
+          inks++;
+          expect(rgb(out, i)).toEqual(ink);
+        }
+      }
+      expect(papers).toBeGreaterThan(0);
+      expect(inks).toBeGreaterThan(0);
+    };
+    // 抖动：白纸黑墨
+    check(renderImage(src, { ...params, 'effects.stack': '' }), renderImage(src, params), [255, 255, 255], [0, 0, 0]);
+    // 网格反向：底是墨、点是纸
+    const inv = { ...params, 'grid.invert': true };
+    check(renderImage(src, { ...inv, 'effects.stack': '' }), renderImage(src, inv), [0, 0, 0], [255, 255, 255]);
+    // 排线：纸色是参数里的纸色
+    const hp = { ...params, 'style.type': 'hatch' };
+    const { paper, ink } = toPipelineOptions(hp).hatch;
+    check(renderImage(src, { ...hp, 'effects.stack': '' }), renderImage(src, hp), paper, ink);
   });
 
   it('缩放绕画布中心、偏移按画布百分比，没盖到的地方成品原样', () => {
@@ -595,7 +700,7 @@ describe('叠加随机方块', () => {
     const p = { ...base(), count: 2, size: 4, style: 'letter', letters: 'AB', letterSize: 60, seed: 9 };
     const big = { cellW: 8, cellH: 8, offsetX: 0, offsetY: 0 };
     const rects = layoutBlocks(400, 300, p, big);
-    expect(rects.map((r) => r.letter)).toEqual(['A', 'B']);
+    expect(rects.map((r) => r.text)).toEqual(['A', 'B']);
     const out = def.apply(makeFrame(400, 300, () => [0, 0, 0]), p, { grid: big });
     const r = rects[0];
     // 白块上的黑字：块内既有白也有黑，且黑的都在块的中间区域
@@ -632,6 +737,60 @@ describe('叠加随机方块', () => {
     const tinyOut = def.apply(black(), tiny, { grid: ctx });
     const tr = tinyRects[0];
     for (let y = tr.y; y < tr.y + tr.h; y++) for (let x = tr.x; x < tr.x + tr.w; x++) expect(tinyOut.data[(y * 64 + x) * 4]).toBe(255);
+  });
+
+  it('每块文字：按字母串轮流填满，单独改哪块就哪块变、清空成纯色块；改字母重新填满；一块几个字并排', () => {
+    const p = { ...base(), count: 3, style: 'letter', letters: 'AB' };
+    expect(resolveBlockTexts(p)).toEqual(['A', 'B', 'A']);
+    const edited = editBlockText(p, 1, 'ok!');
+    expect(edited.texts).toBe('["A","OK!","A"]');
+    expect(resolveBlockTexts(edited)).toEqual(['A', 'OK!', 'A']);
+    // 清空这一块就是纯色块；数量增加后沿列表轮流；越界的编辑不改参数
+    const cleared = editBlockText(edited, 0, '');
+    expect(resolveBlockTexts(cleared)).toEqual(['', 'OK!', 'A']);
+    expect(resolveBlockTexts({ ...cleared, count: 5 })).toEqual(['', 'OK!', 'A', '', 'OK!']);
+    expect(editBlockText(edited, 9, 'Z')).toBe(edited);
+    // 画不出来的字去掉、大写、截到上限
+    expect(resolveBlockTexts(editBlockText(p, 0, 'ab 中 cdefghij'))).toEqual(['ABCDEFGH', 'B', 'A']);
+    // 批量「字母」一改，逐块列表作废、重新按它填满
+    const letters = def.params.find((x) => x.id === 'letters')!;
+    const refilled = letters.patch!(edited, 'XY');
+    expect(refilled.texts).toBe('');
+    expect(resolveBlockTexts(refilled)).toEqual(['X', 'Y', 'X']);
+    // 块上画的就是这些字：空的那块只有色块
+    const big = { cellW: 8, cellH: 8, offsetX: 0, offsetY: 0 };
+    const laid = { ...cleared, size: 4, seed: 9 };
+    const rects = layoutBlocks(400, 300, laid, big);
+    expect(rects.map((r) => r.text)).toEqual([null, 'OK!', 'A']);
+    const style = letterStyleOf(p);
+    const one = textCells(rects[2], style)!;
+    const three = textCells(rects[1], style)!;
+    // 三个字并排：整行 3 × 5 格加 2 格空，放大倍率比单字小，字与字隔 6 格
+    expect(three.scale).toBeLessThan(one.scale);
+    expect(three.charX(1) - three.charX(0)).toBe(6 * three.scale);
+    expect(three.charX(0)).toBeGreaterThan(rects[1].x);
+    expect(three.charX(2) + 5 * three.scale).toBeLessThan(rects[1].x + rects[1].w);
+    const out = def.apply(makeFrame(400, 300, () => [0, 0, 0]), laid, { grid: big });
+    const r0 = rects[0];
+    for (let y = r0.y; y < r0.y + r0.h; y++) for (let x = r0.x; x < r0.x + r0.w; x++) expect(out.data[(y * 400 + x) * 4]).toBe(255);
+    const inkCells = (t: string) => [...t].reduce((n, ch) => n + glyphOf(ch)!.flat().filter(Boolean).length, 0);
+    let dark = 0;
+    const r1 = rects[1];
+    for (let y = r1.y; y < r1.y + r1.h; y++) for (let x = r1.x; x < r1.x + r1.w; x++) if (out.data[(y * 400 + x) * 4] === 0) dark++;
+    expect(dark).toBe(inkCells('OK!') * three.scale * three.scale);
+    // 矢量：一块一个 rect，只有带字的块有 path，path 里一格一段
+    const fragment = blocksSvgFragment(rects, style);
+    expect((fragment.match(/<rect /g) ?? []).length).toBe(3);
+    expect((fragment.match(/<path /g) ?? []).length).toBe(2);
+    expect((fragment.match(/M\d+ \d+h/g) ?? []).length).toBe(inkCells('OK!') + inkCells('A'));
+    // 收敛与栈往返：列表逐块清洗，不是列表就退回空串
+    expect(coerceEffectParams(def, { texts: '["a b","中","x"]' }).texts).toBe('["AB","","X"]');
+    expect(coerceEffectParams(def, { texts: 'nope' }).texts).toBe('');
+    expect(coerceEffectParams(def, { texts: '{"a":1}' }).texts).toBe('');
+    expect(parseStack(serializeStack([{ type: 'blocks', enabled: true, params: edited }]))[0].params.texts).toBe('["A","OK!","A"]');
+    const texts = def.params.find((x) => x.id === 'texts')!;
+    expect(isEffectParamVisible(texts, { style: 'solid' })).toBe(false);
+    expect(isEffectParamVisible(texts, { style: 'letter' })).toBe(true);
   });
 
   it('配色：按方案轮流取色，每块可单独改，改了转为自定义；自定义列表按 count 轮流', () => {
