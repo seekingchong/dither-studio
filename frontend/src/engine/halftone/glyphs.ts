@@ -87,6 +87,10 @@ export type GlyphId =
   | 'pillar'
   | 'fir'
   | 'hut'
+  | 'pixel'
+  | 'pixstair'
+  | 'pixcross'
+  | 'pixframe'
   // 字符
   | 'one'
   | 'four'
@@ -247,6 +251,11 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'xdot', label: '小叉', group: 'lines', desc: '格子中间一个不到一半大的叉，比「叉号」再小一圈，邻格之间断开' },
   { id: 'quarter', label: '角块', group: 'geometry', desc: '左上一个象限铺满，邻格拼成四分之一密度的方点阵，按格铺、不随符号大小缩放' },
   { id: 'trio', label: '缺角块', group: 'geometry', desc: '四个象限铺满三个，邻格拼成只剩规则孔洞的密块，按格铺、不随符号大小缩放' },
+  // 方块马赛克（参考图：淡灰纸上的绿蓝双色方块海报）——把实心方切成 3×3 的小格，按填哪几格分墨量
+  { id: 'pixel', label: '像素方', group: 'geometry', desc: '实心方三等分后的一格，比「小方点」小一号，与像素阶 / 十字 / 回同一个模数' },
+  { id: 'pixstair', label: '像素阶', group: 'geometry', desc: '对角三个小方连成的台阶' },
+  { id: 'pixcross', label: '像素十字', group: 'geometry', desc: '五个小方拼成的实心十字，臂宽三分之一格' },
+  { id: 'pixframe', label: '像素回', group: 'geometry', desc: '八个小方围一圈，中间空出三分之一格' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -325,6 +334,12 @@ const grille = (w: number): readonly Prim[] => [
   { k: 'V', x: 0, w },
   { k: 'V', x: 2 / 3, w },
 ];
+/**
+ * 像素块：把 `square` 那块方（半边 BOX）当成 3×3 的小方格，第 (i, j) 格（−1 / 0 / 1）是一个实心小方。
+ * 小方边长正好是大方的三分之一、彼此相接，拼出来的十字与回字外缘与 `square` 齐平。
+ */
+const PIX = BOX / 3;
+const pix = (i: number, j: number): Prim => ({ k: 'b', x: i * 2 * PIX, y: j * 2 * PIX, h: PIX });
 /** 六瓣花：花瓣中心在半径 0.62 的圆周上、花瓣半径 0.36，相邻花瓣略叠，花心留一个小孔 */
 const FLOWER: readonly Prim[] = Array.from({ length: 6 }, (_, k) => {
   const a = (Math.PI / 3) * k + Math.PI / 6;
@@ -584,6 +599,11 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
     { k: 'V', x: 0.5, w: QUAD, y: 0.5, h: QUAD },
     { k: 'V', x: 0.5, w: QUAD, y: -0.5, h: QUAD },
   ],
+  // 像素块：同一块方切成 3×3，按填哪几格分出墨量——一粒 → 对角三粒 → 十字五粒 → 围一圈八粒
+  pixel: [pix(0, 0)],
+  pixstair: [pix(-1, -1), pix(0, 0), pix(1, 1)],
+  pixcross: [pix(0, -1), pix(-1, 0), pix(0, 0), pix(1, 0), pix(0, 1)],
+  pixframe: [pix(-1, -1), pix(0, -1), pix(1, -1), pix(-1, 0), pix(1, 0), pix(-1, 1), pix(0, 1), pix(1, 1)],
 };
 
 /** 按编码取图元表 */

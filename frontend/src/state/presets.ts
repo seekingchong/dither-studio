@@ -1189,6 +1189,35 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图：瑞士风格的双色方块海报——整幅画就是一张方格网，暗处的格子填满、与邻格连成整片实色，
+  // 往亮处先退成留缝的方块，再缩成三分之一格的小方，最后散成零星几粒落在纸上，中间调点缀几个药房十字。
+  // 三段规矩靠方块一家：实心格 `block` 跨格填满（成片的暗部连成一整块，亮一档的方块落在里面就成了纸色的洞），
+  // 实心方 `square` 留出格线一样的纸缝，新符号像素方 `pixel` 只有三分之一格、像素十字 `pixcross` 是五个小方拼的十字。
+  // 颜色只有绿与蓝两支：分级配色让第 4、6 阶是蓝、第 5 阶回到绿，交界混合 85% 再把相邻两阶搅在一起，
+  // 成片的蓝里就掺进绿方块、绿的一片里也落几粒蓝，像参考图那样两色交错
+  {
+    id: 'glyph-swiss',
+    name: 'Swiss Mosaic',
+    hint: '淡灰纸上的绿蓝方块马赛克：暗处连成整片实色，亮处退成小方后散开',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'pixel', 'pixcross', 'square', 'square', 'square', 'block']),
+      'glyph.size': 90,
+      'glyph.taper': 20,
+      'glyph.stroke': 20,
+      'glyph.mix': 85,
+      'glyph.accent': 0,
+      'tile.pitchX': 20,
+      'tile.pitchY': 20,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#4FD08F', '#35C182', '#00A05B', '#0F5FC4', '#00A05B', '#0F5FC4', '#0B4FA8']),
+      'glyph.paper': '#EFEFEF',
+      'tone.contrast': 20,
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
