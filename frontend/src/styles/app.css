@@ -802,7 +802,7 @@ body.is-resizing * {
   line-height: var(--tda-typography-label-line);
 }
 
-/* ---------- 「原图」页的素材编辑条 ---------- */
+/* ---------- 素材编辑条（「原图」「结果」两页都在） ---------- */
 
 /* 编辑区整体挂在视口下面，与画面之间一条分隔线 */
 .slot__editor {
@@ -863,7 +863,7 @@ body.is-resizing * {
   min-width: 0;
 }
 
-/* 放大后画面可以拖着挪裁剪窗口 */
+/* 放大后画面可以拖着挪裁剪窗口，两个页签都能拖 */
 .slot__canvas[data-pannable='true'] {
   cursor: grab;
 }
