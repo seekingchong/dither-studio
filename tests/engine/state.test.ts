@@ -209,7 +209,7 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('halftone')[0].id).toBe(HALFTONE_DEFAULT_PRESET_ID);
     expect(builtinPresetsOf('halftone').length).toBe(13);
     expect(builtinPresetsOf('glyph')[0].id).toBe(GLYPH_DEFAULT_PRESET_ID);
-    expect(builtinPresetsOf('glyph').length).toBe(19);
+    expect(builtinPresetsOf('glyph').length).toBe(20);
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-sketch');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-typewriter');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-circuit');
@@ -220,6 +220,7 @@ describe('预设与设置', () => {
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-riso');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-grille');
     expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-system');
+    expect(builtinPresetsOf('glyph').map((p) => p.id)).toContain('glyph-raster');
     for (const def of PARAM_SCHEMA) expect(isParamExposed(def, BUILTIN_PRESETS[0].exposes), `默认预设应露出 ${def.id}`).toBe(true);
     // 网点的默认露出自己的全部分组与共用分组，不露出抖动 / 排线专属的
     const halftoneDefault = findBuiltinPreset(HALFTONE_DEFAULT_PRESET_ID)!;

@@ -365,6 +365,25 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await expect(grillePicker.getByRole('group', { name: '线' }).locator('[data-glyph="grillebold"]')).toHaveCount(1);
   await expect(grillePicker.getByRole('group', { name: '几何' }).locator('[data-glyph="block"]')).toHaveCount(1);
   await page.keyboard.press('Escape');
+
+  // Raster Poster：同一家竖栅换成 12×7 的扁格子，7 阶 留空 → 竖线 → 竖栅微 / 细 / 中 / 粗 / 满，淡黄在粗档、米白在满档
+  await page.locator('[data-preset="glyph-raster"]').click();
+  await expect(page.locator('[data-preset="glyph-raster"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Raster Poster');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bar');
+  await expect(rows.nth(1).locator('.glyph-level__label')).toHaveText('竖线');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillehair');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillebold');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillefull');
+  await expect(swatches).toHaveCount(8);
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #F2EC9A');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #FAF7EA');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '背景色 #05080D');
+  // 扁格子：横纵分开，12 × 7
+  await expect(page.locator('[data-param="tile.pitchX"] input[type="range"]')).toHaveValue('12');
+  await expect(page.locator('[data-param="tile.pitchY"] input[type="range"]')).toHaveValue('7');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
 
 test('符号：Desync 预设——短横、细板、横板到穿孔块与实心方，第 5、6 阶荧光黄绿，特效栈里扫描行位移加颗粒', async ({ page }) => {

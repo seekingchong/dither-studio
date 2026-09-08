@@ -545,6 +545,54 @@ describe('新增符号：竖栅一家', () => {
     expect(px(out, 220, 32)[0]).toBeGreaterThan(200);
     expect(thirds[0] / (74 * 64)).toBeLessThan(0.3);
   });
+
+  it('Raster Poster 预设：同一家竖栅但换成扁格子，7 阶从一条细竖线到满档竖栅，黑底反相，淡黄那片还留着竖栅的缝', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-raster')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(7);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'bar', ...WEIGHTS]);
+    // 扁格子：竖栅密、横向分层粗，与方格子的 Aperture Grille 分开
+    expect(Number(p['tile.pitchX'])).toBeGreaterThan(Number(p['tile.pitchY']));
+    expect(p['glyph.colorMode']).toBe('levels');
+    expect(p[glyphColorId(6)]).toBe('#F2EC9A');
+    expect(p[glyphColorId(7)]).toBe('#FAF7EA');
+    expect(p['glyph.paper']).toBe('#05080D');
+    expect(p['tone.invert']).toBe(true);
+
+    // 左黑右白的渐变：墨量从左到右单调变多
+    const out = renderImage(makeFrame(216, 63, (x) => [Math.round((x / 215) * 255), Math.round((x / 215) * 255), Math.round((x / 215) * 255)]), { ...p, 'canvas.width': 216, 'canvas.height': 63 });
+    const paper = px(out, 0, 0);
+    const ink = (x0: number, x1: number) => {
+      let n = 0;
+      for (let y = 0; y < 63; y++) for (let x = x0; x < x1; x++) if (!px(out, x, y).every((v, i) => Math.abs(v - paper[i]) < 24)) n++;
+      return n;
+    };
+    const thirds = [ink(0, 72), ink(72, 144), ink(144, 216)];
+    expect(thirds[1]).toBeGreaterThan(thirds[0]);
+    expect(thirds[2]).toBeGreaterThan(thirds[1]);
+    // 最暗那头基本是黑底
+    expect(thirds[0] / (72 * 63)).toBeLessThan(0.3);
+
+    // 淡黄那一阶（粗档竖栅）成片出现，而且同一片里还留着竖栅的暗缝
+    let yellow = 0;
+    let x0 = 216;
+    let x1 = 0;
+    for (let y = 0; y < 63; y++) {
+      for (let x = 0; x < 216; x++) {
+        const [r, g, b] = px(out, x, y);
+        if (r > 180 && g > 180 && b < 200) {
+          yellow++;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+        }
+      }
+    }
+    expect(yellow).toBeGreaterThan(800);
+    let slit = 0;
+    for (let y = 0; y < 63; y++) for (let x = x0; x <= x1; x++) if (px(out, x, y)[1] < 90) slit++;
+    expect(slit).toBeGreaterThan(100);
+  });
 });
 
 describe('推荐序列', () => {
