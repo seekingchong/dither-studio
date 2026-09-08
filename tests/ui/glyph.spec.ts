@@ -311,3 +311,35 @@ test('符号：Lime Circuit / Checkmate / PETSCII Glitch / Acid Cipher 预设用
   await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('30');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
+
+test('符号：Desync 预设——短横、横线、双横到实心方，分级配色里第五阶荧光黄绿，特效栈里一条扫描行位移', async ({ page }) => {
+  await page.goto('/');
+  await dropImage(page);
+  await page.getByRole('tab', { name: '符号' }).click();
+  await page.getByTestId('preset-more').click();
+  await page.locator('[data-preset="glyph-desync"]').click();
+  await expect(page.locator('[data-preset="glyph-desync"]')).toHaveClass(/is-active/);
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
+  const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
+  await expect(rows).toHaveCount(6);
+  await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'minus');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dash');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'equals');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
+  const swatches = page.getByTestId('color-preview').locator('.swatch--btn');
+  await expect(swatches).toHaveCount(7);
+  await expect(swatches.nth(4)).toHaveAttribute('aria-label', '第 5 阶 #D6FF1A');
+  await expect(swatches.nth(5)).toHaveAttribute('aria-label', '第 6 阶 #111111');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '背景色 #F2F2EE');
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('130');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('45');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('70');
+  // 特效栈里带着一条扫描行位移，带高与格子等高
+  await openSection(page, 'effects');
+  await expect(page.locator('.effect-card')).toHaveCount(1);
+  await expect(page.locator('.effect-card[data-effect="rowShift"]')).toContainText('扫描行位移');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+});

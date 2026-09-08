@@ -967,6 +967,35 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图七：白纸上的「失步」海报——主体被拆成横向扫描线与黑色像素块，荧光黄绿的像素散在暗部，几行整体错位像信号丢帧。
+  // 亮到暗：留白 → 短横（一格一段，留缝像点线）→ 横线（贯穿邻格，交界掺杂后断成长短不一的线）→ 双横 → 荧光黄绿实心方 → 黑实心方；
+  // 黄绿夹在双横与黑块之间，交界混合 70% 把它打散成暗部里的碎片。符号大小 130% 配亮部缩小 45%：
+  // 短横那一阶缩到 83% 留出缝，实心方那两阶 ≥ 118% 正好盖满格子、相邻块之间不留线；
+  // 特效栈一条「扫描行位移」，带高与格子等高、只错位 6% 的行，整行的方块一起挪，不切碎符号
+  {
+    id: 'glyph-desync',
+    name: 'Desync',
+    hint: '白纸黑块：短横、横线、双横到黑方块，荧光黄绿像素散在暗部，扫描行错位',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 6,
+      ...glyphShapes(['blank', 'minus', 'dash', 'equals', 'square', 'square']),
+      'glyph.size': 130,
+      'glyph.taper': 45,
+      'glyph.stroke': 22,
+      'glyph.mix': 70,
+      'glyph.accent': 0,
+      'tile.pitchX': 10,
+      'tile.pitchY': 10,
+      'glyph.colorMode': 'levels',
+      ...glyphColors(['#111111', '#111111', '#111111', '#111111', '#D6FF1A', '#111111']),
+      'glyph.paper': '#F2F2EE',
+      'tone.contrast': 20,
+      'effects.stack': effects([{ type: 'rowShift', enabled: true, params: { probability: 6, maxShift: 36, band: 10, rgbSplit: 0, seed: 3 } }]),
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';
