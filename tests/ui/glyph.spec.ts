@@ -292,4 +292,24 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
   await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+
+  // Ink Atlas：7 阶 空 → 小点 → 斜线 → 十字 → 三角 → 圆点 → 实心方，暖白纸配墨蓝，单色
+  await page.locator('[data-preset="glyph-atlas"]').click();
+  await expect(page.locator('[data-preset="glyph-atlas"]')).toHaveClass(/is-active/);
+  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ink Atlas');
+  await expect(rows).toHaveCount(7);
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
+  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slash');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'plus');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
+  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
+  await expect(rows.nth(6).locator('.glyph-level__label')).toHaveText('实心方');
+  await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('统一色');
+  await expect(page.locator('[data-param="glyph.ink"] input[type="text"]')).toHaveValue('#16202D');
+  await expect(page.locator('[data-param="glyph.paper"] input[type="text"]')).toHaveValue('#FAF7F1');
+  // 符号大小 118% 让实心方抵到格子边，亮部缩小拉满把小点压到几像素
+  await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('118');
+  await expect(page.locator('[data-param="glyph.taper"] input[type="range"]')).toHaveValue('90');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });

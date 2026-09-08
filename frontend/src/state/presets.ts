@@ -942,6 +942,33 @@ export const BUILTIN_PRESETS: BuiltinPreset[] = [
     },
     exposes: GL,
   },
+  // 参考图六：暖白纸上墨蓝色的符号图谱——亮处一粒小点，往暗处依次是斜线、十字、实心三角、圆点，最暗一阶铺满实心方。
+  // 符号大小 118%：实心方的半边是 0.85r，1.18 × 0.85 刚好抵到格子边，成片的黑里只剩一道发丝细的纸色缝，黑块上就浮出一层网格；
+  // 同一个 118% 下圆点会糊成一片，所以亮部缩小拉满到 90%——最暗的方块仍是 118%，圆点落到 100%（刚好一格宽、彼此相切不粘连），
+  // 三角 83%、十字 65%、小点 30%（十几像素的格子里只有两三像素），一眼就能把六种符号的层级分开。
+  // 斜线是跨格图元，长度只跟格子走、不受大小影响，邻格接成长斜线；交界混合 58% 让相邻两阶掺在一起，边界像手排的一样散开。
+  {
+    id: 'glyph-atlas',
+    name: 'Ink Atlas',
+    hint: '暖白纸配墨蓝：小点、斜线、十字、三角、圆点到实心方，黑块里透出细网格',
+    params: {
+      'style.type': 'glyph',
+      'glyph.ramp': 'custom',
+      'glyph.levels': 7,
+      ...glyphShapes(['blank', 'pip', 'slash', 'plus', 'tri', 'dot', 'square']),
+      'glyph.size': 118,
+      'glyph.taper': 90,
+      'glyph.stroke': 12,
+      'glyph.mix': 58,
+      'glyph.accent': 5,
+      'tile.pitchX': 13,
+      'tile.pitchY': 13,
+      'glyph.ink': '#16202D',
+      'glyph.paper': '#FAF7F1',
+      'tone.contrast': 18,
+    },
+    exposes: GL,
+  },
 ];
 
 export const PRESETS_STORAGE_KEY = 'presets';

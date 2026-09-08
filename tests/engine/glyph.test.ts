@@ -305,6 +305,60 @@ describe('新增符号：荧光电路与棋盘', () => {
     expect(cyan).toBeGreaterThan(50);
     expect(lime).toBeGreaterThan(50);
   });
+
+  it('Ink Atlas 预设：暖白纸上 7 阶自定义序列，实心方铺满时格间只留一道细缝，圆点刚好一格宽', () => {
+    const p = builtinPresetParams(findBuiltinPreset('glyph-atlas')!);
+    expect(p['style.type']).toBe('glyph');
+    expect(p['glyph.ramp']).toBe('custom');
+    expect(p['glyph.levels']).toBe(7);
+    expect([1, 2, 3, 4, 5, 6, 7].map((k) => p[glyphShapeId(k)])).toEqual(['blank', 'pip', 'slash', 'plus', 'tri', 'dot', 'square']);
+    expect(p['glyph.colorMode']).toBe('mono');
+    expect(p['glyph.ink']).toBe('#16202D');
+    expect(p['glyph.paper']).toBe('#FAF7F1');
+    // 亮纸暗符号，不反相
+    expect(p['tone.invert']).toBe(false);
+
+    const size = Number(p['glyph.size']) / 100;
+    const sizes = levelSizes(size, Number(p['glyph.taper']) / 100, 7);
+    // 逐阶放大，最暗一阶就是「符号大小」本身
+    for (let k = 1; k < 7; k++) expect(sizes[k], `第 ${k + 1} 阶`).toBeGreaterThan(sizes[k - 1]);
+    expect(sizes[6]).toBeCloseTo(size, 6);
+    // 实心方的半边是 0.85r：最暗一阶抵到格子边，成片的黑连起来，格间只剩一道细缝
+    expect(sizes[6] * 0.85).toBeGreaterThan(1);
+    // 圆点那一阶刚好一格宽：邻格相切而不糊成一片
+    expect(sizes[5]).toBeCloseTo(1, 1);
+    expect(sizes[5]).toBeLessThan(1.05);
+    // 最亮的小点（半径 0.45r）连三成格子都占不到
+    expect(sizes[1] * 0.45 * 2).toBeLessThan(0.3);
+
+    // 源图与画布同尺寸，免得适配裁掉渐变的两端
+    const out = renderImage(makeFrame(182, 65, (x) => [Math.round((x / 181) * 255), Math.round((x / 181) * 255), Math.round((x / 181) * 255)]), { ...p, 'canvas.width': 182, 'canvas.height': 65 });
+    expect(out.width).toBe(182);
+    const paper = px(out, 181, 0);
+    // 纸是暖白：偏红、不是纯白
+    expect(paper[0]).toBeGreaterThan(paper[2]);
+    expect(paper[0]).toBeLessThan(255);
+    let darkInk = 0;
+    let lightInk = 0;
+    let seam = 0;
+    for (let y = 0; y < 65; y++) {
+      for (let x = 0; x < 182; x++) {
+        const [r, g, b] = px(out, x, y);
+        const same = Math.abs(r - paper[0]) < 8 && Math.abs(g - paper[1]) < 8 && Math.abs(b - paper[2]) < 8;
+        if (x < 26) {
+          if (!same) darkInk++;
+          // 纯墨与纸之间的灰：铺满的实心方之间那道格线
+          if (!same && r > 40) seam++;
+        }
+        if (x >= 156 && !same) lightInk++;
+      }
+    }
+    // 亮纸暗符号：暗的一端几乎铺满墨，亮的一端只有零星小点
+    expect(darkInk / (26 * 65)).toBeGreaterThan(0.9);
+    expect(lightInk).toBeLessThan(darkInk / 10);
+    // 铺满的黑不是纯粹一整块墨：实心方之间仍留着一层细格线
+    expect(seam / darkInk).toBeGreaterThan(0.02);
+  });
 });
 
 describe('推荐序列', () => {
