@@ -54,7 +54,7 @@ export {
   baseRadius,
   lineHalfWidth,
   glyphHalfStroke,
-  glyphHalfCell,
+  glyphSpan,
   countDots,
   DEFAULT_HALFTONE,
   CMYK_ANGLES,

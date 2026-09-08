@@ -1,4 +1,4 @@
-import { baseRadius, cellCenter, countDots, dotOffset, glyphHalfCell, glyphHalfStroke, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
+import { baseRadius, cellCenter, countDots, dotOffset, glyphHalfStroke, glyphSpan, lineHalfWidth, type HalftoneGeometry, type HalftoneScreen } from './geometry';
 import { glyphSvg } from './glyphs';
 import { ribbonPaths } from './ribbon';
 import { ROUND_SQUARE_CORNER, shapeVertices } from './shapes';
@@ -72,7 +72,7 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
     // 符号网点：线粗与圆头写在 <g> 上，描边图元各自带 stroke（填充图元继承 <g> 的 fill，不描边）
     const glyphs = g.shape === 'glyph' ? screen.glyph : undefined;
     const hw = glyphHalfStroke(g.glyphStroke, screen);
-    const [spanX, spanY] = glyphHalfCell(screen);
+    const [spanX, spanY] = glyphSpan(screen, 0.25);
     const attrs = [`transform="translate(${f(width / 2)} ${f(height / 2)}) rotate(${f(screen.angle)})"`];
     if (!screen.color) attrs.push(`fill="${hex(screen.ink)}"`);
     if (glyphs) attrs.push(`stroke-width="${f(hw * 2)}" stroke-linecap="round" stroke-linejoin="round"`);
@@ -107,7 +107,7 @@ export function halftoneToSvg(g: HalftoneGeometry): string {
         if (glyphs) {
           const code = glyphs[idx];
           if (code === 0) continue;
-          parts.push(...glyphSvg(code, cx, cy, sz * r0, hw, spanX, spanY, fill, color ? ` stroke="${color}"` : inkStroke, 0.25));
+          parts.push(...glyphSvg(code, cx, cy, sz * r0, hw, spanX, spanY, fill, color ? ` stroke="${color}"` : inkStroke));
         } else {
           parts.push(dotElement(g, screen, cx, cy, sz * r0, fill));
         }

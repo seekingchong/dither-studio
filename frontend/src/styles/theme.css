@@ -23,6 +23,12 @@
   color: var(--tda-color-background-page);
 }
 
+/* 删除预设的确认键：红底在两套主题里是同一个红，白字得换成深色主题的近白文字色 */
+:root[data-theme='dark'] .tda-btn-primary.preset-confirm__ok {
+  background: var(--tda-color-danger);
+  color: var(--tda-color-text-primary);
+}
+
 :root[data-theme='dark'] .tda-toast {
   background: var(--tda-color-text-primary);
   color: var(--tda-color-background-page);

@@ -1,5 +1,5 @@
 import type { RGBAFrame } from '../types';
-import { baseRadius, glyphHalfCell, glyphHalfStroke, lineHalfWidth, rowShift, type HalftoneGeometry, type HalftoneScreen, type LatticeKind } from './geometry';
+import { baseRadius, glyphHalfStroke, glyphSpan, lineHalfWidth, rowShift, type HalftoneGeometry, type HalftoneScreen, type LatticeKind } from './geometry';
 import { glyphDistance } from './glyphs';
 import { ribbonProfile, type RibbonProfile } from './ribbon';
 import { shapeDistance, type HalftoneShape } from './shapes';
@@ -70,7 +70,7 @@ function prepare(g: HalftoneGeometry, screen: HalftoneScreen): ScreenContext {
   else reach = 1;
   // 网点被扰动挪开最多 warpMax 格：邻格的点可能探进来，也可能是更远一格的，按最大位移多看几圈
   if (screen.warpMax && screen.warpMax > 0) reach = Math.max(reach, 1) + Math.ceil(screen.warpMax - 1e-6);
-  const [spanX, spanY] = glyphHalfCell(screen);
+  const [spanX, spanY] = glyphSpan(screen);
   return {
     dx: screen.dx,
     dy: screen.dy,

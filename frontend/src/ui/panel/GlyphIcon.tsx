@@ -14,8 +14,8 @@ interface GlyphIconProps {
 export function GlyphIcon({ id, size = 24, className }: GlyphIconProps) {
   const r = size * 0.4;
   const hw = Math.max(size * 0.06, 0.6);
-  const half = size / 2;
-  const html = glyphSvg(GLYPH_CODE[id], half, half, r, hw, half, half, '', ' stroke="currentColor"').join('');
+  const span = size / 2 + 0.5;
+  const html = glyphSvg(GLYPH_CODE[id], size / 2, size / 2, r, hw, span, span, '', ' stroke="currentColor"').join('');
   return (
     <svg
       className={['glyph-icon', className].filter(Boolean).join(' ')}

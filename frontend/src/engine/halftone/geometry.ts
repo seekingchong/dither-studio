@@ -387,12 +387,9 @@ export function glyphHalfStroke(stroke: number, screen: Pick<HalftoneScreen, 'pi
   return Math.max((stroke * Math.min(screen.pitchX, screen.pitchY)) / 2, 0.35);
 }
 
-/**
- * 跨格图元的半格：横纵各正好半格，所以「一格里几道竖线」这类图元的位置按格宽等分、邻格接上后整片等距。
- * 盖住格间接缝的那点余量由 `glyphDistance` / `glyphSvg` 的 `extra` 沿线段方向多出，不参与定位。
- */
-export function glyphHalfCell(screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>): [number, number] {
-  return [screen.pitchX / 2, screen.pitchY / 2];
+/** 跨格线段的半长：半格再多出一点盖住格间接缝，相邻格子的线才连成一条 */
+export function glyphSpan(screen: Pick<HalftoneScreen, 'pitchX' | 'pitchY'>, extra = 0.5): [number, number] {
+  return [screen.pitchX / 2 + extra, screen.pitchY / 2 + extra];
 }
 
 /** 有多少个要画的网点（SVG 导出估算文件规模用）；符号风格里的「空」不算 */
