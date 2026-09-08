@@ -60,6 +60,10 @@ export type GlyphId =
   | 'hexline'
   | 'checker'
   | 'rook'
+  | 'block'
+  | 'blocktop'
+  | 'blockhalf'
+  | 'blockquad'
   // 字符
   | 'one'
   | 'four'
@@ -76,7 +80,21 @@ export type GlyphId =
   | 'em'
   | 'aitch'
   | 'ee'
-  | 'wye';
+  | 'wye'
+  | 'ay'
+  | 'see'
+  | 'dee'
+  | 'gee'
+  | 'jay'
+  | 'kay'
+  | 'ar'
+  | 'ess'
+  | 'you'
+  | 'dubya'
+  | 'comma'
+  | 'semicolon'
+  | 'underscore'
+  | 'bracket';
 
 /** 符号的分类，符号选择器按它分组 */
 export type GlyphGroup = 'dots' | 'lines' | 'geometry' | 'chars';
@@ -155,6 +173,25 @@ export const GLYPHS: readonly GlyphInfo[] = [
   { id: 'stripes', label: '竖纹', group: 'lines', desc: '三道贯穿格子的细竖线，邻格接成密条纹' },
   { id: 'checker', label: '棋盘', group: 'geometry', desc: '对角的两个实心方块，邻格拼成棋盘格' },
   { id: 'rook', label: '城堡', group: 'geometry', desc: '平底方块顶上开一个豁口，像棋盘上的车' },
+  // 终端字符画（参考图三：黑底上青绿两色的字符与实心块）：整格的实心块与一批等宽字母、标点
+  { id: 'block', label: '实心块', group: 'geometry', desc: '整格填满，与邻格连成整片实色' },
+  { id: 'blocktop', label: '上半块', group: 'geometry', desc: '格子上半截填满，下半截留纸色' },
+  { id: 'blockhalf', label: '下半块', group: 'geometry', desc: '格子下半截填满，上半截留纸色' },
+  { id: 'blockquad', label: '四分块', group: 'geometry', desc: '左下四分之一格填满' },
+  { id: 'ay', label: 'A', group: 'chars', desc: '字母 A' },
+  { id: 'see', label: 'C', group: 'chars', desc: '字母 C' },
+  { id: 'dee', label: 'D', group: 'chars', desc: '字母 D' },
+  { id: 'gee', label: 'G', group: 'chars', desc: '字母 G' },
+  { id: 'jay', label: 'J', group: 'chars', desc: '字母 J' },
+  { id: 'kay', label: 'K', group: 'chars', desc: '字母 K' },
+  { id: 'ar', label: 'R', group: 'chars', desc: '字母 R' },
+  { id: 'ess', label: 'S', group: 'chars', desc: '字母 S' },
+  { id: 'you', label: 'U', group: 'chars', desc: '字母 U' },
+  { id: 'dubya', label: 'W', group: 'chars', desc: '字母 W' },
+  { id: 'comma', label: '逗号', group: 'chars', desc: '格子左下角的一小撇' },
+  { id: 'semicolon', label: '分号', group: 'chars', desc: '一个点加一小撇' },
+  { id: 'underscore', label: '下划线', group: 'chars', desc: '贴着格子底边的横线，与左右邻格连成一条' },
+  { id: 'bracket', label: '方括号', group: 'chars', desc: '一个方括号 [' },
 ];
 
 export const GLYPH_IDS: readonly GlyphId[] = GLYPHS.map((g) => g.id);
@@ -182,7 +219,8 @@ export const GLYPH_GROUPS: ReadonlyArray<{ id: GlyphGroup; label: string }> = [
  * 图元。坐标单位：`c` / `o` / `s` / `q` / `Q` / `b` / `R` / `d` / `D` / `P` 以符号半径 r 为 1（格子 100% 时 r 是半格）；
  * `S` 是跨格线段，以半格为 1，两头各多出半像素盖住格间接缝。
  * 三角用网点形状里那个等边三角（`t` 实心、`T` 描边、`v` 尖朝下），`g` 是实心六边形、`G` 是六边框；
- * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）。
+ * `b` 是挪开中心的实心方（棋盘格用），`R` 是圆角方框，`P` 是任意实心多边形（顶点按顺序给）；
+ * `F` 是跨格的实心矩形，与 `S` 一样以半格为 1——整格实心块与半块用它，邻格之间不留缝。
  */
 type Prim =
   | { k: 'c'; x: number; y: number; r: number }
@@ -200,7 +238,8 @@ type Prim =
   | { k: 'D' }
   | { k: 'g' }
   | { k: 'G' }
-  | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> };
+  | { k: 'P'; pts: ReadonlyArray<readonly [number, number]> }
+  | { k: 'F'; x1: number; y1: number; x2: number; y2: number };
 
 const SLASH: Prim = { k: 'S', x1: -1, y1: 1, x2: 1, y2: -1 };
 const BACKSLASH: Prim = { k: 'S', x1: -1, y1: -1, x2: 1, y2: 1 };
@@ -330,6 +369,27 @@ const GLYPH_PRIMS: Readonly<Record<GlyphId, readonly Prim[]>> = {
     { k: 'b', x: -0.5, y: -0.5, h: 0.5 },
     { k: 'b', x: 0.5, y: 0.5, h: 0.5 },
   ],
+  // 实心块：整格填满（跨格单位，邻格之间接得上）；半块与四分块同理
+  block: [{ k: 'F', x1: -1, y1: -1, x2: 1, y2: 1 }],
+  blocktop: [{ k: 'F', x1: -1, y1: -1, x2: 1, y2: 0 }],
+  blockhalf: [{ k: 'F', x1: -1, y1: 0, x2: 1, y2: 1 }],
+  blockquad: [{ k: 'F', x1: -1, y1: 0, x2: 0, y2: 1 }],
+  // 等宽字母：与已有的 T / L / V / Z / N / M / H / E / Y 一样用直线段拼，像点阵字库里的字形
+  ay: [seg(-0.75, 1, 0, -1), seg(0, -1, 0.75, 1), seg(-0.42, 0.15, 0.42, 0.15)],
+  see: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1)],
+  dee: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.2, -1), seg(0.2, -1, 0.7, -0.5), seg(0.7, -0.5, 0.7, 0.5), seg(0.7, 0.5, 0.2, 1), seg(0.2, 1, -0.7, 1)],
+  gee: [seg(0.7, -1, -0.3, -1), seg(-0.3, -1, -0.72, -0.55), seg(-0.72, -0.55, -0.72, 0.55), seg(-0.72, 0.55, -0.3, 1), seg(-0.3, 1, 0.7, 1), seg(0.7, 1, 0.7, 0.1), seg(0.7, 0.1, 0.1, 0.1)],
+  jay: [seg(0.35, -1, 0.35, 0.6), seg(0.35, 0.6, -0.05, 1), seg(-0.05, 1, -0.55, 0.72)],
+  kay: [seg(-0.7, -1, -0.7, 1), seg(0.72, -1, -0.7, 0.1), seg(-0.7, 0.1, 0.72, 1)],
+  ar: [seg(-0.7, -1, -0.7, 1), seg(-0.7, -1, 0.35, -1), seg(0.35, -1, 0.68, -0.6), seg(0.68, -0.6, 0.35, -0.15), seg(0.35, -0.15, -0.7, -0.15), seg(0.05, -0.15, 0.72, 1)],
+  ess: [seg(0.7, -1, -0.7, -1), seg(-0.7, -1, -0.7, 0), seg(-0.7, 0, 0.7, 0), seg(0.7, 0, 0.7, 1), seg(0.7, 1, -0.7, 1)],
+  you: [seg(-0.7, -1, -0.7, 0.6), seg(-0.7, 0.6, -0.3, 1), seg(-0.3, 1, 0.3, 1), seg(0.3, 1, 0.7, 0.6), seg(0.7, 0.6, 0.7, -1)],
+  dubya: [seg(-0.85, -1, -0.5, 1), seg(-0.5, 1, 0, -0.25), seg(0, -0.25, 0.5, 1), seg(0.5, 1, 0.85, -1)],
+  comma: [seg(0.12, 0.5, -0.15, 1)],
+  semicolon: [{ k: 'c', x: 0, y: -0.35, r: 0.3 }, seg(0.12, 0.5, -0.15, 1)],
+  // 下划线贴着格子底边，与左右邻格连成一条
+  underscore: [{ k: 'S', x1: -1, y1: 0.78, x2: 1, y2: 0.78 }],
+  bracket: [seg(0.35, -1, -0.3, -1), seg(-0.3, -1, -0.3, 1), seg(-0.3, 1, 0.35, 1)],
   // 城堡：平底、直边，顶上中间开一个豁口分成两个齿
   rook: [
     {
@@ -467,6 +527,15 @@ export function glyphDistance(code: number, x: number, y: number, r: number, hw:
       case 'P':
         dd = polygonDistance(x, y, p.pts, r);
         break;
+      case 'F': {
+        // 跨格实心矩形的有符号距离（盒子 SDF），坐标以半格为 1
+        const qx = Math.abs(x - ((p.x1 + p.x2) / 2) * spanX) - (Math.abs(p.x2 - p.x1) / 2) * spanX;
+        const qy = Math.abs(y - ((p.y1 + p.y2) / 2) * spanY) - (Math.abs(p.y2 - p.y1) / 2) * spanY;
+        const ox = qx > 0 ? qx : 0;
+        const oy = qy > 0 ? qy : 0;
+        dd = Math.sqrt(ox * ox + oy * oy) + Math.min(Math.max(qx, qy), 0);
+        break;
+      }
     }
     if (dd < d) d = dd;
   }
@@ -561,6 +630,11 @@ export function glyphSvg(code: number, cx: number, cy: number, r: number, hw: nu
         break;
       case 'P':
         out.push(`<polygon points="${p.pts.map(([x, y]) => `${f(cx + x * r)},${f(cy + y * r)}`).join(' ')}"${fill}/>`);
+        break;
+      case 'F':
+        out.push(
+          `<rect x="${f(cx + Math.min(p.x1, p.x2) * spanX)}" y="${f(cy + Math.min(p.y1, p.y2) * spanY)}" width="${f(Math.abs(p.x2 - p.x1) * spanX)}" height="${f(Math.abs(p.y2 - p.y1) * spanY)}"${fill}/>`,
+        );
         break;
     }
   }

@@ -10,7 +10,7 @@ import { ACCENT_MIN_SIZE, assignGlyphs, GLYPH_CODE, glyphCoverage, type GlyphId 
 export type RGB = [number, number, number];
 
 /** 推荐序列（`GLYPH_RAMPS`）或自定义：自定义时每一阶的符号由 `shapes` 给出 */
-export type GlyphRampKind = 'sketch' | 'typewriter' | 'mesh' | 'marks' | 'geometric' | 'ascii' | 'letters' | 'dots' | 'custom';
+export type GlyphRampKind = 'sketch' | 'typewriter' | 'mesh' | 'marks' | 'geometric' | 'ascii' | 'letters' | 'dots' | 'terminal' | 'custom';
 
 export type GlyphColorMode = 'mono' | 'levels' | 'source';
 
@@ -39,6 +39,8 @@ export const GLYPH_RAMPS: Readonly<Record<Exclude<GlyphRampKind, 'custom'>, read
   letters: ['blank', 'one', 'tee', 'vee', 'zed', 'en', 'ee', 'em'],
   // 点阵：留白 → 小点 → 双点 → 四点 → 圆圈 → 靶心 → 圆点 → 点线
   dots: ['blank', 'pip', 'colon', 'quad', 'ring', 'ringdot', 'dot', 'dotslash'],
+  // 终端：屏幕上的字符画——留白 → 逗号 → 双点 → C → K → % → Ø → 实心块，最暗的一阶整格填实
+  terminal: ['blank', 'comma', 'colon', 'see', 'kay', 'percent', 'oslash', 'block'],
 };
 
 export const GLYPH_RAMP_KINDS: ReadonlyArray<{ id: GlyphRampKind; label: string }> = [
@@ -50,6 +52,7 @@ export const GLYPH_RAMP_KINDS: ReadonlyArray<{ id: GlyphRampKind; label: string 
   { id: 'ascii', label: '字符' },
   { id: 'letters', label: '字母' },
   { id: 'dots', label: '点阵' },
+  { id: 'terminal', label: '终端' },
   { id: 'custom', label: '自定义' },
 ];
 

@@ -242,7 +242,7 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await rows.nth(5).locator('.glyph-level__shape').click();
   const picker = page.getByTestId('glyph-picker');
   await expect(picker).toBeVisible();
-  await expect(picker.locator('[data-glyph]')).toHaveCount(62);
+  await expect(picker.locator('[data-glyph]')).toHaveCount(80);
   await expect(picker.locator('[data-glyph="rings"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(picker.getByRole('group', { name: '点' }).locator('[data-glyph="rings"]')).toHaveCount(1);
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="zigzag"]')).toHaveCount(1);
@@ -274,22 +274,23 @@ test('符号：Lime Circuit / Checkmate 预设用上新符号，选择器里能�
   await expect(page.locator('[data-param="glyph.size"] input[type="range"]')).toHaveValue('100');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 
-  // PETSCII Glitch：8 阶 空 → 小点 → 双点 → T → H → M → 棋盘 → 密网，分级配色青绿逐阶交替，近黑纸
+  // PETSCII Glitch：「终端」序列 8 阶 空 → 逗号 → 双点 → C → K → % → Ø → 实心块，分级配色青绿逐阶交替，近黑纸
   await page.locator('[data-preset="glyph-petscii"]').click();
   await expect(page.locator('[data-preset="glyph-petscii"]')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前方案：PETSCII Glitch');
+  await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('终端');
   await expect(rows).toHaveCount(8);
-  await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'colon');
-  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tee');
-  await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'em');
-  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'checker');
-  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hashx');
-  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('密网');
+  await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'comma');
+  await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'see');
+  await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'kay');
+  await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'oslash');
+  await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'block');
+  await expect(rows.nth(7).locator('.glyph-level__label')).toHaveText('实心块');
   await expect(page.locator('[data-param="glyph.colorMode"] .tda-select__value')).toHaveText('分级配色');
   await expect(swatches).toHaveCount(9);
-  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #C6FF4A');
-  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #4DEBFF');
-  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #070A0C');
-  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('80');
+  await expect(swatches.nth(6)).toHaveAttribute('aria-label', '第 7 阶 #29C8E0');
+  await expect(swatches.nth(7)).toHaveAttribute('aria-label', '第 8 阶 #C3E82B');
+  await expect(swatches.nth(8)).toHaveAttribute('aria-label', '背景色 #05070B');
+  await expect(page.locator('[data-param="glyph.mix"] input[type="range"]')).toHaveValue('85');
   await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
 });
