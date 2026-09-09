@@ -44,18 +44,18 @@ async function lightRatio(page: Page): Promise<number> {
   });
 }
 
-test('像素尺寸默认 4、范围 1–16，载入媒体不改它', async ({ page }) => {
+test('像素尺寸默认 4、范围 1–60，载入媒体不改它', async ({ page }) => {
   await page.goto('/');
   const range = page.locator('[data-param="pixel.size"] .tda-slider__range');
   await expect(range).toHaveValue('4');
   await expect(range).toHaveAttribute('min', '1');
-  await expect(range).toHaveAttribute('max', '16');
+  await expect(range).toHaveAttribute('max', '60');
   await dropImage(page, 400, 250);
   await expect(range).toHaveValue('4');
   await dropImage(page, 2400, 1500);
   await expect(range).toHaveValue('4');
   await setSlider(page, 'pixel.size', 99);
-  await expect(range).toHaveValue('16');
+  await expect(range).toHaveValue('60');
   await setSlider(page, 'pixel.size', 0);
   await expect(range).toHaveValue('1');
 });

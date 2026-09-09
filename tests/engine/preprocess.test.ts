@@ -54,6 +54,15 @@ describe('pixelate', () => {
     expect(out.data[3]).toBeCloseTo(1, 5);
   });
 
+  it('像素尺寸取到上限 60 也是整格平均', () => {
+    const src = makeFrame(120, 60, (x) => [x < 60 ? 0 : 255, 0, 0]);
+    const out = pixelate(src, 60, 'box');
+    expect(out.width).toBe(2);
+    expect(out.height).toBe(1);
+    expect(out.data[0]).toBeCloseTo(0, 5);
+    expect(out.data[3]).toBeCloseTo(1, 5);
+  });
+
   it('nearest 取格子中心', () => {
     const src = makeFrame(4, 4, (x, y) => [x === 2 && y === 2 ? 255 : 0, 0, 0]);
     const out = pixelate(src, 4, 'nearest');
