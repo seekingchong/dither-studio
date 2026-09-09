@@ -163,12 +163,13 @@ export function SlotView({ index }: SlotViewProps) {
       {/*
        * 旋转 / 镜像 / 裁剪缩放两个页签都给：改的是素材本身，成品跟着变，
        * 所以「结果」页也该能一边看成品一边调，不用来回切页签。
-       * 视频的裁剪条只留在「原图」页——挑的是时间轴上的哪一段，得对着源画面挑。
+       * 视频的裁剪条同理：裁的是哪一段既要对着源画面挑，也要对着成品挑
+       * （暂停时拖两端，两个页签的画面都当场跟到被拖的那一头）。
        */}
       {media && (
         <div className="slot__editor">
           <SourceEditBar slot={index} media={media} />
-          {tab === 'source' && media.kind === 'video' && <VideoTrim slot={index} media={media} />}
+          {media.kind === 'video' && <VideoTrim slot={index} media={media} />}
         </div>
       )}
     </div>

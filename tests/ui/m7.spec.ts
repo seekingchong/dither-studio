@@ -153,8 +153,8 @@ test('视频裁剪：拖两端定裁剪范围、拖中间整体挪，导出只�
   await dropBytes(page, webm, 'clip.webm', 'video/webm');
   await expect(page.getByTestId('transport')).toBeVisible();
 
-  // 「结果」页没有裁剪条，切到「原图」才出现
-  await expect(page.getByTestId('trim-0')).toHaveCount(0);
+  // 两个页签都有裁剪条（「结果」页那条另有一条用例），这条在「原图」页上验
+  await expect(page.getByTestId('trim-0')).toBeVisible();
   await page.getByRole('tab', { name: '原图' }).click();
   const trim = page.getByTestId('trim-0');
   await expect(trim).toBeVisible();
@@ -283,6 +283,59 @@ test('视频裁剪：拖两端定裁剪范围、拖中间整体挪，导出只�
   expect(Math.abs(total - length * 60)).toBeLessThanOrEqual(2);
   await page.getByRole('button', { name: '取消' }).click();
   await page.getByRole('button', { name: '关闭' }).click();
+});
+
+test('裁剪条在「结果」页也在：拖两端直接改成品，两个页签同一个窗口', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  const webm = await recordWebm(page, 6);
+  await dropBytes(page, webm, 'clip.webm', 'video/webm');
+  await expect(page.getByTestId('transport')).toBeVisible();
+
+  // 落地就是「结果」页：裁剪条在这儿也给，不用先切到「原图」
+  await expect(page.locator('.slot__canvas')).toHaveAttribute('data-tab', 'result');
+  const trim = page.getByTestId('trim-0');
+  await expect(trim).toBeVisible();
+  await expect(trim).toContainText('裁剪 4.0 秒');
+
+  const track = trim.locator('.trim__track');
+  const startHandle = trim.getByTestId('trim-start-0');
+  const endHandle = trim.getByTestId('trim-end-0');
+  const trackBox = (await track.boundingBox())!;
+  const duration = Number(await trim.getAttribute('data-duration'));
+  const dragTo = async (from: ReturnType<typeof trim.locator>, seconds: number) => {
+    const box = (await from.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(trackBox.x + (seconds / duration) * trackBox.width, trackBox.y + trackBox.height / 2, { steps: 8 });
+    await page.mouse.up();
+  };
+
+  // 在「结果」页拖右端：窗长跟着变
+  await dragTo(endHandle, 5.5);
+  expect(Number(await trim.getAttribute('data-trim-length'))).toBeCloseTo(5.5, 1);
+
+  // 暂停后拖两端，成品预览当场跟到被拖的那一头（录的 6 秒片子 3 秒处由黑转白）
+  await page.getByRole('button', { name: '暂停' }).click();
+  await expect(page.getByRole('button', { name: '播放' })).toBeVisible();
+  const luma = async () => {
+    const px = await canvasPixels(page);
+    return px.reduce((sum, v) => sum + v, 0) / px.length;
+  };
+  await dragTo(startHandle, 4.5);
+  await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
+  await dragTo(startHandle, 0);
+  await expect.poll(luma, { timeout: 5000 }).toBeLessThan(96);
+
+  // 切到「原图」是同一个窗口：值一致，接着在那边拖也写回同一份状态
+  const [start, length] = [await trim.getAttribute('data-trim-start'), await trim.getAttribute('data-trim-length')];
+  await page.getByRole('tab', { name: '原图' }).click();
+  await expect(trim).toHaveAttribute('data-trim-start', start!);
+  await expect(trim).toHaveAttribute('data-trim-length', length!);
+  await dragTo(endHandle, 2);
+  expect(Number(await trim.getAttribute('data-trim-length'))).toBeCloseTo(2, 1);
+  await page.getByRole('tab', { name: '结果' }).click();
+  await expect(trim).toHaveAttribute('data-trim-length', /^2\.0/);
 });
 
 test('视频：暂停后拖动进度条，画面跟着走', async ({ page }) => {
