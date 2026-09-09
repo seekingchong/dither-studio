@@ -21,7 +21,7 @@ function Transport({ slot }: { slot: number }) {
   if (!media || !isAnimated(media) || !entry || !client) return null;
   const duration = entry.duration || media.duration || 0;
   // 视频裁剪过之后，进度条就是那一段：min / max 跟着窗口走，拖不到裁掉的部分
-  const { start, end, length } = media.kind === 'video' ? trimRange(duration, entry.trimStart) : { start: 0, end: duration, length: duration };
+  const { start, end, length } = media.kind === 'video' ? trimRange(duration, entry.trimStart, entry.trimLength) : { start: 0, end: duration, length: duration };
   const span = Math.max(0.01, length);
   const value = Math.min(end, Math.max(start, entry.time));
   return (

@@ -146,7 +146,7 @@ async function recompute(page: Page) {
   await expect.poll(() => canvasHash(page)).not.toBe(nudged);
 }
 
-test('视频裁剪：「原图」页上一条固定 4 秒的窗口，左右拖挑哪四秒，导出只出这一段', async ({ page }) => {
+test('视频裁剪：拖两端定裁剪范围、拖中间整体挪，导出只出这一段', async ({ page }) => {
   test.setTimeout(120_000);
   await page.goto('/');
   const webm = await recordWebm(page, 6);
@@ -158,45 +158,129 @@ test('视频裁剪：「原图」页上一条固定 4 秒的窗口，左右拖�
   await page.getByRole('tab', { name: '原图' }).click();
   const trim = page.getByTestId('trim-0');
   await expect(trim).toBeVisible();
+  // 刚载入：默认取开头 4 秒
   await expect(trim).toContainText('裁剪 4.0 秒');
   await expect(trim).toHaveAttribute('data-trim-start', '0.00');
+  await expect(trim).toHaveAttribute('data-trim-length', '4.00');
   const track = trim.locator('.trim__track');
+  const windowBar = trim.locator('.trim__window');
+  const startHandle = trim.getByTestId('trim-start-0');
+  const endHandle = trim.getByTestId('trim-end-0');
   const duration = Number(await trim.getAttribute('data-duration'));
   expect(duration).toBeGreaterThan(4);
 
-  // 窗口宽度就是 4 秒占整段的比例
   const trackBox = (await track.boundingBox())!;
-  const windowBox = (await trim.locator('.trim__window').boundingBox())!;
-  expect(windowBox.width / trackBox.width).toBeCloseTo(4 / duration, 1);
+  const midY = trackBox.y + trackBox.height / 2;
+  const xAt = (seconds: number) => trackBox.x + (seconds / duration) * trackBox.width;
+  /** 抓住某个把手（或窗口本身）拖到时间轴上的某一秒 */
+  const dragTo = async (from: ReturnType<typeof trim.locator>, seconds: number) => {
+    const box = (await from.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(xAt(seconds), midY, { steps: 8 });
+    await page.mouse.up();
+  };
+  const startAt = async () => Number(await trim.getAttribute('data-trim-start'));
+  const lengthAt = async () => Number(await trim.getAttribute('data-trim-length'));
+  const endAt = async () => Number(await trim.getAttribute('data-trim-end'));
 
-  // 拖到最右：起点贴到 时长 - 4，再往右也不动
-  await page.mouse.move(trackBox.x + trackBox.width - 2, trackBox.y + trackBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(trackBox.x + trackBox.width + 200, trackBox.y + trackBox.height / 2);
-  await page.mouse.up();
-  const maxStart = Number(await trim.getAttribute('data-trim-start'));
-  expect(maxStart).toBeCloseTo(duration - 4, 1);
-  await expect(trim.getByTestId('trim-range-0')).toContainText('–');
+  // 窗口宽度就是窗长占整段的比例
+  expect((await windowBar.boundingBox())!.width / trackBox.width).toBeCloseTo(4 / duration, 1);
 
-  // 方向键微调；Home 回到开头
-  await track.focus();
-  await track.press('ArrowLeft');
-  expect(Number(await trim.getAttribute('data-trim-start'))).toBeCloseTo(maxStart - 0.1, 2);
-  await track.press('Home');
+  // 拖右端往右：窗长变长，起点不动
+  await dragTo(endHandle, 5.5);
+  expect(await startAt()).toBeCloseTo(0, 1);
+  expect(await lengthAt()).toBeCloseTo(5.5, 1);
+  await expect(trim).toContainText('裁剪 5.5 秒');
+  expect((await windowBar.boundingBox())!.width / trackBox.width).toBeCloseTo(5.5 / duration, 1);
+
+  // 拖左端往右：起点跟着走，终点不动，窗长自己算出来
+  await dragTo(startHandle, 2);
+  expect(await startAt()).toBeCloseTo(2, 1);
+  expect(await endAt()).toBeCloseTo(5.5, 1);
+  expect(await lengthAt()).toBeCloseTo(3.5, 1);
+
+  // 两端都拖不出整段之外
+  await dragTo(startHandle, -3);
+  expect(await startAt()).toBeCloseTo(0, 1);
+  await dragTo(endHandle, duration + 3);
+  expect(await endAt()).toBeCloseTo(duration, 1);
+
+  // 左端拖过右端也不会把窗口拖成负的，最短停在 0.1 秒
+  await dragTo(startHandle, duration + 3);
+  expect(await lengthAt()).toBeCloseTo(0.1, 1);
+  expect(await endAt()).toBeCloseTo(duration, 1);
+
+  // 拖中间：整体挪，窗长不变（抓的是窗口正中，所以窗口居中落在指针那一秒）
+  const center = async () => ((await startAt()) + (await endAt())) / 2;
+  await dragTo(windowBar, 2);
+  expect(await lengthAt()).toBeCloseTo(0.1, 1);
+  expect(await center()).toBeCloseTo(2, 1);
+
+  // 按在窗口外面：窗口整个居中挪过去，窗长照旧
+  await page.mouse.click(xAt(4.5), midY);
+  expect(await lengthAt()).toBeCloseTo(0.1, 1);
+  expect(await center()).toBeCloseTo(4.5, 1);
+
+  // 方向键微调各自那一端；Home / End 顶到极限
+  await endHandle.focus();
+  await endHandle.press('End');
+  expect(await endAt()).toBeCloseTo(duration, 1);
+  const tail = await endAt();
+  await endHandle.press('ArrowLeft');
+  // data-* 只到两位小数，0.1 这一步用 1 位精度断言（没挪就是差 0.1，照样挂）
+  expect(await endAt()).toBeCloseTo(tail - 0.1, 1);
+  await startHandle.focus();
+  await startHandle.press('Home');
+  await expect(trim).toHaveAttribute('data-trim-start', '0.00');
+  expect(await lengthAt()).toBeCloseTo(duration - 0.1, 1);
+  await startHandle.press('ArrowRight');
+  expect(await startAt()).toBeCloseTo(0.1, 2);
+
+  // 窗口本身的方向键管整段的位置：Home 回开头、End 顶到尾，窗长都不变
+  const long = await lengthAt();
+  await windowBar.focus();
+  await windowBar.press('End');
+  expect(await endAt()).toBeCloseTo(duration, 1);
+  expect(await lengthAt()).toBeCloseTo(long, 2);
+  await windowBar.press('Home');
   await expect(trim).toHaveAttribute('data-trim-start', '0.00');
 
-  // 进度条就是裁出来的这一段：min / max 跟着窗口走，拖不到被裁掉的部分
-  await track.press('End');
-  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('min'))).toBeCloseTo(duration - 4, 1);
-  expect(Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(duration, 1);
-  await track.press('Home');
-  await expect.poll(async () => Number(await page.locator('.transport__range').getAttribute('max'))).toBeCloseTo(4, 1);
-  await track.press('End');
+  // 暂停后拖两端，画面当场跟到被拖的那一端（录的 6 秒片子 3 秒处由黑转白）
+  await page.getByRole('button', { name: '暂停' }).click();
+  await expect(page.getByRole('button', { name: '播放' })).toBeVisible();
+  const luma = async () => {
+    const px = await canvasPixels(page);
+    return px.reduce((sum, v) => sum + v, 0) / px.length;
+  };
+  await startHandle.press('Home');
+  await endHandle.press('End');
+  await dragTo(startHandle, 4.5);
+  await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
+  await dragTo(startHandle, 0);
+  await expect.poll(luma, { timeout: 5000 }).toBeLessThan(96);
+  await dragTo(endHandle, 4.5);
+  await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
 
-  // 导出只出这 4 秒：60 fps × 4 秒 = 240 帧
+  // 进度条就是裁出来的这一段：min / max 跟着窗口走，拖不到被裁掉的部分
+  const range = page.locator('.transport__range');
+  await expect.poll(async () => Number(await range.getAttribute('max'))).toBeCloseTo(await endAt(), 1);
+  await dragTo(startHandle, 3);
+  await expect.poll(async () => Number(await range.getAttribute('min'))).toBeCloseTo(3, 1);
+
+  // 导出按窗长出帧：60 fps × 窗长。裁成 2 秒就是 120 帧，不再是固定的 240
+  await dragTo(startHandle, 0);
+  await dragTo(endHandle, 2);
+  const length = await lengthAt();
+  expect(length).toBeCloseTo(2, 1);
+  const dialog = page.getByTestId('export-video-dialog');
   await page.getByRole('button', { name: '导出视频' }).click();
   await page.getByRole('button', { name: '开始导出' }).click();
-  await expect(page.getByTestId('export-video-dialog')).toContainText('/ 240 帧', { timeout: 30_000 });
+  // 总帧数就是 60 fps × 这个窗长（data-* 只到两位小数，允许一两帧的出入），不再是固定的 240
+  const framesInDialog = async () => Number(/\/ (\d+) 帧/.exec((await dialog.textContent()) ?? '')?.[1] ?? 0);
+  let total = 0;
+  await expect.poll(async () => (total = await framesInDialog()), { timeout: 30_000 }).toBeGreaterThan(0);
+  expect(Math.abs(total - length * 60)).toBeLessThanOrEqual(2);
   await page.getByRole('button', { name: '取消' }).click();
   await page.getByRole('button', { name: '关闭' }).click();
 });
