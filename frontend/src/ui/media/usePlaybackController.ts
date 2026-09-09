@@ -74,7 +74,7 @@ export function usePlaybackController(slot: number, media: LoadedMedia | null, c
       return;
     }
     pacer.current = INITIAL_PACER;
-    usePlaybackStore.getState().update(slot, { playing: true, time: 0, duration: media!.duration ?? 0, previewScale: 1, frameIndex: 0, trimStart: 0 });
+    usePlaybackStore.getState().update(slot, { playing: true, time: 0, duration: media!.duration ?? 0, previewScale: 1, frameIndex: 0, trimStart: 0, trimLength: null });
     return () => usePlaybackStore.getState().remove(slot);
   }, [slot, media]);
 
