@@ -2,7 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { isAnimated, useStudioStore, type PreviewTab } from '@/state';
 import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
-import { trimRange, usePlaybackStore } from '@/ui/media/playback';
+import { usePlaybackStore } from '@/ui/media/playback';
 import { usePlaybackControls } from '@/ui/media/usePlaybackController';
 import { Button, IconButton, Tabs, Toast } from '@/ui/primitives';
 import { useUiStore } from '@/ui/state/uiStore';
@@ -11,33 +11,20 @@ import { useRenderClient } from '@/ui/renderer/RendererContext';
 import { CanvasMenu } from './CanvasMenu';
 import { SlotView } from './SlotView';
 
-/** 播放 / 暂停 + 进度条，只在当前坑位是视频或 GIF 时出现 */
+/**
+ * 播放 / 暂停，只在当前坑位是视频或 GIF 时出现。不放进度条：动图一律循环播放
+ * （视频在裁剪窗口里循环，GIF 按帧循环），要定位到某一刻拖裁剪条的两端就行。
+ */
 function Transport({ slot }: { slot: number }) {
   const media = useStudioStore((s) => s.slots[slot]?.media ?? null);
   const entry = usePlaybackStore((s) => s.slots[slot]);
   const client = useRenderClient();
-  // 逐帧驱动挂在 SlotView 上，这里只要控制；两份驱动会重复抓帧，client 传 null 则暂停后拖进度不重渲染
-  const { seek, toggle } = usePlaybackControls(slot, isAnimated(media) ? media : null, client);
+  // 逐帧驱动挂在 SlotView 上，这里只要控制；两份驱动会重复抓帧
+  const { toggle } = usePlaybackControls(slot, isAnimated(media) ? media : null, client);
   if (!media || !isAnimated(media) || !entry || !client) return null;
-  const duration = entry.duration || media.duration || 0;
-  // 视频裁剪过之后，进度条就是那一段：min / max 跟着窗口走，拖不到裁掉的部分
-  const { start, end, length } = media.kind === 'video' ? trimRange(duration, entry.trimStart, entry.trimLength) : { start: 0, end: duration, length: duration };
-  const span = Math.max(0.01, length);
-  const value = Math.min(end, Math.max(start, entry.time));
   return (
     <div className="transport" data-testid="transport">
       <IconButton icon={entry.playing ? 'pause' : 'play'} label={entry.playing ? '暂停' : '播放'} className="tda-iconbtn--sm" onClick={toggle} />
-      <input
-        type="range"
-        className="tda-slider__range transport__range"
-        min={start}
-        max={Math.max(start + 0.01, end)}
-        step={0.01}
-        value={value}
-        style={{ '--tda-slider-fill': `${((value - start) / span) * 100}%` } as React.CSSProperties}
-        onChange={(e) => seek(Number(e.target.value))}
-        aria-label="进度"
-      />
     </div>
   );
 }
@@ -62,24 +49,39 @@ function GroupTransport() {
 }
 
 /**
- * 预览头里的「保存」：一键把当前素材 + 参数存成一条方案进「历史」（与左栏「保存预设」不同——预设只是一套参数，不绑素材），
- * 名字按「素材名 · 预设名」自动起，不弹浮层不打断；正在用的方案又没动过时，不再存一份一模一样的。
- * 方案绑着素材，所以坑位里没素材时按钮置灰。
+ * 预览头里的「保存」与「另存」：都是把当前素材 + 参数存成方案进「历史」（与左栏「保存预设」不同——预设只是一套参数，不绑素材）。
+ * 「保存」：正在用历史里的某条方案就把它覆盖掉（没动过时只提示），还没有就新存一条；
+ * 「另存」：一律新存一条，正在用的那条不动。名字按「素材名 · 预设名」自动起、重名排号，都不弹浮层。
+ * 方案绑着素材，所以坑位里没素材时两个都置灰。
  */
 function SaveToHistory() {
-  const { media, save } = useSchemes();
+  const { media, active, dirty, save, saveAs } = useSchemes();
+  const saveTitle = !media ? '先放入素材，再保存方案' : active ? (dirty ? `用当前素材与参数覆盖「${active.name}」` : `「${active.name}」没有改动`) : '把当前素材与参数存成方案，进「历史」';
   return (
-    <Button
-      variant="secondary"
-      icon="save"
-      disabled={!media}
-      onClick={() => void save()}
-      title={media ? '把当前素材与参数存成方案，进「历史」' : '先放入素材，再保存方案'}
-      aria-label="保存方案"
-      data-testid="save-history"
-    >
-      保存
-    </Button>
+    <>
+      <Button
+        variant="secondary"
+        icon="save"
+        disabled={!media}
+        onClick={() => void save()}
+        title={saveTitle}
+        aria-label="保存方案"
+        data-testid="save-history"
+      >
+        保存
+      </Button>
+      <Button
+        variant="secondary"
+        icon="copy"
+        disabled={!media}
+        onClick={() => void saveAs()}
+        title={media ? '另存成一条新方案，正在用的那条不动' : '先放入素材，再保存方案'}
+        aria-label="另存方案"
+        data-testid="save-history-as"
+      >
+        另存
+      </Button>
+    </>
   );
 }
 
@@ -114,7 +116,7 @@ export function PreviewPane() {
           <Button variant="secondary" icon="crop" disabled={!canExport} onClick={() => void exportSvg()} title="把当前帧导出为 SVG 矢量图" data-testid="export-svg">
             导出帧
           </Button>
-          {/* 一键把当前素材 + 参数存成方案进「历史」，紧挨着主导出按钮的左边 */}
+          {/* 「保存」「另存」：把当前素材 + 参数存成方案进「历史」，紧挨着主导出按钮的左边 */}
           <SaveToHistory />
           {/*
            * 主导出入口：跟着当前坑位的媒体类型换文案与去处——

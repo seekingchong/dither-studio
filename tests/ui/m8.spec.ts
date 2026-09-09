@@ -91,8 +91,9 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
 
   await brightness.fill('20');
 
-  // 保存预设在左栏操作行：点开浮层，名字已经预填成「当前方案 副本」，改个名再存
+  // 「保存」在内置预设上没法写回，跟「另存」一样弹浮层：名字已经预填成「当前预设 副本」，改个名再存
   await expect(page.locator('.pane--params .pane-actions').getByTestId('preset-save-button')).toBeVisible();
+  await expect(page.locator('.pane--params .pane-actions').getByTestId('preset-save-as-button')).toBeVisible();
   await page.getByTestId('preset-save-button').click();
   await expect(page.getByLabel('新预设名称')).toHaveValue('Game Boy 副本');
   await page.getByLabel('新预设名称').fill('我的 GB');
@@ -106,6 +107,21 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
   await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
+
+  // 我的预设没动过：「保存」置灰；微调后「保存」直接写回、不弹浮层；「另存」才另起一套
+  await expect(page.getByTestId('preset-save-button')).toBeDisabled();
+  await brightness.fill('25');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB · 已微调');
+  await page.getByTestId('preset-save-button').click();
+  await expect(page.getByTestId('preset-save-menu')).toHaveCount(0);
+  await expect(page.locator('.tda-toast')).toContainText('已更新预设「我的 GB」');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
+  await expect(page.getByTestId('preset-save-button')).toBeDisabled();
+  await page.getByTestId('preset-save-as-button').click();
+  await expect(page.getByLabel('新预设名称')).toHaveValue('我的 GB 副本');
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('preset-save-menu')).toHaveCount(0);
+  await expect(page.locator('.preset-card--user')).toHaveCount(1);
 
   // 预设不进历史：历史里是「素材 + 参数」的方案，得走预览头的「保存」
   await page.getByRole('tab', { name: '历史' }).click();
@@ -137,7 +153,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(familyValue(page)).toHaveText('有序');
   await expect(matrixValue(page)).toHaveText('Bayer 4×4');
   await openSection(page, 'tone');
-  await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('20');
+  await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('25');
   await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
   // 素材没回来算动过；同一份素材放回来就不算
   await page.getByRole('tab', { name: '历史' }).click();

@@ -170,7 +170,7 @@ test('4 坑位：顶部只有一个播放 / 暂停按钮控制全部动图，不
   await expect(page.getByRole('button', { name: '全部暂停' })).toBeVisible();
   await expect.poll(hashes, { timeout: 3000 }).not.toEqual(paused);
 
-  // 切回 1 坑位：进度条按坑位恢复，顶部不再有总控播放键
+  // 切回 1 坑位：播放键按坑位恢复，顶部不再有总控播放键
   await page.getByTestId('settings-button').click();
   await pick(page, 'settings.slotCount', '1 个媒体');
   await page.keyboard.press('Escape');
