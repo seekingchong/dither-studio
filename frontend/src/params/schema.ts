@@ -99,7 +99,7 @@ export const PARAM_SCHEMA: readonly ParamDef[] = [
 
   // ---------- 像素化 ----------
   // 排线风格下格子大小由「横向 / 纵向间距」决定，像素尺寸只属于抖动
-  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 16, step: 1, default: 4, visibleWhen: onDither },
+  { id: 'pixel.size', group: 'pixel', label: '像素尺寸', type: 'number', min: 1, max: 60, step: 1, default: 4, visibleWhen: onDither },
   {
     id: 'pixel.method',
     group: 'pixel',

@@ -19,7 +19,7 @@ describe('参数 schema', () => {
   });
 
   it('coerceParam 夹紧数值并回退非法枚举', () => {
-    expect(coerceParam(getParamDef('pixel.size'), 999)).toBe(16);
+    expect(coerceParam(getParamDef('pixel.size'), 999)).toBe(60);
     expect(coerceParam(getParamDef('pixel.size'), -3)).toBe(1);
     expect(coerceParam(getParamDef('pixel.size'), 'abc')).toBe(4);
     expect(coerceParam(getParamDef('dither.family'), 'nope')).toBe('ordered');
@@ -42,7 +42,7 @@ describe('参数 schema', () => {
     expect(params['color.mode']).toBe('mono');
     expect(params['pixel.size']).toBe(4);
     const size = getParamDef('pixel.size');
-    expect(size.type === 'number' && [size.min, size.max]).toEqual([1, 16]);
+    expect(size.type === 'number' && [size.min, size.max]).toEqual([1, 60]);
   });
 
   it('visibleWhen 按算法族切换；两端颜色在单色 / 灰阶 / Tint 下都可见', () => {
@@ -100,7 +100,7 @@ describe('store', () => {
     store.setParam('pixel.size', 4);
     expect(useStudioStore.getState().params).toBe(before);
     store.setParam('pixel.size', 100);
-    expect(useStudioStore.getState().params['pixel.size']).toBe(16);
+    expect(useStudioStore.getState().params['pixel.size']).toBe(60);
   });
 
   it('切换坑位数量时保留已有坑位', () => {

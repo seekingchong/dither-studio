@@ -22,6 +22,18 @@ describe('Pipeline', () => {
     for (let i = 3; i < out.data.length; i += 4) expect(out.data[i]).toBe(255);
   });
 
+  it('像素尺寸 60：每个格子在画布上是 60×60 的实心块', () => {
+    const params = { ...defaultParams(), 'canvas.width': 120, 'canvas.height': 60, 'pixel.size': 60 };
+    const out = renderImage(gradientSource(), params);
+    expect(out.width).toBe(120);
+    expect(out.height).toBe(60);
+    const at = (x: number, y: number) => out.data[(y * out.width + x) * 4];
+    for (const ox of [0, 60]) {
+      const v = at(ox, 0);
+      for (let y = 0; y < 60; y++) for (let x = ox; x < ox + 60; x++) expect(at(x, y)).toBe(v);
+    }
+  });
+
   it('单色两端颜色可调，结果只出现这两种颜色', () => {
     const params = { ...smallParams(), 'color.mode': 'mono', 'color.tint.dark': '#112233', 'color.tint.light': '#FFEEDD' };
     const out = renderImage(gradientSource(), params);

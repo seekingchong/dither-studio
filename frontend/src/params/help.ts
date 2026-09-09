@@ -65,7 +65,7 @@ export const PARAM_HELP: Readonly<Record<string, ParamHelp>> = {
 
   // ---------- 像素化 ----------
   'pixel.size': {
-    summary: '降采样倍率，决定颗粒粗细。填 4 就是每 4×4 个原像素合成一个抖动点。1–16，默认 4。',
+    summary: '降采样倍率，决定颗粒粗细。填 4 就是每 4×4 个原像素合成一个抖动点。1–60，默认 4。',
     tip: '这是颗粒粗细的唯一来源，下面的降采样和偏移都不改变粗细。',
   },
   'pixel.method': {
