@@ -86,14 +86,19 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test('GIF 动图：逐帧预览、暂停、进度条', async ({ page }) => {
+test('GIF 动图：逐帧预览、一直循环、暂停；播放键旁没有进度条', async ({ page }) => {
   await page.goto('/');
   await dropBytes(page, GIF_B64, 'anim.gif', 'image/gif');
   await expect(page.getByTestId('transport')).toBeVisible();
-  // 进度条右侧不再显示时间文字，时长体现在滑杆的 max 上（这张 GIF 共 0.6 秒）
-  await expect(page.locator('.transport__range')).toHaveAttribute('max', /^0\.6/);
+  // 只有播放 / 暂停键，没有进度条
+  await expect(page.locator('.transport__range')).toHaveCount(0);
+  await expect(page.getByTestId('transport').locator('input')).toHaveCount(0);
   const first = await canvasHash(page);
   await expect.poll(() => canvasHash(page), { timeout: 3000 }).not.toBe(first);
+  // 这张 GIF 共 0.6 秒：过了好几圈还在动，说明默认一直循环
+  await page.waitForTimeout(1500);
+  const later = await canvasHash(page);
+  await expect.poll(() => canvasHash(page), { timeout: 3000 }).not.toBe(later);
   await page.getByRole('button', { name: '暂停' }).click();
   await expect(page.getByRole('button', { name: '播放' })).toBeVisible();
   await page.waitForTimeout(500);
@@ -262,11 +267,8 @@ test('视频裁剪：拖两端定裁剪范围、拖中间整体挪，导出只�
   await dragTo(endHandle, 4.5);
   await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
 
-  // 进度条就是裁出来的这一段：min / max 跟着窗口走，拖不到被裁掉的部分
-  const range = page.locator('.transport__range');
-  await expect.poll(async () => Number(await range.getAttribute('max'))).toBeCloseTo(await endAt(), 1);
-  await dragTo(startHandle, 3);
-  await expect.poll(async () => Number(await range.getAttribute('min'))).toBeCloseTo(3, 1);
+  // 播放键旁没有进度条；定位靠裁剪条的两端
+  await expect(page.locator('.transport__range')).toHaveCount(0);
 
   // 导出按窗长出帧：60 fps × 窗长。裁成 2 秒就是 120 帧，不再是固定的 240
   await dragTo(startHandle, 0);
@@ -336,26 +338,6 @@ test('裁剪条在「结果」页也在：拖两端直接改成品，两个页�
   expect(Number(await trim.getAttribute('data-trim-length'))).toBeCloseTo(2, 1);
   await page.getByRole('tab', { name: '结果' }).click();
   await expect(trim).toHaveAttribute('data-trim-length', /^2\.0/);
-});
-
-test('视频：暂停后拖动进度条，画面跟着走', async ({ page }) => {
-  test.setTimeout(120_000);
-  await page.goto('/');
-  const webm = await recordWebm(page);
-  await dropBytes(page, webm, 'clip.webm', 'video/webm');
-  await expect(page.getByTestId('transport')).toBeVisible();
-  await page.getByRole('button', { name: '暂停' }).click();
-  await expect(page.getByRole('button', { name: '播放' })).toBeVisible();
-  const range = page.locator('.transport__range');
-  // 录的片子 0.6 秒处由黑转白：按画面明暗断言，不受一帧早晚的影响
-  const luma = async () => {
-    const px = await canvasPixels(page);
-    return px.reduce((s, v) => s + v, 0) / px.length;
-  };
-  await range.fill('0.1');
-  await expect.poll(luma, { timeout: 5000 }).toBeLessThan(96);
-  await range.fill('0.9');
-  await expect.poll(luma, { timeout: 5000 }).toBeGreaterThan(160);
 });
 
 test('GPU 路径与 CPU 结果一致（有序抖动与网点渲染）', async ({ page }) => {

@@ -42,7 +42,7 @@ function currentTrim(slot: number): SchemeTrim | undefined {
 
 /**
  * 方案（「历史」页）：素材 + 参数 + 素材编辑 + 视频裁剪窗口，绑着当时的素材。
- * 预览头的「保存」把当前这一套存进来（名字按「素材名 · 预设名」自动起）；
+ * 预览头的「保存」把当前这一套写回正在用的方案（没有就新存一条），「另存」一律新存一条（名字按「素材名 · 预设名」自动起）；
  * 应用一条方案会把参数、来源预设一起换过去，素材还在时连编辑与裁剪也恢复，
  * Electron 上素材已经换掉但记得路径的话还会把它重新打开。
  */
@@ -83,19 +83,14 @@ export function useSchemes() {
     [platform, show],
   );
 
-  /** 把当前素材 + 参数存成新方案。正在用的方案没动过就不重复存 */
-  const save = useCallback(async () => {
+  /** 新存一条方案：名字按「素材名 · 预设名」起、重名排号；没素材存不了 */
+  const create = useCallback(async () => {
     const state = useStudioStore.getState();
     const at = state.view.activeSlot;
     const current = state.slots[at]?.media ?? null;
     if (!current) {
       show('先放入一张图片或一段视频，再保存方案');
       return null;
-    }
-    const using = state.schemes.find((s) => s.id === state.schemeId);
-    if (using && !schemeDiffers(using, { params: state.params, media: current, edit: currentEdit(at), trim: currentTrim(at) })) {
-      show(`「${using.name}」已在历史中`);
-      return using;
     }
     const presetName = presetNameById(state.presetId, state.presets) ?? '默认';
     const scheme: SavedScheme = {
@@ -147,6 +142,31 @@ export function useSchemes() {
     },
     [client, persist, show],
   );
+
+  /**
+   * 「保存」：正在用历史里的某条方案就把它覆盖掉（没动过时只提示，不重复存），还没有就新存一条。
+   * 跟文档编辑器的 ⌘S 一个意思——有文件就写回那个文件，没有才另起一个。
+   */
+  const save = useCallback(async () => {
+    const state = useStudioStore.getState();
+    const at = state.view.activeSlot;
+    const current = state.slots[at]?.media ?? null;
+    if (!current) {
+      show('先放入一张图片或一段视频，再保存方案');
+      return null;
+    }
+    const using = state.schemes.find((s) => s.id === state.schemeId);
+    if (!using) return create();
+    if (!schemeDiffers(using, { params: state.params, media: current, edit: currentEdit(at), trim: currentTrim(at) })) {
+      show(`「${using.name}」没有改动，已在历史中`);
+      return using;
+    }
+    await update(using.id);
+    return useStudioStore.getState().schemes.find((s) => s.id === using.id) ?? null;
+  }, [create, update, show]);
+
+  /** 「另存」：一律新存一条，正在用的那条不动 */
+  const saveAs = useCallback(() => create(), [create]);
 
   /**
    * 应用一条方案。素材不是它绑的那份时：Electron 上记得路径就重新打开；
@@ -206,5 +226,5 @@ export function useSchemes() {
     [persist],
   );
 
-  return { schemes, presets, active, dirty, media, currentMediaKey, save, update, apply, rename, remove };
+  return { schemes, presets, active, dirty, media, currentMediaKey, save, saveAs, update, apply, rename, remove };
 }

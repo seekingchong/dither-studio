@@ -215,7 +215,8 @@ test('预览头「保存」一键把当前素材 + 参数存成方案进历史�
   // 紧挨着主导出按钮左边
   const tools = page.locator('.preview-tools');
   const buttons = tools.getByRole('button');
-  await expect(buttons.nth(await buttons.count() - 2)).toHaveText('保存');
+  await expect(buttons.nth(await buttons.count() - 3)).toHaveText('保存');
+  await expect(buttons.nth(await buttons.count() - 2)).toHaveText('另存');
   await expect(buttons.last()).toHaveText('导出图片');
   await page.getByTestId('save-history').click();
   await expect(page.locator('.tda-toast')).toContainText('已保存方案');
@@ -229,18 +230,25 @@ test('预览头「保存」一键把当前素材 + 参数存成方案进历史�
   await expect(page.locator('.history-item__meta')).toContainText('基于 默认');
   await expect(page.locator('.history-item__tag')).toHaveText('使用中');
   await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
-  // 正在用的就是刚存的那条、没动过：再点不重复存
+  // 正在用的就是刚存的那条、没动过：「保存」只提示，不重复存
   await page.getByTestId('save-history').click();
   await expect(page.locator('.tda-toast').last()).toContainText('已在历史中');
   await expect(page.locator('.history-item')).toHaveCount(1);
-  // 改一个参数再存：多一条，同一份素材上的第二条排号
+  // 改一个参数再「保存」：写回正在用的那条，还是一条
   await page.getByRole('tab', { name: '抖动' }).click();
   await pick(page, 'dither.family', '阈值');
   await page.getByTestId('save-history').click();
-  await expect(page.locator('.tda-toast').last()).toContainText('已保存方案');
+  await expect(page.locator('.tda-toast').last()).toContainText('已更新方案');
   await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item')).toHaveCount(1);
+  await expect(page.locator('.history-item__meta')).toContainText('阈值');
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
+  // 「另存」才多一条：同一份素材上的第二条排号，正在用的换成新的那条
+  await page.getByTestId('save-history-as').click();
+  await expect(page.locator('.tda-toast').last()).toContainText('已保存方案');
   await expect(page.locator('.history-item')).toHaveCount(2);
   await expect(page.locator('.history-item__name').first()).toContainText(' · 默认 2');
+  await expect(page.locator('.history-item').first()).toHaveClass(/is-active/);
   // 「全部 / 当前素材」筛选：两条都是这份素材的
   await expect(page.locator('.history-filter [role="tab"]').nth(1)).toHaveText('当前素材 2');
 });
