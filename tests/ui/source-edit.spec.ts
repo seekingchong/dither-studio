@@ -179,7 +179,7 @@ test('编辑条在「结果」页也在：旋转、缩放、拖裁剪窗口都�
   await expect(bar).toHaveAttribute('data-zoom', '1.00');
   await expect.poll(() => canvasHash(page)).toBe(original);
 
-  // 视频的裁剪条不跟着过来：那条挑的是时间轴上的一段，仍只在「原图」页
+  // 裁剪条只跟视频走，图片这儿没有（视频的那条两个页签都在，见 m7）
   await expect(page.getByTestId('trim-0')).toHaveCount(0);
   await expect(page.locator('.tda-toast--error')).toHaveCount(0);
 });
