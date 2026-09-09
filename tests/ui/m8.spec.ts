@@ -46,7 +46,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   const paramsBox = await page.getByTestId('params-module').boundingBox();
   expect(pickerBox!.y).toBeLessThan(paramsBox!.y);
   await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认');
 
   // 选 Game Boy：参数跟着变，且只露出这套方案具备的分组（没有网格 / 特效）
   await page.locator('[data-preset="gameboy"]').click();
@@ -66,10 +66,10 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await openSection(page, 'tone');
   const brightness = page.locator('[data-param="tone.brightness"] input[type="range"]');
   await brightness.fill('20');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Game Boy · 已微调');
   await expect(page.locator('[data-preset="gameboy"]')).toHaveClass(/is-active/);
   await page.getByRole('button', { name: '还原' }).click();
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Game Boy');
   await expect(page.getByRole('button', { name: '还原' })).toBeDisabled();
 
   // 分节标题右端的「重置」只退这一节：影调与基础各改一处，重置影调后基础的改动还在
@@ -87,7 +87,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('8');
   await page.getByTestId('reset-basic').click();
   await expect(page.locator('[data-param="pixel.size"] .tda-slider__range')).toHaveValue('4');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Game Boy');
 
   await brightness.fill('20');
 
@@ -104,53 +104,69 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.locator('.preset-card--user')).toContainText('我的 GB');
   await expect(page.locator('.preset-card--user')).toContainText('基于 Game Boy');
   await expect(page.locator('.preset-card--user')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调']);
 
-  // 历史页：一条记录，带缩略图、来源与摘要
+  // 预设不进历史：历史里是「素材 + 参数」的方案，得走预览头的「保存」
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.getByTestId('history-pane')).toBeVisible();
+  await expect(page.locator('.history-item')).toHaveCount(0);
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast')).toContainText('已保存方案');
+  // 一条记录：名字「素材名 · 预设名」，带缩略图、素材、来源与摘要
   await expect(page.locator('.history-item')).toHaveCount(1);
-  await expect(page.locator('.history-item')).toContainText('我的 GB');
-  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Game Boy · 有序 · Bayer 4×4 · Palette · 像素 4/);
+  await expect(page.locator('.history-item__name')).toContainText('sample-0 · 我的 GB');
+  await expect(page.locator('.history-item__media')).toHaveText('sample-0.png（图片）');
+  await expect(page.locator('.history-item__meta')).toHaveText(/基于 我的 GB · 有序 · Bayer 4×4 · Palette · 像素 4/);
   await expect(page.locator('.history-item__thumb img')).toHaveAttribute('src', /^data:image\/png/);
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
 
-  // 刷新后仍在（web 端存 localStorage）
+  // 刷新后仍在（web 端存 localStorage）：预设与方案各存各的
   await page.reload();
   await page.locator('[data-slot="0"]').waitFor();
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   // 参数本身不持久化：回到默认 Bayer 2×2
   await expect(matrixValue(page)).toHaveText('Bayer 2×2');
 
-  // 从历史页应用：回到参数页，参数与来源都恢复
+  // 从历史页应用：回到参数页，参数与来源预设都恢复；素材还没放回来，方案先只套参数
   await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item')).toHaveCount(1);
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByTestId('preset-picker')).toBeVisible();
+  await expect(page.locator('.tda-toast')).toContainText('放入素材后再看效果');
   await expect(familyValue(page)).toHaveText('有序');
   await expect(matrixValue(page)).toHaveText('Bayer 4×4');
   await openSection(page, 'tone');
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('20');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的 GB');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
+  // 素材没回来算动过；同一份素材放回来就不算
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中 · 已微调');
+  await dropImage(page);
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
+  await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
 
   // 微调后在历史页"更新"写回，再重命名与删除
+  await page.getByRole('tab', { name: '抖动' }).click();
+  await openSection(page, 'tone');
   await page.locator('[data-param="tone.brightness"] input[type="range"]').fill('30');
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.locator('.history-item__tag')).toHaveText('使用中 · 已微调');
   await page.locator('.history-item').getByRole('button', { name: '更新' }).click();
   await expect(page.locator('.history-item__tag')).toHaveText('使用中');
   await page.getByRole('button', { name: '重命名' }).click();
-  await page.getByLabel('预设名称', { exact: true }).fill('GB 改名');
-  await page.getByLabel('预设名称', { exact: true }).press('Enter');
+  await page.getByLabel('方案名称', { exact: true }).fill('GB 改名');
+  await page.getByLabel('方案名称', { exact: true }).press('Enter');
   await expect(page.locator('.history-item')).toContainText('GB 改名');
   await page.getByRole('button', { name: '删除' }).click();
   await expect(page.locator('.history-item')).toHaveCount(0);
-  // 删除正在使用的预设：参数保留，来源退回 Game Boy
+  // 删除正在用的方案：参数保留，预设「我的 GB」不受影响（相对它有微调）
   await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('30');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB · 已微调');
   await page.reload();
   await page.locator('[data-slot="0"]').waitFor();
-  await expect(page.locator('.preset-card--user')).toHaveCount(0);
+  await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.locator('.history-item')).toHaveCount(0);
 
@@ -160,7 +176,7 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   await expect(page.getByTestId('reset-preset')).toBeEnabled();
   await page.getByTestId('reset-preset').click();
   await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认');
   await expect(page.getByTestId('reset-preset')).toBeDisabled();
 });
 
@@ -253,7 +269,7 @@ test('我的预设卡片右上角：复制 / 星标 / 删除，鼠标移上去�
   await expect(page.locator('.preset-card--user')).toHaveCount(2);
   await expect(page.locator('.preset-card--user').nth(1)).toContainText('甲 副本');
   await expect(page.locator('.preset-card--user').nth(1)).toContainText('基于 Game Boy');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：甲');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：甲');
 
   // 星标：排到我的预设最前面，那颗星不 hover 也一直亮着
   const copy = page.locator('.preset-card--user').nth(1);
@@ -290,7 +306,7 @@ test('我的预设卡片右上角：复制 / 星标 / 删除，鼠标移上去�
   await page.getByTestId('preset-delete-confirm-ok').click();
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await expect(page.locator('.preset-card--user')).toContainText('甲 副本');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Game Boy');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Game Boy');
 
   // 星标跨刷新保留
   await page.reload();

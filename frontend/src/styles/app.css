@@ -2229,7 +2229,8 @@ body.is-resizing * {
   font-weight: 500;
 }
 
-.history-item__meta {
+.history-item__meta,
+.history-item__media {
   margin: 0;
   color: var(--tda-color-text-tertiary);
   font-size: var(--tda-typography-label-size);
@@ -2237,6 +2238,28 @@ body.is-resizing * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 素材那一行比来源 / 摘要深一点：方案绑着素材，先看是哪张图 / 哪段视频 */
+.history-item__media {
+  color: var(--tda-color-text-secondary);
+}
+
+/* 「当前素材」：绑的素材就是坑位里这份；比「使用中」轻，只描边不填底 */
+.history-item__chip {
+  flex: none;
+  padding: 0 var(--tda-spacing-2xs);
+  border: 1px solid var(--tda-color-border);
+  border-radius: var(--tda-radius-sm);
+  color: var(--tda-color-text-tertiary);
+  font-size: var(--tda-typography-label-size);
+  line-height: calc(var(--tda-typography-label-line) - 2px);
+  font-weight: 400;
+}
+
+/* 历史页顶上的「全部 / 当前素材」筛选：跟顶部页签同款，字小一号 */
+.history-filter .tda-tab {
+  font-size: var(--tda-typography-body-sm-size);
 }
 
 .history-item__actions {

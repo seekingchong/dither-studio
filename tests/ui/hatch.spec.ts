@@ -84,11 +84,11 @@ test('左栏页签「抖动 | 排线 | 网点 | 历史」：切页签就是切�
   await expect(page.locator('[data-preset="hatch-classic"]')).toBeVisible();
   await expect(page.locator('[data-preset="gameboy"]')).toHaveCount(0);
   await page.locator('[data-preset="hatch-pencil"]').click();
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Pencil');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Pencil');
   await expect(page.locator('[data-param="hatch.angle"] input[type="range"]')).toHaveValue('60');
   await expect(sectionLabels(page)).toHaveText(['基础', '笔画', '颜色', '影调']);
   await page.getByTestId('reset-preset').click();
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Hatching');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Hatching');
   await expect(page.locator('[data-param="hatch.angle"] input[type="range"]')).toHaveValue('45');
 
   // 像素尺寸一个滑杆同时写横纵；「横纵分开」打开才换成横 / 纵各自的滑杆，关掉时纵向跟着横向走

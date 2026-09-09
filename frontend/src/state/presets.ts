@@ -17,8 +17,9 @@ import {
 } from '@/params';
 
 /**
- * 预设 = 一整套方案。用户先选一套预设，参数面板只列出这套方案"具备"的参数供微调，
+ * 预设 = 一整套参数，不绑素材。用户先选一套预设，参数面板只列出这套预设"具备"的参数供微调，
  * 调好后可存成自己的预设（记住来源预设，沿用它的参数范围）。
+ * 素材 + 参数的组合是「历史」里的方案（见 schemes.ts），同一套预设可以在不同素材上存成多个方案。
  */
 export interface BuiltinPreset {
   id: string;
@@ -39,7 +40,7 @@ export interface UserPreset {
   updatedAt?: number;
   /** 来源内置预设 id，决定参数面板露出哪些参数；缺省按「默认」处理 */
   base?: string;
-  /** 保存时的结果缩略图（PNG data URL），没有媒体时缺省 */
+  /** 旧版（预设与方案还没分开时）保存的结果缩略图（PNG data URL）；新存的预设不带 */
   thumbnail?: string;
   /** 星标：预设模块里排在其它我的预设前面 */
   starred?: boolean;

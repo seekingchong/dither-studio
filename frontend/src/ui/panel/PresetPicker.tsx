@@ -138,8 +138,9 @@ function PresetCardActions({ name, starred, onDuplicate, onToggleStar, onRemove,
 }
 
 /**
- * 预设模块（参数面板最上方）：内置方案 + 我的预设排成一组卡片，选中的那套就是当前方案的来源；
+ * 预设模块（参数面板最上方）：内置预设 + 我的预设排成一组卡片，选中的那套就是当前参数的来源；
  * 下面的参数在它基础上微调。存成我的预设走左栏操作行的「保存预设」，这里只负责挑。
+ * 预设只是一套参数、不绑素材；素材 + 参数的组合是「历史」页的方案，走预览头的「保存」。
  * 只列当前页签这种风格的方案（抖动页看抖动的，排线页看排线的），「重置」也退回这种风格的「默认」。
  * 卡片多于三行就折起来，选中的那张要是被折在下面则整组展开——总得看得见当前用的是哪套。
  * 我的预设的卡片鼠标移上去还会在右上角露出复制 / 星标 / 删除。
@@ -203,7 +204,7 @@ export function PresetPicker() {
           data-testid="reset-preset"
         />
       </h3>
-      <p className="section__hint">选一套方案作为起点，下面只列出这套方案用到的参数，可在它基础上微调；调好后点上方「保存预设」，会出现在这里和「历史」里。</p>
+      <p className="section__hint">选一套预设作为起点，下面只列出这套预设用到的参数，可在它基础上微调；调好后点上方「保存预设」存成我的预设。预设只是一套参数，不绑素材——素材 + 参数要留档，用预览区的「保存」存进「历史」。</p>
 
       <div className="param-grid" role="listbox" aria-label="预设" ref={gridRef}>
         {visible.map((card) => (
@@ -253,7 +254,7 @@ export function PresetPicker() {
       )}
 
       <p className="preset-status" data-testid="preset-status">
-        当前方案：{activeName}
+        当前预设：{activeName}
         {dirty ? ' · 已微调' : ''}
       </p>
     </section>

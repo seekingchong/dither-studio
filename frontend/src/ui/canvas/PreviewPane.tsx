@@ -1,12 +1,12 @@
 import { useShallow } from 'zustand/react/shallow';
-import { copyPresetName, isAnimated, useStudioStore, type PreviewTab } from '@/state';
+import { isAnimated, useStudioStore, type PreviewTab } from '@/state';
 import { ExportVideoDialog } from '@/ui/export/ExportVideoDialog';
 import { useExport } from '@/ui/export/useExport';
 import { trimRange, usePlaybackStore } from '@/ui/media/playback';
 import { usePlaybackControls } from '@/ui/media/usePlaybackController';
-import { Button, IconButton, Tabs, Toast, useToast } from '@/ui/primitives';
+import { Button, IconButton, Tabs, Toast } from '@/ui/primitives';
 import { useUiStore } from '@/ui/state/uiStore';
-import { usePresets } from '@/ui/state/usePresets';
+import { useSchemes } from '@/ui/state/useSchemes';
 import { useRenderClient } from '@/ui/renderer/RendererContext';
 import { CanvasMenu } from './CanvasMenu';
 import { SlotView } from './SlotView';
@@ -62,21 +62,22 @@ function GroupTransport() {
 }
 
 /**
- * 预览头里的「保存」：一键把当前方案存进「历史」，名字按当前方案名自动起（与左栏「保存预设」浮层预填的一样），
- * 不弹浮层不打断；当前方案本身就是历史里的一条、又没微调过时，不再存一份一模一样的。
+ * 预览头里的「保存」：一键把当前素材 + 参数存成一条方案进「历史」（与左栏「保存预设」不同——预设只是一套参数，不绑素材），
+ * 名字按「素材名 · 预设名」自动起，不弹浮层不打断；正在用的方案又没动过时，不再存一份一模一样的。
+ * 方案绑着素材，所以坑位里没素材时按钮置灰。
  */
 function SaveToHistory() {
-  const { presets, activeUser, activeName, dirty, save } = usePresets();
-  const show = useToast((s) => s.show);
-  const onSave = () => {
-    if (activeUser && !dirty) {
-      show(`「${activeUser.name}」已在历史中`);
-      return;
-    }
-    void save(copyPresetName(activeName, presets.map((p) => p.name)));
-  };
+  const { media, save } = useSchemes();
   return (
-    <Button variant="secondary" icon="save" onClick={onSave} title="把当前方案存进「历史」" aria-label="保存到历史" data-testid="save-history">
+    <Button
+      variant="secondary"
+      icon="save"
+      disabled={!media}
+      onClick={() => void save()}
+      title={media ? '把当前素材与参数存成方案，进「历史」' : '先放入素材，再保存方案'}
+      aria-label="保存方案"
+      data-testid="save-history"
+    >
       保存
     </Button>
   );
@@ -113,7 +114,7 @@ export function PreviewPane() {
           <Button variant="secondary" icon="crop" disabled={!canExport} onClick={() => void exportSvg()} title="把当前帧导出为 SVG 矢量图" data-testid="export-svg">
             导出帧
           </Button>
-          {/* 一键把当前方案存进「历史」，紧挨着主导出按钮的左边 */}
+          {/* 一键把当前素材 + 参数存成方案进「历史」，紧挨着主导出按钮的左边 */}
           <SaveToHistory />
           {/*
            * 主导出入口：跟着当前坑位的媒体类型换文案与去处——

@@ -5,6 +5,7 @@ import { usePresets } from '@/ui/state/usePresets';
 
 /**
  * 左栏操作行右端的两个预设动作：「还原」（丢掉微调，只有图标）与「保存预设」。
+ * 预设只是一套参数、不绑素材；素材 + 参数要留档走预览头的「保存」（进「历史」）。
  * 保存不再在预设模块里摆一整行输入框——点「保存预设」弹一个浮层，名字已经预填好，
  * 直接回车就存下；当前方案本身就是我的预设时，浮层里还能覆盖更新它。
  */
@@ -74,7 +75,7 @@ export function PresetActions() {
               ref={inputRef}
               className="tda-text__input"
               value={name}
-              placeholder="给当前方案起个名字"
+              placeholder="给这套参数起个名字"
               onChange={(e) => setName(e.target.value)}
               aria-label="新预设名称"
               autoFocus

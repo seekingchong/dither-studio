@@ -1,28 +1,39 @@
 import { create } from 'zustand';
 import { coerceParam, defaultParams, getParamDef, sanitizeParams, styleOf, type ParamValue, type Params, type StyleKind } from '@/params';
 import { DEFAULT_PRESET_ID, defaultPresetIdFor, presetStyleById, sanitizeUserPresets, type UserPreset } from './presets';
+import { sanitizeSchemes, type SavedScheme } from './schemes';
 import { DEFAULT_SETTINGS, type LoadedMedia, type PreviewTab, type Settings, type Slot, type SlotCount, type ZoomLevel } from './types';
 
 /** 同一参数连续变化在此间隔内合并成一条撤销记录（滑块拖动） */
 export const HISTORY_COALESCE_MS = 800;
 export const HISTORY_LIMIT = 100;
 
-/** 撤销栈里的一条记录：参数 + 当时所基于的预设 */
+/** 撤销栈里的一条记录：参数 + 当时所基于的预设 + 当时正在用的方案（历史里的一条，没有就是 null） */
 export interface Snapshot {
   params: Params;
   presetId: string;
+  schemeId: string | null;
 }
 
 export interface StudioState {
   /** 单一参数对象，不可变更新 */
   params: Params;
-  /** 当前方案所基于的预设（内置或用户预设 id）；微调参数不改变它，重新选预设才改变 */
+  /** 当前参数所基于的预设（内置或用户预设 id）；微调参数不改变它，重新选预设才改变 */
   presetId: string;
+  /**
+   * 正在用的方案（「历史」里的一条）：应用或保存方案后指向它，微调不清掉（历史页会标「已微调」），
+   * 换一套预设就清掉——那已经不是这条方案了。撤销 / 重做连同它一起回退
+   */
+  schemeId: string | null;
   setParam(id: string, value: ParamValue): void;
   /** 一次改几个参数；传 editId 时同一来源的连续变化合并成一条撤销记录（同时写横纵两个值的合成滑杆） */
   setParams(patch: Partial<Params>, editId?: string): void;
-  /** 整体替换参数；传 presetId 表示这是在应用某个预设 */
+  /** 整体替换参数；传 presetId 表示这是在应用某个预设（同时离开正在用的方案） */
   replaceParams(next: unknown, presetId?: string): void;
+  /** 应用「历史」里的一条方案：参数与来源预设都跟着它；预设已经不在了就退回该风格的「默认」 */
+  applyScheme(scheme: SavedScheme): void;
+  /** 只改"正在用哪条方案"（保存 / 更新 / 删除方案后），不进撤销栈 */
+  setScheme(id: string | null): void;
   resetParams(): void;
   /**
    * 切风格页签（抖动 / 排线 / 网点）。只改 `style.type`，各风格的参数都留着；
@@ -49,6 +60,10 @@ export interface StudioState {
 
   presets: UserPreset[];
   setPresets(list: unknown): void;
+
+  /** 「历史」里的方案：素材 + 参数 */
+  schemes: SavedScheme[];
+  setSchemes(list: unknown): void;
 }
 
 function makeSlots(count: SlotCount, previous: Slot[] = []): Slot[] {
@@ -66,13 +81,18 @@ function pushHistory(history: HistoryState, current: Snapshot, editId: string | 
   return { past, future: [], lastEditId: editId, lastEditAt: now };
 }
 
-const snapshot = (state: Pick<StudioState, 'params' | 'presetId'>): Snapshot => ({ params: state.params, presetId: state.presetId });
+const snapshot = (state: Pick<StudioState, 'params' | 'presetId' | 'schemeId'>): Snapshot => ({
+  params: state.params,
+  presetId: state.presetId,
+  schemeId: state.schemeId,
+});
 
 const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 export const useStudioStore = create<StudioState>((set) => ({
   params: defaultParams(),
   presetId: DEFAULT_PRESET_ID,
+  schemeId: null,
   setParam: (id, value) =>
     set((state) => {
       const def = getParamDef(id);
@@ -98,12 +118,27 @@ export const useStudioStore = create<StudioState>((set) => ({
   replaceParams: (next, presetId) =>
     set((state) => {
       const params = sanitizeParams(next);
-      return { params, presetId: presetId ?? state.presetId, history: pushHistory(state.history, snapshot(state), null, now()) };
+      return {
+        params,
+        presetId: presetId ?? state.presetId,
+        // 换了一套预设就不再是历史里的那条方案；只是整体替换参数（没指明预设）时保留
+        schemeId: presetId ? null : state.schemeId,
+        history: pushHistory(state.history, snapshot(state), null, now()),
+      };
     }),
+  applyScheme: (scheme) =>
+    set((state) => {
+      const params = sanitizeParams(scheme.params);
+      const style = styleOf(params);
+      const presetId = presetStyleById(scheme.presetId, state.presets) === style ? scheme.presetId : defaultPresetIdFor(style);
+      return { params, presetId, schemeId: scheme.id, history: pushHistory(state.history, snapshot(state), null, now()) };
+    }),
+  setScheme: (schemeId) => set((state) => (state.schemeId === schemeId ? state : { schemeId })),
   resetParams: () =>
     set((state) => ({
       params: defaultParams(),
       presetId: DEFAULT_PRESET_ID,
+      schemeId: null,
       history: pushHistory(state.history, snapshot(state), null, now()),
     })),
   setStyle: (kind) =>
@@ -162,4 +197,7 @@ export const useStudioStore = create<StudioState>((set) => ({
 
   presets: [],
   setPresets: (list) => set({ presets: sanitizeUserPresets(list) }),
+
+  schemes: [],
+  setSchemes: (list) => set({ schemes: sanitizeSchemes(list) }),
 }));
