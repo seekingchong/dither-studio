@@ -67,7 +67,7 @@ test('网点页签：自己的预设与分节，来回切换不丢参数，保�
   // Halftone 自己的预设：「默认」在最前且选中，Dither 的卡片不在这里
   await expect(page.locator('[data-preset="halftone-default"]')).toHaveClass(/is-active/);
   await expect(page.locator('[data-preset="gameboy"]')).toHaveCount(0);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认');
   await expect(page.locator('.preset-card').first()).toHaveAttribute('data-preset', 'halftone-default');
 
   // 「基础」领头的是形状、横纵间距、角度、排列；「网点」里是大小、最小网点…；「颜色」里是网点色 / 背景色（色板也只有这两块）
@@ -108,19 +108,19 @@ test('网点页签：自己的预设与分节，来回切换不丢参数，保�
   await expect(page.locator('[data-param="ink.dot"] input[type="text"]')).toHaveValue('#E4002B');
   await expect(page.locator('[data-param="halftone.levels"] input[type="range"]')).toHaveValue('8');
   await page.locator('[data-param="halftone.size"] input[type="range"]').fill('80');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Poster · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Poster · 已微调');
 
   // 切回抖动：那边还是默认方案，自己的参数没被动过（影调三种风格共用，Poster 带的对比度 +15 在这边也算微调）；再切回来，Poster 与微调都还在
   await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('.pane--params')).toHaveAttribute('data-style', 'dither');
   await expect(sectionLabels(page)).toHaveText(['基础', '颜色', '影调', '网格', '特效']);
   await expect(page.locator('[data-preset="default"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认 · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认 · 已微调');
   await expect(page.locator('[data-param="dither.ordered.matrix"] .tda-select__value')).toHaveText('Bayer 2×2');
   await expect(page.locator('[data-param="tone.contrast"] input[type="range"]')).toHaveValue('15');
   await expect(page.locator('[data-preset="ht-poster"]')).toHaveCount(0);
   await page.getByRole('tab', { name: '网点' }).click();
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Poster · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Poster · 已微调');
   await expect(page.locator('[data-param="halftone.size"] input[type="range"]')).toHaveValue('80');
 
   // 颜色模式换成 CMYK：网点颜色那格收起来，色板只剩背景色
@@ -131,22 +131,27 @@ test('网点页签：自己的预设与分节，来回切换不丢参数，保�
   await expect(swatches).toHaveCount(1);
   await pick(page, 'ink.mode', '双色');
 
-  // 保存成我的预设：只出现在网点页签，抖动页签里没有；历史页摘要以「网点」开头
+  // 保存成我的预设：只出现在网点页签，抖动页签里没有，预设不进历史；预览头「保存」存的方案摘要以「网点」开头
   await page.getByTestId('preset-save-button').click();
   await expect(page.getByLabel('新预设名称')).toHaveValue('Poster 副本');
   await page.getByLabel('新预设名称').fill('我的网点');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('.preset-card--user')).toHaveCount(1);
   await expect(page.locator('.preset-card--user')).toContainText('基于 Poster');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的网点');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的网点');
   await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('.preset-card--user')).toHaveCount(0);
   await page.getByRole('tab', { name: '历史' }).click();
-  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Poster · 网点 · 圆形 · 14px · 双色/);
+  await expect(page.locator('.history-item')).toHaveCount(0);
+  await page.getByRole('tab', { name: '网点' }).click();
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast')).toContainText('已保存方案');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item__meta')).toHaveText(/基于 我的网点 · 网点 · 圆形 · 14px · 双色/);
   // 从历史页应用回来：风格页签跟着回到网点
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByRole('tab', { name: '网点' })).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：我的网点');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的网点');
 
   // 导出帧：真矢量——每颗点一个 <circle>，网格旋转写在 <g transform> 上
   const svgDownload = page.waitForEvent('download');

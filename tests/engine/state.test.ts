@@ -30,6 +30,8 @@ function reset() {
     history: { past: [], future: [], lastEditId: null, lastEditAt: 0 },
     view: { zoom: 'fit', tab: 'result', activeSlot: 0 },
     presets: [],
+    schemeId: null,
+    schemes: [],
     lastPresetByStyle: {},
   });
 }

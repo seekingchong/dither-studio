@@ -49,7 +49,7 @@ test('符号页签：自己的预设与分节，阶梯表随灰阶变化，选�
   // 符号自己的预设：「默认」在最前且选中，网点的卡片不在这里
   await expect(page.locator('[data-preset="glyph-default"]')).toHaveClass(/is-active/);
   await expect(page.locator('[data-preset="ht-poster"]')).toHaveCount(0);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认');
 
   // 「基础」领头的是序列、灰阶、像素尺寸（+ 横纵分开）、角度、排列；网点的形状不在这里
   const basic = page.locator('[data-section="basic"] .param-grid').first().locator('.tda-select, .tda-field');
@@ -104,7 +104,7 @@ test('符号页签：自己的预设与分节，阶梯表随灰阶变化，选�
   await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hashx');
   await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
   await expect(page.getByTestId('glyph-levels')).toHaveAttribute('data-ramp', 'custom');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：默认 · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：默认 · 已微调');
   // 在「基础」里重新选一套序列就回到推荐
   await pick(page, 'glyph.ramp', '几何');
   await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'square');
@@ -170,10 +170,10 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   await expect(page.locator('[data-preset="glyph-typewriter"]')).toHaveCount(0);
   await expect(page.locator('[data-preset="halftone-default"]')).toHaveClass(/is-active/);
   await page.getByRole('tab', { name: '符号' }).click();
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Typewriter');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Typewriter');
   await expect(rows).toHaveCount(7);
 
-  // 保存成我的预设：只出现在符号页签；历史页摘要以「符号」开头；应用回来页签跟着回到符号
+  // 保存成我的预设：只出现在符号页签，预设不进历史；预览头「保存」存的方案摘要以「符号」开头；应用回来页签跟着回到符号
   await page.getByTestId('preset-save-button').click();
   await expect(page.getByLabel('新预设名称')).toHaveValue('Typewriter 副本');
   await page.getByRole('button', { name: '保存', exact: true }).click();
@@ -181,7 +181,12 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
   await page.getByRole('tab', { name: '抖动' }).click();
   await expect(page.locator('.preset-card--user')).toHaveCount(0);
   await page.getByRole('tab', { name: '历史' }).click();
-  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Typewriter · 符号 · 自定义 · 7 阶 · 11×13px/);
+  await expect(page.locator('.history-item')).toHaveCount(0);
+  await page.getByRole('tab', { name: '符号' }).click();
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast')).toContainText('已保存方案');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item__meta')).toHaveText(/基于 Typewriter 副本 · 符号 · 自定义 · 7 阶 · 11×13px/);
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByRole('tab', { name: '符号' })).toHaveAttribute('aria-selected', 'true');
 
@@ -195,7 +200,7 @@ test('符号：挪过来的 Typewriter / Symbol Sketch 预设，切页签不丢�
 
   // 撤销能跨风格页签回退：选预设 → 切页签
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Typewriter 副本');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Typewriter 副本');
 
   // 导出帧：符号是 <line> / 描边 <circle>，线粗与圆头写在 <g> 上
   await page.locator('[data-preset="glyph-sketch"]').click();
@@ -252,7 +257,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await expect(picker).toHaveCount(0);
   await expect(rows.nth(5).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'hexline');
   await expect(rows.nth(7).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'clover');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Lime Circuit · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Lime Circuit · 已微调');
 
   // Checkmate：7 阶 空 → 小点 → 花 → 折线 → 竖纹 → 棋盘 → 城堡，分级配色，色板 7 阶 + 背景
   await page.locator('[data-preset="glyph-checkmate"]').click();
@@ -277,7 +282,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // PETSCII Glitch：「终端」序列 8 阶 空 → 逗号 → 双点 → C → K → % → Ø → 实心块，分级配色青绿逐阶交替，近黑纸
   await page.locator('[data-preset="glyph-petscii"]').click();
   await expect(page.locator('[data-preset="glyph-petscii"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：PETSCII Glitch');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：PETSCII Glitch');
   await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('终端');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'comma');
@@ -316,7 +321,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // Riso Signal：8 阶 空 → 小点 → 三角 → 圆点 → 圆圈 → 叠圈 → 短竖纹 → 圆点，米白纸上只有第 3 / 4 阶是彩色
   await page.locator('[data-preset="glyph-riso"]').click();
   await expect(page.locator('[data-preset="glyph-riso"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Riso Signal');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Riso Signal');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tri');
   await expect(rows.nth(3).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'dot');
@@ -344,7 +349,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // Aperture Grille：7 阶 留空 → 竖栅微 / 细 / 中 / 粗 / 满 → 实心格，分级配色深靛到暖白，近黑纸
   await page.locator('[data-preset="glyph-grille"]').click();
   await expect(page.locator('[data-preset="glyph-grille"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Aperture Grille');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Aperture Grille');
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'grillehair');
@@ -370,7 +375,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // Raster Poster：同一家竖栅换成 12×7 的扁格子，7 阶 留空 → 竖线 → 竖栅微 / 细 / 中 / 粗 / 满，淡黄在粗档、米白在满档
   await page.locator('[data-preset="glyph-raster"]').click();
   await expect(page.locator('[data-preset="glyph-raster"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Raster Poster');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Raster Poster');
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'bar');
   await expect(rows.nth(1).locator('.glyph-level__label')).toHaveText('竖线');
@@ -389,7 +394,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   // Ultramarine Bitmap：8 阶 空 → 小方点 → 小叉 → 小圈 → 角块 → 棋盘 → 缺角块 → 实心格，同族群青分级配色，淡紫白纸
   await page.locator('[data-preset="glyph-ultramarine"]').click();
   await expect(page.locator('[data-preset="glyph-ultramarine"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ultramarine Bitmap');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Ultramarine Bitmap');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'tinysquare');
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'xdot');
@@ -417,7 +422,7 @@ test('符号：按参考图做的几套预设（Lime Circuit / Checkmate / PETSC
   await bitmapPicker.locator('[data-glyph="quarter"]').click();
   await expect(bitmapPicker).toHaveCount(0);
   await expect(rows.nth(6).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'quarter');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ultramarine Bitmap · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Ultramarine Bitmap · 已微调');
 });
 
 test('符号：Desync 预设——短横、细板、横板到穿孔块与实心方，第 5、6 阶荧光黄绿，特效栈里扫描行位移加颗粒', async ({ page }) => {
@@ -474,12 +479,12 @@ test('符号：Desync 预设——短横、细板、横板到穿孔块与实心�
   }
   await picker.locator('[data-glyph="slabwide"]').click();
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slabwide');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Desync · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Desync · 已微调');
 
   // Ink Atlas：7 阶 空 → 小点 → 断斜线 → 十字 → 三角 → 圆点 → 圆角方，两个新符号都在，暖白纸配墨蓝、单色
   await page.locator('[data-preset="glyph-atlas"]').click();
   await expect(page.locator('[data-preset="glyph-atlas"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Ink Atlas');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Ink Atlas');
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pip');
   await expect(rows.nth(2).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'slashdash');
@@ -517,7 +522,7 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
 
   await page.locator('[data-preset="glyph-system"]').click();
   await expect(page.locator('[data-preset="glyph-system"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Shape System');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Shape System');
   await expect(page.locator('[data-param="glyph.ramp"] .tda-select__value')).toHaveText('自定义');
   await expect(rows).toHaveCount(8);
   await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
@@ -551,7 +556,7 @@ test('符号：Shape System 预设——小方点、圆点、三角、杉树、�
   await expect(picker.getByRole('group', { name: '线' }).locator('[data-glyph="pillar"]')).toHaveCount(1);
   await picker.locator('[data-glyph="pillar"]').click();
   await expect(rows.nth(4).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pillar');
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Shape System · 已微调');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Shape System · 已微调');
 
   // 浅纸深墨不反相；特效栈里只有一层胶片颗粒
   await openSection(page, 'tone');
@@ -570,7 +575,7 @@ test('符号：Pixel Blocks 预设是米纸上的橙蓝双色方块，用上新�
 
   await page.locator('[data-preset="glyph-pixel-blocks"]').click();
   await expect(page.locator('[data-preset="glyph-pixel-blocks"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Pixel Blocks');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Pixel Blocks');
 
   // 8 阶 空 → 小点 → 小方点 → 三角 → 圆点 → 棋盘 → 密竖纹 → 实心方
   const rows = page.locator('[data-testid="glyph-levels"] .glyph-level');
@@ -618,7 +623,7 @@ test('符号：Swiss Mosaic 预设——像素方与像素十字碎开亮部，�
 
   await page.locator('[data-preset="glyph-swiss"]').click();
   await expect(page.locator('[data-preset="glyph-swiss"]')).toHaveClass(/is-active/);
-  await expect(page.getByTestId('preset-status')).toHaveText('当前方案：Swiss Mosaic');
+  await expect(page.getByTestId('preset-status')).toHaveText('当前预设：Swiss Mosaic');
   await expect(rows).toHaveCount(7);
   await expect(rows.nth(0).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'blank');
   await expect(rows.nth(1).locator('.glyph-level__shape')).toHaveAttribute('data-glyph', 'pixel');

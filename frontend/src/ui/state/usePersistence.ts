@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { usePlatform } from '@/platform';
-import { PRESETS_STORAGE_KEY, SETTINGS_STORAGE_KEY, sanitizeSettings, useStudioStore, type ThemeSetting } from '@/state';
+import { PRESETS_STORAGE_KEY, SCHEMES_STORAGE_KEY, SETTINGS_STORAGE_KEY, sanitizeSettings, schemesFromLegacyPresets, useStudioStore, type ThemeSetting } from '@/state';
 
 function applyTheme(theme: ThemeSetting) {
   const root = document.documentElement;
@@ -12,7 +12,11 @@ function applyTheme(theme: ThemeSetting) {
   }
 }
 
-/** 启动时从平台存储恢复设置与用户预设；设置变化时写回；主题落到 <html data-theme> */
+/**
+ * 启动时从平台存储恢复设置、用户预设与历史方案；设置变化时写回；主题落到 <html data-theme>。
+ * 预设与方案分开之前只有一份 `presets`（「历史」页列的就是它）：第一次在新版本里启动、
+ * 存储里还没有 `schemes` 时，把已有的预设照样搬进「历史」并写回，预设本身原样留着——两边都一条不少。
+ */
 export function usePersistence() {
   const platform = usePlatform();
   const settings = useStudioStore((s) => s.settings);
@@ -21,14 +25,24 @@ export function usePersistence() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [savedSettings, savedPresets] = await Promise.all([
+      const [savedSettings, savedPresets, savedSchemes] = await Promise.all([
         platform.storage.get<unknown>(SETTINGS_STORAGE_KEY).catch(() => null),
         platform.storage.get<unknown>(PRESETS_STORAGE_KEY).catch(() => null),
+        platform.storage.get<unknown>(SCHEMES_STORAGE_KEY).catch(() => null),
       ]);
       if (cancelled) return;
       const store = useStudioStore.getState();
       if (savedSettings) store.setSettings(sanitizeSettings(savedSettings));
       if (savedPresets) store.setPresets(savedPresets);
+      if (savedSchemes) {
+        store.setSchemes(savedSchemes);
+      } else {
+        const legacy = schemesFromLegacyPresets(useStudioStore.getState().presets);
+        if (legacy.length > 0) {
+          store.setSchemes(legacy);
+          await platform.storage.set(SCHEMES_STORAGE_KEY, legacy).catch(() => undefined);
+        }
+      }
       hydrated.current = true;
       document.documentElement.dataset.hydrated = 'true';
     })();
