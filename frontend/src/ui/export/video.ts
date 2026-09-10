@@ -52,18 +52,84 @@ export interface EncoderChoice {
   label: string;
 }
 
-const CANDIDATES: EncoderChoice[] = [
-  { codec: 'avc1.640028', container: 'mp4', mime: 'video/mp4', ext: 'mp4', label: 'H.264 High' },
-  { codec: 'avc1.4d0028', container: 'mp4', mime: 'video/mp4', ext: 'mp4', label: 'H.264 Main' },
-  { codec: 'avc1.42001f', container: 'mp4', mime: 'video/mp4', ext: 'mp4', label: 'H.264 Baseline' },
+export type H264Profile = 'high' | 'main' | 'baseline';
+
+/** H.264 三档 profile：codec 串的前两个字节（profile_idc + 约束位），后面再接 level */
+const H264_PROFILES: Record<H264Profile, { prefix: string; label: string }> = {
+  high: { prefix: 'avc1.6400', label: 'H.264 High' },
+  main: { prefix: 'avc1.4d00', label: 'H.264 Main' },
+  baseline: { prefix: 'avc1.4200', label: 'H.264 Baseline' },
+};
+
+/** 试 H.264 的顺序：先要压得最好的 High */
+const H264_ORDER: H264Profile[] = ['high', 'main', 'baseline'];
+
+export interface H264Level {
+  /** level_idc，codec 串最后一个字节 */
+  idc: number;
+  name: string;
+  /** 一帧最多几个宏块（16×16） */
+  maxFs: number;
+  /** 每秒最多处理几个宏块 */
+  maxMbps: number;
+  /** Baseline / Main 的码率上限（kbps）；High 再乘 1.25 */
+  maxKbps: number;
+}
+
+/**
+ * H.264 各 level 的上限（ITU-T H.264 表 A-1 / A-2）。从 4.0 起：再低的档没有收益，4.0 是各平台都认的起步档。
+ */
+export const H264_LEVELS: readonly H264Level[] = [
+  { idc: 0x28, name: '4.0', maxFs: 8192, maxMbps: 245_760, maxKbps: 20_000 },
+  { idc: 0x29, name: '4.1', maxFs: 8192, maxMbps: 245_760, maxKbps: 50_000 },
+  { idc: 0x2a, name: '4.2', maxFs: 8704, maxMbps: 522_240, maxKbps: 50_000 },
+  { idc: 0x32, name: '5.0', maxFs: 22_080, maxMbps: 589_824, maxKbps: 135_000 },
+  { idc: 0x33, name: '5.1', maxFs: 36_864, maxMbps: 983_040, maxKbps: 240_000 },
+  { idc: 0x34, name: '5.2', maxFs: 36_864, maxMbps: 2_073_600, maxKbps: 240_000 },
+  { idc: 0x3c, name: '6.0', maxFs: 139_264, maxMbps: 4_177_920, maxKbps: 240_000 },
+  { idc: 0x3d, name: '6.1', maxFs: 139_264, maxMbps: 8_355_840, maxKbps: 480_000 },
+  { idc: 0x3e, name: '6.2', maxFs: 139_264, maxMbps: 16_711_680, maxKbps: 800_000 },
+];
+
+/**
+ * 这个尺寸 / 帧率 / 码率至少要 H.264 的哪个 level。
+ * Chromium 的 `VideoEncoder.isConfigSupported` 会拿 codec 串里的 level 去核对帧面积：level 写死 4.0（8192 个宏块，1080p 那一档）
+ * 的话，2000×1200 一帧 9375 个宏块就直接被拒，再大更是，于是整条 H.264 都过不了、掉到 VP9 / WebM——所以 level 得按实际尺寸算。
+ * 帧率与码率同样按表核对，免得平台的编码器比 Chromium 更较真。连 6.2 都装不下（8192×4352 以上）返回 null。
+ */
+export function h264LevelFor(width: number, height: number, fps: number, bitrate: number, profile: H264Profile = 'high'): H264Level | null {
+  const macroblocks = Math.ceil(width / 16) * Math.ceil(height / 16);
+  const bitrateFactor = profile === 'high' ? 1.25 : 1;
+  return H264_LEVELS.find((l) => macroblocks <= l.maxFs && macroblocks * fps <= l.maxMbps && bitrate <= l.maxKbps * 1000 * bitrateFactor) ?? null;
+}
+
+const WEBM_CANDIDATES: EncoderChoice[] = [
   { codec: 'vp09.00.10.08', container: 'webm', mime: 'video/webm', ext: 'webm', label: 'VP9' },
   { codec: 'vp8', container: 'webm', mime: 'video/webm', ext: 'webm', label: 'VP8' },
 ];
 
-/** 优先 H.264 进 MP4；平台没有 H.264 编码器时降级为 VP9 / VP8 进 WebM */
+/** 候选编码器按优先级排：H.264（High → Main → Baseline，level 按尺寸 / 帧率 / 码率算出来）进 MP4，后面才是 VP9 / VP8 进 WebM */
+export function encoderCandidates(width: number, height: number, bitrate: number, fps: number = EXPORT_FPS): EncoderChoice[] {
+  const h264: EncoderChoice[] = [];
+  for (const profile of H264_ORDER) {
+    const level = h264LevelFor(width, height, fps, bitrate, profile);
+    if (!level) continue;
+    const { prefix, label } = H264_PROFILES[profile];
+    h264.push({
+      codec: `${prefix}${level.idc.toString(16).padStart(2, '0')}`,
+      container: 'mp4',
+      mime: 'video/mp4',
+      ext: 'mp4',
+      label: `${label} ${level.name}`,
+    });
+  }
+  return [...h264, ...WEBM_CANDIDATES];
+}
+
+/** 优先 H.264 进 MP4；平台没有 H.264 编码器（或尺寸大到 H.264 也装不下）时降级为 VP9 / VP8 进 WebM */
 export async function chooseEncoder(width: number, height: number, bitrate: number, fps: number = EXPORT_FPS): Promise<EncoderChoice | null> {
   if (typeof VideoEncoder === 'undefined') return null;
-  for (const c of CANDIDATES) {
+  for (const c of encoderCandidates(width, height, bitrate, fps)) {
     try {
       const r = await VideoEncoder.isConfigSupported({ codec: c.codec, width, height, bitrate, framerate: fps });
       if (r.supported) return c;
