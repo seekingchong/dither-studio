@@ -15,7 +15,7 @@ import {
   type ExportSize,
   type ResolutionMode,
 } from './resolution';
-import { FPS_OPTIONS, QUALITY_OPTIONS, exportVideo, frameCountFor, isExportFps, type EncoderChoice, type ExportFps, type VideoQuality } from './video';
+import { FPS_OPTIONS, QUALITY_OPTIONS, bitrateFor, chooseEncoder, exportVideo, frameCountFor, isExportFps, type EncoderChoice, type ExportFps, type VideoQuality } from './video';
 
 interface ExportVideoDialogProps {
   open: boolean;
@@ -48,6 +48,8 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
   const [progress, setProgress] = useState<[number, number]>([0, 0]);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ bytes: Uint8Array; choice: EncoderChoice; width: number; height: number } | null>(null);
+  /** 当前这组尺寸 / 帧率 / 质量会用哪个编码器：undefined 还在探，null 一个都不行 */
+  const [encoder, setEncoder] = useState<EncoderChoice | null | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
 
   const canvas = useMemo<ExportSize>(() => ({ width: canvasWidth, height: canvasHeight }), [canvasWidth, canvasHeight]);
@@ -73,6 +75,19 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
     setError(null);
     setResult(null);
   }, [open, canvasWidth]);
+
+  // 还没开始导就先探一下这组尺寸 / 帧率 / 质量会用哪个编码器，报在下面小字里：出的是 MP4 还是要降级 WebM，导之前就知道
+  useEffect(() => {
+    if (!open) return;
+    let stale = false;
+    setEncoder(undefined);
+    void chooseEncoder(size.width, size.height, bitrateFor(quality, size.width, size.height, fps), fps).then((choice) => {
+      if (!stale) setEncoder(choice);
+    });
+    return () => {
+      stale = true;
+    };
+  }, [open, size.width, size.height, fps, quality]);
 
   if (!open) return null;
 
@@ -187,6 +202,7 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
         )}
         <p className="section__hint" data-testid="export-video-size">
           输出 {size.width} × {size.height} · {fps} fps · 约 {estimated} 帧
+          {encoder === undefined ? '' : encoder ? ` · ${encoder.container === 'mp4' ? 'MP4' : 'WebM'}（${encoder.label}）` : ' · 没有可用的编码器'}
         </p>
         {running && (
           <div className="tda-progress" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100}>

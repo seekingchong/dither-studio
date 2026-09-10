@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { defaultParams } from '@/params';
 import { captureSizeFor, computeFit, INITIAL_PACER, pacePreview, PREVIEW_BUDGET_MS, scaleParamsForPreview, type FitMode } from '@/engine';
-import { bitrateFor, evenSize, frameCountFor } from '@/ui/export/video';
+import { bitrateFor, encoderCandidates, evenSize, frameCountFor, h264LevelFor } from '@/ui/export/video';
 import { formatTime, gifFrameAt } from '@/ui/media/playback';
 
 describe('预览降分辨率', () => {
@@ -122,5 +122,32 @@ describe('播放与导出辅助', () => {
     expect(bitrateFor('ultra', 1000, 600)).toBe(24_000_000);
     expect(bitrateFor('high', 2000, 1200)).toBe(48_000_000);
     expect(bitrateFor('medium', 100, 60)).toBe(500_000);
+  });
+  it('H.264 level 按尺寸 / 帧率 / 码率算：2000×1200 不再被写死的 4.0 卡住', () => {
+    // 1000×600 @ 60：2394 个宏块、每秒 14 万，起步档 4.0 就够
+    expect(h264LevelFor(1000, 600, 60, bitrateFor('high', 1000, 600))?.name).toBe('4.0');
+    // 1920×1080 @ 60：8160 个宏块 4.0 装得下，但每秒 49 万个宏块要 4.2
+    expect(h264LevelFor(1920, 1080, 60, bitrateFor('high', 1920, 1080))?.name).toBe('4.2');
+    expect(h264LevelFor(1920, 1080, 30, bitrateFor('high', 1920, 1080, 30))?.name).toBe('4.0');
+    // 2000×1200：一帧 9375 个宏块，超过 4.x 的帧面积上限，60 / 30 fps 都要 5.0——帧面积说了算，降帧率没用
+    expect(h264LevelFor(2000, 1200, 60, bitrateFor('high', 2000, 1200, 60))?.name).toBe('5.0');
+    expect(h264LevelFor(2000, 1200, 30, bitrateFor('high', 2000, 1200, 30))?.name).toBe('5.0');
+    // 长边 4096（5:3 画布）@ 60：39424 个宏块超过 5.2，要 6.0
+    expect(h264LevelFor(4096, 2458, 60, bitrateFor('ultra', 4096, 2458, 60))?.name).toBe('6.0');
+    // 8192×8192 连 6.2 都装不下
+    expect(h264LevelFor(8192, 8192, 60, 80_000_000)).toBeNull();
+    // 码率上限 High 比 Baseline / Main 高 1.25 倍：同一组参数 Main 可能要高一档
+    expect(h264LevelFor(1920, 1080, 30, 20_500_000, 'high')?.name).toBe('4.0');
+    expect(h264LevelFor(1920, 1080, 30, 20_500_000, 'main')?.name).toBe('4.1');
+  });
+  it('候选编码器：H.264 三档 profile 各带算出来的 level 进 MP4，后面才是 VP9 / VP8 进 WebM', () => {
+    const c = encoderCandidates(2000, 1200, bitrateFor('high', 2000, 1200, 60), 60);
+    expect(c.map((x) => x.codec)).toEqual(['avc1.640032', 'avc1.4d0032', 'avc1.420032', 'vp09.00.10.08', 'vp8']);
+    expect(c[0]).toMatchObject({ container: 'mp4', mime: 'video/mp4', ext: 'mp4', label: 'H.264 High 5.0' });
+    expect(c[3]).toMatchObject({ container: 'webm', mime: 'video/webm', ext: 'webm', label: 'VP9' });
+    // 1000×600 还是原来那个 4.0 的串，小尺寸的行为没变
+    expect(encoderCandidates(1000, 600, bitrateFor('high', 1000, 600), 60)[0].codec).toBe('avc1.640028');
+    // H.264 装不下的尺寸只剩 WebM
+    expect(encoderCandidates(8192, 8192, 80_000_000, 60).map((x) => x.container)).toEqual(['webm', 'webm']);
   });
 });
