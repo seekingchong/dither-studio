@@ -15,7 +15,7 @@ import {
   type ExportSize,
   type ResolutionMode,
 } from './resolution';
-import { FPS_OPTIONS, QUALITY_OPTIONS, exportVideo, frameCountFor, type EncoderChoice, type ExportFps, type VideoQuality } from './video';
+import { FPS_OPTIONS, QUALITY_OPTIONS, exportVideo, frameCountFor, isExportFps, type EncoderChoice, type ExportFps, type VideoQuality } from './video';
 
 interface ExportVideoDialogProps {
   open: boolean;
@@ -143,7 +143,17 @@ export function ExportVideoDialog({ open, onClose }: ExportVideoDialogProps) {
         <p className="section__hint">按选定帧率逐帧渲染后编码，优先 H.264 MP4，平台不支持时降级为 WebM。分辨率始终等比，放大是连格子一起放大重渲，不是把成品拉大。</p>
         <div className="param-grid param-grid--2">
           <Select label="质量" value={quality} options={QUALITY_OPTIONS} onChange={setQuality} disabled={running} data-param="export.quality" />
-          <Select label="帧率" value={String(fps)} options={FPS_OPTIONS} onChange={(v) => setFps(Number(v) === 30 ? 30 : 60)} disabled={running} data-param="export.fps" />
+          <Select
+            label="帧率"
+            value={String(fps)}
+            options={FPS_OPTIONS}
+            onChange={(v) => {
+              const next = Number(v);
+              if (isExportFps(next)) setFps(next);
+            }}
+            disabled={running}
+            data-param="export.fps"
+          />
         </div>
         {mode === 'scale' ? (
           <div className="param-grid param-grid--2">
