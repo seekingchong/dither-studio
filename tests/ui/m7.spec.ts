@@ -119,9 +119,24 @@ test('视频：播放预览与导出 WebM', async ({ page }) => {
 
   await page.getByRole('button', { name: '导出视频' }).click();
   await expect(page.getByTestId('export-video-dialog')).toBeVisible();
+  // 默认就是画布尺寸 + 60 fps
+  await expect(page.getByTestId('export-video-size')).toContainText('输出 1000 × 600 · 60 fps');
   await pick(page, 'export.quality', '中');
+  // 帧率与倍率都能选：30 fps + 0.5× 就是 500 × 300
+  await pick(page, 'export.fps', '30 fps');
+  await pick(page, 'export.scale', '0.5×');
+  await expect(page.getByTestId('export-video-size')).toContainText('输出 500 × 300 · 30 fps');
+  // 自定义分辨率始终等比：接着当前尺寸改，只写宽度，高度自己跟上
+  await pick(page, 'export.resolution', '自定义');
+  await expect(page.locator('[data-param="export.width"] input')).toHaveValue('500');
+  await page.locator('[data-param="export.width"] input').fill('800');
+  await page.locator('[data-param="export.width"] input').press('Enter');
+  await expect(page.locator('[data-param="export.height"] input')).toHaveValue('480');
+  await expect(page.getByTestId('export-video-size')).toContainText('输出 800 × 480 · 30 fps');
   await page.getByRole('button', { name: '开始导出' }).click();
   await expect(page.getByTestId('export-video-status')).toContainText(/VP9|VP8|H\.264/, { timeout: 90_000 });
+  // 出来的就是选的那个尺寸
+  await expect(page.getByTestId('export-video-status')).toContainText('800 × 480');
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: '保存', exact: true }).click();
   const download = await downloadPromise;
