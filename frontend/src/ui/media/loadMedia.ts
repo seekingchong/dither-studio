@@ -13,10 +13,9 @@ function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
 
-/** 视频：用 <video> 解码，等元数据与首帧可用后抓海报帧 */
-async function loadVideo(bytes: Uint8Array, mime: string, name: string, path?: string): Promise<LoadedMedia> {
-  const blob = new Blob([bytes as BlobPart], { type: mime });
-  const url = URL.createObjectURL(blob);
+/** 视频：用 <video> 解码，等元数据与首帧可用后抓海报帧；source 就是原件 Blob，既喂给 <video> 也留给保存方案 */
+async function loadVideo(source: Blob, file: MediaFile): Promise<LoadedMedia> {
+  const url = URL.createObjectURL(source);
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
@@ -70,12 +69,14 @@ async function loadVideo(bytes: Uint8Array, mime: string, name: string, path?: s
   const bitmap = await createImageBitmap(video);
   return {
     id: newId(),
-    name,
+    name: file.name,
     kind: 'video',
     width: video.videoWidth,
     height: video.videoHeight,
     bitmap,
-    path,
+    path: file.path,
+    source,
+    stored: file.stored,
     video,
     duration: Number.isFinite(duration) ? duration : 0,
   };
@@ -122,12 +123,14 @@ async function decodeGif(bytes: Uint8Array): Promise<DecodedGif | null> {
 export async function loadMediaFile(file: MediaFile, platform: Platform): Promise<LoadedMedia> {
   let bytes = file.bytes;
   let mime = file.mime || mimeFromName(file.name);
+  // 原件留一份 Blob：保存方案时存进应用的就是它（HEIC 存转码前的原件，读回时再转一次）
+  const source = new Blob([bytes as BlobPart], { type: mime || 'application/octet-stream' });
   if (isHeic(file)) {
     if (!platform.convertHeic) throw new Error('当前平台不支持 HEIC 转码');
     bytes = await platform.convertHeic(bytes);
     mime = 'image/png';
   }
-  if (mime.startsWith('video/')) return loadVideo(bytes, mime, file.name, file.path);
+  if (mime.startsWith('video/')) return loadVideo(source, file);
 
   if (mime === 'image/gif') {
     const gif = await decodeGif(bytes);
@@ -142,6 +145,8 @@ export async function loadMediaFile(file: MediaFile, platform: Platform): Promis
         height: first.height,
         bitmap: await createImageBitmap(first),
         path: file.path,
+        source,
+        stored: file.stored,
         frames: gif.frames,
         delays: gif.delays,
         duration,
@@ -149,12 +154,12 @@ export async function loadMediaFile(file: MediaFile, platform: Platform): Promis
     }
   }
 
-  const blob = new Blob([bytes as BlobPart], { type: mime || 'application/octet-stream' });
+  const blob = bytes === file.bytes ? source : new Blob([bytes as BlobPart], { type: mime });
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(blob);
   } catch {
     throw new Error('无法识别的图片格式');
   }
-  return { id: newId(), name: file.name, kind: 'image', width: bitmap.width, height: bitmap.height, bitmap, path: file.path };
+  return { id: newId(), name: file.name, kind: 'image', width: bitmap.width, height: bitmap.height, bitmap, path: file.path, source, stored: file.stored };
 }

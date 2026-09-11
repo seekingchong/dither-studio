@@ -28,6 +28,12 @@ export function createElectronPlatform(bridge: DitherBridge): Platform {
       },
       writeFile: (path) => bridge.clipboard.writeFile(path),
     },
+    mediaStore: {
+      store: (source) => bridge.mediaStore.store(source),
+      read: (key) => bridge.mediaStore.read(key),
+      remove: (key) => bridge.mediaStore.remove(key),
+      list: () => bridge.mediaStore.list(),
+    },
     convertHeic: bridge.platform === 'darwin' ? (bytes) => bridge.media.convertHeic(bytes) : undefined,
     onMenuAction: (cb) => bridge.menu.onAction((action) => cb(action as MenuAction)),
   };

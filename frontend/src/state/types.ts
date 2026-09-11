@@ -9,6 +9,10 @@ export interface LoadedMedia {
   bitmap: ImageBitmap;
   /** 本地路径，仅 Electron 打开的文件有 */
   path?: string;
+  /** 原件字节（HEIC 是转码前的原件）：保存方案时把它存进应用 */
+  source?: Blob;
+  /** 已经在应用素材存储里的键：从存储里读回来的、或这次会话里存过的素材有，再存方案时直接用 */
+  stored?: string;
   /** 视频：已加载元数据的 <video> 元素（对象 URL 由其持有） */
   video?: HTMLVideoElement;
   /** 视频 / GIF 时长（秒） */

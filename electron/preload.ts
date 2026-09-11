@@ -22,6 +22,12 @@ const bridge: DitherBridge = {
   media: {
     convertHeic: (bytes) => ipcRenderer.invoke('media:convertHeic', bytes),
   },
+  mediaStore: {
+    store: (source) => ipcRenderer.invoke('mediaStore:store', source),
+    read: (key) => ipcRenderer.invoke('mediaStore:read', key),
+    remove: (key) => ipcRenderer.invoke('mediaStore:remove', key),
+    list: () => ipcRenderer.invoke('mediaStore:list'),
+  },
   menu: {
     onAction: (cb) => {
       const listener = (_event: unknown, action: string) => cb(action);
