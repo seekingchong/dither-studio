@@ -252,3 +252,61 @@ test('预览头「保存」一键把当前素材 + 参数存成方案进历史�
   // 「全部 / 当前素材」筛选：两条都是这份素材的
   await expect(page.locator('.history-filter [role="tab"]').nth(1)).toHaveText('当前素材 2');
 });
+
+/** 另一份素材：名字、尺寸都不一样，方案认不出它 */
+async function dropOtherImage(page: Page) {
+  await page.evaluate(async () => {
+    const c = document.createElement('canvas');
+    c.width = 400;
+    c.height = 300;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, 400, 300);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(50, 50, 200, 120);
+    const blob = await new Promise<Blob>((r) => c.toBlob((b) => r(b!), 'image/png'));
+    const dt = new DataTransfer();
+    dt.items.add(new File([blob], 'other.png', { type: 'image/png' }));
+    document.querySelector('[data-slot="0"]')!.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  });
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+}
+
+test('保存方案时素材文件存进应用：换了素材、刷新之后再应用，原素材从应用里读回，不用去找原文件', async ({ page }) => {
+  await page.goto('/');
+  await dropSyntheticImage(page);
+  await page.getByTestId('save-history').click();
+  await expect(page.locator('.tda-toast')).toContainText('已保存方案');
+  await page.getByRole('tab', { name: '历史' }).click();
+  const item = page.locator('.history-item');
+  await expect(item).toHaveCount(1);
+  // 素材行标着文件已随方案保存；绑的就是当前素材
+  await expect(page.locator('.history-item__media')).toContainText('sample.png（图片）');
+  await expect(page.locator('.history-item__media')).toContainText('文件已随方案保存');
+  await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
+  // 换一份素材：方案认不出它，「当前素材」的标记与筛选都归零
+  await dropOtherImage(page);
+  await expect(page.locator('.history-item__chip')).toHaveCount(0);
+  await expect(page.locator('.history-filter [role="tab"]').nth(1)).toHaveText('当前素材 0');
+  // 应用：拖进来的素材本来就没有路径，能回来全靠应用里存的那份
+  await item.getByRole('button', { name: '应用', exact: true }).click();
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
+  await expect(page.locator('.history-filter [role="tab"]').nth(1)).toHaveText('当前素材 1');
+  await expect(page.locator('.tda-toast')).not.toContainText('打不开');
+
+  // 刷新（坑位清空、方案与文件都从存储里来）：放别的素材再应用，一样读得回来
+  await page.reload();
+  await page.locator('[data-slot="0"]').waitFor();
+  await dropOtherImage(page);
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(item).toHaveCount(1);
+  await expect(page.locator('.history-item__chip')).toHaveCount(0);
+  await item.getByRole('button', { name: '应用', exact: true }).click();
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
+  await page.getByRole('tab', { name: '历史' }).click();
+  await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
+  await expect(page.locator('.history-filter [role="tab"]').nth(1)).toHaveText('当前素材 1');
+});

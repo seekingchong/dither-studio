@@ -16,6 +16,8 @@ export interface MediaFile {
   bytes: Uint8Array;
   /** 本地路径，仅 Electron 有 */
   path?: string;
+  /** 这份文件在应用素材存储里的键：从存储里读回来的素材才有，再存方案时不用重新算一遍 */
+  stored?: string;
 }
 
 export interface SavedFile {
@@ -42,6 +44,31 @@ export interface PlatformStorage {
   remove(key: string): Promise<void>;
 }
 
+/** 要存进应用里的素材文件：给字节，或（Electron）给本地路径让主进程直接拷贝，不用把整个视频搬过 IPC */
+export interface MediaStoreSource {
+  /** 文件名（含扩展名），扩展名跟着进存储键 */
+  name: string;
+  bytes?: Uint8Array;
+  path?: string;
+}
+
+/**
+ * 方案绑定的素材文件在应用里的存储。保存方案时把素材文件本身存一份进来，应用方案时从这里读回，
+ * 原文件挪走、删掉都不影响。按内容寻址：键 = 内容的 SHA-256 + 扩展名，同一个文件存多少次都只占一份，
+ * 删掉方案后没被任何方案引用的文件由调用方清掉（`remove` / `list`）。
+ * Electron 放在用户数据目录的 media/ 下，web 放在 IndexedDB。
+ */
+export interface PlatformMediaStore {
+  /** 存入，返回存储键；内容一样就直接返回已有的键 */
+  store(source: MediaStoreSource): Promise<string>;
+  /** 按键读回文件字节；不存在时抛错 */
+  read(key: string): Promise<Uint8Array>;
+  /** 删掉一份；不存在也不报错 */
+  remove(key: string): Promise<void>;
+  /** 全部存储键，用来清理没被任何方案引用的文件 */
+  list(): Promise<string[]>;
+}
+
 export interface PlatformClipboard {
   /** 把 PNG 写入系统剪贴板 */
   writeImage(png: Blob): Promise<void>;
@@ -64,6 +91,8 @@ export interface Platform {
   readonly files: PlatformFiles;
   readonly storage: PlatformStorage;
   readonly clipboard: PlatformClipboard;
+  /** 方案绑定的素材文件的应用内存储；没有的平台上方案只记文件信息（与路径） */
+  readonly mediaStore?: PlatformMediaStore;
   /** HEIC → PNG 转码；macOS 上由主进程调用 sips，web 端暂无 */
   convertHeic?(bytes: Uint8Array): Promise<Uint8Array>;
   /** 原生菜单动作（open / export-png / export-video / copy-png / undo / redo / copy），仅 Electron */
@@ -74,6 +103,26 @@ export interface Platform {
 export type MenuAction = 'open' | 'export-png' | 'export-video' | 'copy-png' | 'undo' | 'redo' | 'copy';
 
 export const MEDIA_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'heic', 'heif', 'mp4', 'webm', 'mov'] as const;
+
+/** 素材存储键只允许这一种样子（64 位十六进制 SHA-256 + 可选扩展名），主进程按它拦住任何拼出目录外路径的键 */
+export const MEDIA_STORE_KEY = /^[0-9a-f]{64}(\.[a-z0-9]{1,8})?$/;
+
+export const isMediaStoreKey = (key: string) => MEDIA_STORE_KEY.test(key);
+
+/** 文件名的扩展名进存储键：小写、只留字母数字、带点；没有扩展名就是空串 */
+export function mediaStoreExtension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return '';
+  const ext = name
+    .slice(dot + 1)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 8);
+  return ext ? `.${ext}` : '';
+}
+
+/** 内容摘要 + 扩展名拼成存储键 */
+export const mediaStoreKey = (sha256Hex: string, name: string) => `${sha256Hex}${mediaStoreExtension(name)}`;
 
 export function mimeFromName(name: string): string {
   const ext = name.slice(name.lastIndexOf('.') + 1).toLowerCase();

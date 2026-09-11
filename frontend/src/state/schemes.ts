@@ -9,7 +9,11 @@ import type { LoadedMedia } from './types';
  * 同一套预设可以在不同素材上存成多个方案，每个方案记着当时基于哪个预设。
  */
 
-/** 方案绑定的素材：只记文件信息不存内容；同名、同尺寸（视频再同时长）视为同一份素材 */
+/**
+ * 方案绑定的素材：文件信息 + 文件本身在应用里的存储键。同名、同尺寸（视频再同时长）视为同一份素材。
+ * 保存方案时素材文件会存一份进应用（`platform.mediaStore`），应用方案时从那里读回，原文件挪走、删掉都不影响；
+ * 路径只是备用——升级前只记了路径的旧方案靠它打开，打开后自动补存。
+ */
 export interface SchemeMedia {
   name: string;
   kind: 'image' | 'video' | 'gif';
@@ -17,8 +21,10 @@ export interface SchemeMedia {
   height: number;
   /** 视频 / GIF 时长（秒） */
   duration?: number;
-  /** 本地路径，仅 Electron 打开的文件有；应用方案时用它把素材重新打开 */
+  /** 本地路径，仅 Electron 打开的文件有；没有存进应用的旧方案靠它把素材重新打开 */
   path?: string;
+  /** 存进应用里的那份文件的存储键；应用方案时优先从这里读回 */
+  stored?: string;
 }
 
 /** 素材编辑（旋转 / 镜像 / 裁剪缩放），与 `ui/media/sourceEdit` 的 SourceEdit 同形 */
@@ -76,7 +82,25 @@ export function schemeMediaOf(media: LoadedMedia): SchemeMedia {
   const out: SchemeMedia = { name: media.name, kind: media.kind, width: media.width, height: media.height };
   if (typeof media.duration === 'number' && Number.isFinite(media.duration) && media.duration > 0) out.duration = media.duration;
   if (media.path) out.path = media.path;
+  if (media.stored) out.stored = media.stored;
   return out;
+}
+
+/** 方案们引用着的全部存储键 */
+export function referencedStoredKeys(schemes: readonly SavedScheme[]): Set<string> {
+  const keys = new Set<string>();
+  for (const scheme of schemes) if (scheme.media?.stored) keys.add(scheme.media.stored);
+  return keys;
+}
+
+/**
+ * `candidates` 里没被任何方案引用、也不在 `keep` 里的存储键——删方案后的残留、存到一半崩掉的，都在这里清。
+ * `keep` 是坑位里正放着的素材的键：方案删了素材还在用，文件先留着，下次启动再清。
+ */
+export function orphanStoredKeys(schemes: readonly SavedScheme[], candidates: readonly string[], keep: Iterable<string> = []): string[] {
+  const referenced = referencedStoredKeys(schemes);
+  for (const key of keep) referenced.add(key);
+  return Array.from(new Set(candidates)).filter((key) => !referenced.has(key));
 }
 
 export function isIdentitySchemeEdit(edit: SchemeEdit | undefined): boolean {
@@ -160,6 +184,7 @@ function sanitizeMedia(input: unknown): SchemeMedia | null {
   const media: SchemeMedia = { name: rec.name, kind: rec.kind as SchemeMedia['kind'], width: Math.round(rec.width), height: Math.round(rec.height) };
   if (typeof rec.duration === 'number' && Number.isFinite(rec.duration) && rec.duration > 0) media.duration = rec.duration;
   if (typeof rec.path === 'string' && rec.path) media.path = rec.path;
+  if (typeof rec.stored === 'string' && rec.stored) media.stored = rec.stored.slice(0, 200);
   return media;
 }
 

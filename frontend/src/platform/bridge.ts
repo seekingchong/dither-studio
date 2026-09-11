@@ -4,7 +4,7 @@
  * electron/preload.ts 以 type-only 方式引用本文件，保证两端签名一致；
  * 因此本文件不依赖 DOM 类型，window 上的声明放在 bridge-global.d.ts。
  */
-import type { MediaFile, SavedFile } from './types';
+import type { MediaFile, MediaStoreSource, SavedFile } from './types';
 
 export interface DitherBridge {
   readonly platform: 'darwin' | 'win32' | 'linux';
@@ -26,6 +26,13 @@ export interface DitherBridge {
   };
   media: {
     convertHeic(bytes: Uint8Array): Promise<Uint8Array>;
+  };
+  /** 方案绑定的素材文件存在用户数据目录 media/ 下，键 = 内容 SHA-256 + 扩展名 */
+  mediaStore: {
+    store(source: MediaStoreSource): Promise<string>;
+    read(key: string): Promise<Uint8Array>;
+    remove(key: string): Promise<void>;
+    list(): Promise<string[]>;
   };
   menu: {
     /** 订阅原生菜单动作，返回取消函数 */

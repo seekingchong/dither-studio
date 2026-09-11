@@ -1,13 +1,14 @@
 import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, shell, type WebContents } from 'electron';
 import { execFile } from 'node:child_process';
-import { promises as fs } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { createReadStream, promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { installMenu, type MenuAction } from './menu';
-import type { MediaFile, SavedFile } from '@/platform/types';
-import { mimeFromName } from '@/platform/types';
+import type { MediaFile, MediaStoreSource, SavedFile } from '@/platform/types';
+import { isMediaStoreKey, mediaStoreKey, mimeFromName } from '@/platform/types';
 import { isPreviewUrl } from '@/ui/interface-preview/route';
 
 const execFileAsync = promisify(execFile);
@@ -163,6 +164,68 @@ function persistStorage(data: Record<string, unknown>): Promise<void> {
   return storageWrite;
 }
 
+// ---------- 素材存储（方案绑定的素材文件） ----------
+
+/**
+ * 用户数据目录下的 media/：保存方案时把素材文件本身拷一份进来，应用方案时从这里读回，
+ * 原文件挪走、删掉都不影响。文件名 = 内容 SHA-256 + 原扩展名，同一个文件存多少次都只占一份。
+ */
+const mediaStoreDir = () => path.join(app.getPath('userData'), 'media');
+
+/** 渲染进程给的键先过一遍白名单，免得用键拼出目录外的路径 */
+function mediaStorePath(key: string): string {
+  if (typeof key !== 'string' || !isMediaStoreKey(key)) throw new Error(`非法的素材存储键：${String(key)}`);
+  return path.join(mediaStoreDir(), key);
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(filePath)) hash.update(chunk as Buffer);
+  return hash.digest('hex');
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 已经有同一份内容就什么都不做；否则写到临时名再改名，进程中途退出也不会留下半截文件被当成完整素材 */
+async function placeMediaStoreFile(dest: string, write: (tmp: string) => Promise<void>): Promise<void> {
+  if (await fileExists(dest)) return;
+  const tmp = `${dest}.${process.pid}-${Date.now()}.tmp`;
+  try {
+    await write(tmp);
+    await fs.rename(tmp, dest);
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => undefined);
+    throw err;
+  }
+}
+
+async function storeMedia(source: MediaStoreSource): Promise<string> {
+  if (!source || typeof source.name !== 'string') throw new Error('缺少素材文件名');
+  const dir = mediaStoreDir();
+  await fs.mkdir(dir, { recursive: true });
+  // 有本地路径就直接拷文件，不用把整个视频搬过 IPC
+  if (typeof source.path === 'string' && source.path) {
+    const from = source.path;
+    const key = mediaStoreKey(await sha256File(from), source.name);
+    await placeMediaStoreFile(path.join(dir, key), (tmp) => fs.copyFile(from, tmp));
+    return key;
+  }
+  if (source.bytes instanceof Uint8Array) {
+    const buf = Buffer.from(source.bytes.buffer, source.bytes.byteOffset, source.bytes.byteLength);
+    const key = mediaStoreKey(createHash('sha256').update(buf).digest('hex'), source.name);
+    await placeMediaStoreFile(path.join(dir, key), (tmp) => fs.writeFile(tmp, buf));
+    return key;
+  }
+  throw new Error('没有可存的内容');
+}
+
 // ---------- IPC ----------
 
 const MEDIA_FILTERS = [
@@ -250,6 +313,21 @@ function registerIpc() {
       ]);
     } else {
       await clipboard.writeText(filePath);
+    }
+  });
+
+  ipcMain.handle('mediaStore:store', (_event, source: MediaStoreSource): Promise<string> => storeMedia(source));
+  ipcMain.handle('mediaStore:read', async (_event, key: string): Promise<Uint8Array> => {
+    return new Uint8Array(await fs.readFile(mediaStorePath(key)));
+  });
+  ipcMain.handle('mediaStore:remove', async (_event, key: string) => {
+    await fs.rm(mediaStorePath(key), { force: true });
+  });
+  ipcMain.handle('mediaStore:list', async (): Promise<string[]> => {
+    try {
+      return (await fs.readdir(mediaStoreDir())).filter(isMediaStoreKey);
+    } catch {
+      return [];
     }
   });
 

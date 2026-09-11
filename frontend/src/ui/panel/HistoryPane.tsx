@@ -12,10 +12,11 @@ function formatDate(ts: number): string {
 
 const KIND_LABEL: Record<SchemeMedia['kind'], string> = { image: '图片', video: '视频', gif: 'GIF' };
 
-/** 素材一行：文件名 + 类型；预设与方案分开之前存的旧记录没记素材 */
+/** 素材一行：文件名 + 类型，文件已存进应用的标一下；预设与方案分开之前存的旧记录没记素材 */
 function mediaLabel(media: SchemeMedia | null): string {
   if (!media) return '未绑定素材（旧记录）';
-  return `${media.name}（${KIND_LABEL[media.kind]}）`;
+  const label = `${media.name}（${KIND_LABEL[media.kind]}）`;
+  return media.stored ? `${label}· 文件已随方案保存` : label;
 }
 
 interface HistoryItemProps {

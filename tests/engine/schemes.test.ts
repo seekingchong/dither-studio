@@ -7,7 +7,9 @@ import {
   builtinPresetParams,
   findBuiltinPreset,
   mediaKey,
+  orphanStoredKeys,
   presetNameById,
+  referencedStoredKeys,
   sanitizeSchemes,
   schemeBaseName,
   schemeDiffers,
@@ -52,11 +54,40 @@ describe('素材身份', () => {
     expect(mediaKey(null)).toBeNull();
   });
 
-  it('schemeMediaOf 只留文件信息：不带位图，路径与时长有才记', () => {
-    const plain = schemeMediaOf(media());
+  it('schemeMediaOf 只留文件信息：不带位图与原件字节，路径、时长、应用里的存储键有才记', () => {
+    const plain = schemeMediaOf(media({ source: {} as Blob }));
     expect(plain).toEqual({ name: 'photo.png', kind: 'image', width: 800, height: 500 });
-    const clip = schemeMediaOf(media({ name: 'clip.mov', kind: 'video', duration: 3.5, path: '/tmp/clip.mov' }));
-    expect(clip).toEqual({ name: 'clip.mov', kind: 'video', width: 800, height: 500, duration: 3.5, path: '/tmp/clip.mov' });
+    const clip = schemeMediaOf(media({ name: 'clip.mov', kind: 'video', duration: 3.5, path: '/tmp/clip.mov', stored: `${'a'.repeat(64)}.mov` }));
+    expect(clip).toEqual({ name: 'clip.mov', kind: 'video', width: 800, height: 500, duration: 3.5, path: '/tmp/clip.mov', stored: `${'a'.repeat(64)}.mov` });
+    // 存储键不参与身份：同一份素材存没存进应用都是它
+    expect(mediaKey(clip)).toBe(mediaKey(media({ name: 'clip.mov', kind: 'video', duration: 3.5 })));
+  });
+});
+
+describe('应用里的素材文件', () => {
+  const key = (c: string, ext = 'png') => `${c.repeat(64)}.${ext}`;
+  const withStored = (id: string, stored: string | undefined) => scheme({ id, media: { name: 'a.png', kind: 'image', width: 1, height: 1, ...(stored ? { stored } : {}) } });
+
+  it('referencedStoredKeys 收集方案们引用的键，没存过的与没素材的跳过', () => {
+    const list = [withStored('a', key('1')), withStored('b', key('2')), withStored('c', undefined), withStored('d', key('1')), scheme({ id: 'e', media: null })];
+    expect(Array.from(referencedStoredKeys(list)).sort()).toEqual([key('1'), key('2')]);
+  });
+
+  it('orphanStoredKeys：没被任何方案引用、也不在 keep 里的才算孤儿；重复的键只报一次', () => {
+    const list = [withStored('a', key('1')), withStored('b', key('2'))];
+    expect(orphanStoredKeys(list, [key('1'), key('2'), key('3'), key('3'), key('4', 'mp4')])).toEqual([key('3'), key('4', 'mp4')]);
+    // 坑位里正放着的素材（keep）先留着
+    expect(orphanStoredKeys(list, [key('3'), key('4', 'mp4')], [key('4', 'mp4')])).toEqual([key('3')]);
+    // 一条方案都没有时，存储里的全是孤儿
+    expect(orphanStoredKeys([], [key('1')])).toEqual([key('1')]);
+    expect(orphanStoredKeys(list, [])).toEqual([]);
+  });
+
+  it('删掉一条方案后，它的键别的方案还在用就不算孤儿', () => {
+    const list = [withStored('a', key('1')), withStored('b', key('1'))];
+    const remaining = list.filter((s) => s.id !== 'a');
+    expect(orphanStoredKeys(remaining, [key('1')])).toEqual([]);
+    expect(orphanStoredKeys([], [key('1')])).toEqual([key('1')]);
   });
 });
 
@@ -123,10 +154,11 @@ describe('方案存储', () => {
         createdAt: 1,
         updatedAt: 2,
       },
-      { id: 'identity', name: 'i', params: {}, media: { name: 'v.mp4', kind: 'video', width: 1, height: 1, duration: 4, path: '/v.mp4' }, edit: { rotate: 0 }, trim: { start: 0 }, thumbnail: 'nope' },
+      { id: 'identity', name: 'i', params: {}, media: { name: 'v.mp4', kind: 'video', width: 1, height: 1, duration: 4, path: '/v.mp4', stored: `${'f'.repeat(64)}.mp4` }, edit: { rotate: 0 }, trim: { start: 0 }, thumbnail: 'nope' },
       { id: 'badmedia', name: 'b', params: {}, media: { name: 'x', kind: 'audio', width: 1, height: 1 } },
+      { id: 'badstored', name: 'b', params: {}, media: { name: 'x.png', kind: 'image', width: 1, height: 1, stored: 42 } },
     ]);
-    expect(list.map((s) => s.id)).toEqual(['ok', 'full', 'identity', 'badmedia']);
+    expect(list.map((s) => s.id)).toEqual(['ok', 'full', 'identity', 'badmedia', 'badstored']);
     expect(list[0]).toEqual({ id: 'ok', name: 'n', params: {}, presetId: 'default', media: null, createdAt: 5 });
     const full = list[1];
     expect(full.name).toHaveLength(60);
@@ -137,11 +169,13 @@ describe('方案存储', () => {
     expect(full.thumbnail).toBe('data:image/png;base64,AAAA');
     expect(full.updatedAt).toBe(2);
     const identity = list[2];
-    expect(identity.media).toEqual({ name: 'v.mp4', kind: 'video', width: 1, height: 1, duration: 4, path: '/v.mp4' });
+    expect(identity.media).toEqual({ name: 'v.mp4', kind: 'video', width: 1, height: 1, duration: 4, path: '/v.mp4', stored: `${'f'.repeat(64)}.mp4` });
     expect(identity.edit).toBeUndefined();
     expect(identity.trim).toBeUndefined();
     expect(identity.thumbnail).toBeUndefined();
     expect(list[3].media).toBeNull();
+    // 存储键不是字符串就当没存过
+    expect(list[4].media).toEqual({ name: 'x.png', kind: 'image', width: 1, height: 1 });
     expect(sanitizeSchemes('x')).toEqual([]);
   });
 

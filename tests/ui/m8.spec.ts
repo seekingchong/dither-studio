@@ -132,7 +132,8 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   // 一条记录：名字「素材名 · 预设名」，带缩略图、素材、来源与摘要
   await expect(page.locator('.history-item')).toHaveCount(1);
   await expect(page.locator('.history-item__name')).toContainText('sample-0 · 我的 GB');
-  await expect(page.locator('.history-item__media')).toHaveText('sample-0.png（图片）');
+  // 素材文件本身也存进了应用（web 端在 IndexedDB），素材行标着
+  await expect(page.locator('.history-item__media')).toHaveText('sample-0.png（图片）· 文件已随方案保存');
   await expect(page.locator('.history-item__meta')).toHaveText(/基于 我的 GB · 有序 · Bayer 4×4 · Palette · 像素 4/);
   await expect(page.locator('.history-item__thumb img')).toHaveAttribute('src', /^data:image\/png/);
   await expect(page.locator('.history-item__tag')).toHaveText('使用中');
@@ -144,20 +145,21 @@ test('预设模块在参数上方：选方案、微调、保存为我的预设�
   // 参数本身不持久化：回到默认 Bayer 2×2
   await expect(matrixValue(page)).toHaveText('Bayer 2×2');
 
-  // 从历史页应用：回到参数页，参数与来源预设都恢复；素材还没放回来，方案先只套参数
+  // 从历史页应用：回到参数页，参数与来源预设都恢复；刷新后坑位是空的，素材从应用里存的那份读回来，不用再去找原文件
   await page.getByRole('tab', { name: '历史' }).click();
   await expect(page.locator('.history-item')).toHaveCount(1);
   await page.locator('.history-item').getByRole('button', { name: '应用', exact: true }).click();
   await expect(page.getByTestId('preset-picker')).toBeVisible();
-  await expect(page.locator('.tda-toast')).toContainText('放入素材后再看效果');
+  await expect(page.locator('[data-slot="0"]')).toHaveAttribute('data-rendered', 'true');
   await expect(familyValue(page)).toHaveText('有序');
   await expect(matrixValue(page)).toHaveText('Bayer 4×4');
   await openSection(page, 'tone');
   await expect(page.locator('[data-param="tone.brightness"] input[type="range"]')).toHaveValue('25');
   await expect(page.getByTestId('preset-status')).toHaveText('当前预设：我的 GB');
-  // 素材没回来算动过；同一份素材放回来就不算
+  // 素材回来了就是同一份：不算动过，标着当前素材；再放一次同一份也一样
   await page.getByRole('tab', { name: '历史' }).click();
-  await expect(page.locator('.history-item__tag')).toHaveText('使用中 · 已微调');
+  await expect(page.locator('.history-item__tag')).toHaveText('使用中');
+  await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
   await dropImage(page);
   await expect(page.locator('.history-item__tag')).toHaveText('使用中');
   await expect(page.locator('.history-item__chip')).toHaveText('当前素材');
